@@ -1,0 +1,13 @@
+[package]
+name = "radio"
+version = "0.1.0"
+category = "components"
+description = "Single-selection control within a mutually exclusive group"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "radio.spec"

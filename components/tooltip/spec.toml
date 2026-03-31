@@ -1,0 +1,13 @@
+[package]
+name = "tooltip"
+version = "0.1.0"
+category = "components"
+description = "Small informational popup shown on hover or focus of a trigger element"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "tooltip.spec"

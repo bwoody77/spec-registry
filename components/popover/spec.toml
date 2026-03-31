@@ -1,0 +1,13 @@
+[package]
+name = "popover"
+version = "0.1.0"
+category = "components"
+description = "Floating content panel anchored to a trigger element"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "popover.spec"

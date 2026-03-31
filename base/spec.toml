@@ -1,0 +1,9 @@
+[package]
+name = "visual-system"
+version = "0.1.0"
+category = "base"
+description = "Default visual system with design tokens, spacing, type scale, palette, and semantic colors"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

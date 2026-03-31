@@ -1,0 +1,13 @@
+[package]
+name = "badge"
+version = "0.1.0"
+category = "components"
+description = "Small label for counts, statuses, or categorical indicators"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "badge.spec"

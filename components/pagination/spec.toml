@@ -1,0 +1,13 @@
+[package]
+name = "pagination"
+version = "0.1.0"
+category = "components"
+description = "Page navigation controls for paginated data sets"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "pagination.spec"

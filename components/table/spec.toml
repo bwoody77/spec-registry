@@ -1,0 +1,13 @@
+[package]
+name = "table"
+version = "0.1.0"
+category = "components"
+description = "Structured data table with headers, rows, and optional sorting"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "table.spec"

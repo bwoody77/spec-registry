@@ -1,0 +1,13 @@
+[package]
+name = "toggle"
+version = "0.1.0"
+category = "components"
+description = "On/off switch control for binary settings"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "toggle.spec"

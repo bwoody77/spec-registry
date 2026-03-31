@@ -1,0 +1,13 @@
+[package]
+name = "timeline"
+version = "0.1.0"
+category = "components"
+description = "Chronological list of events displayed along a vertical axis"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "timeline.spec"

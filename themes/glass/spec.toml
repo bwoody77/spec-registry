@@ -1,0 +1,9 @@
+[package]
+name = "theme-glass"
+version = "0.1.0"
+category = "themes"
+description = "The Glass theme preset for Spec"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

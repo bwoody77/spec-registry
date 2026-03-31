@@ -1,0 +1,13 @@
+[package]
+name = "text-input"
+version = "0.1.0"
+category = "components"
+description = "Single-line text field with label, placeholder, and validation support"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "text-input.spec"

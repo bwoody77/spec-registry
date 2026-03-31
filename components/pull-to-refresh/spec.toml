@@ -1,0 +1,13 @@
+[package]
+name = "pull-to-refresh"
+version = "0.1.0"
+category = "components"
+description = "Touch-driven pull gesture to reload content on mobile"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "pull-to-refresh.spec"

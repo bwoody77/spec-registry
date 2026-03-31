@@ -1,0 +1,9 @@
+[package]
+name = "theme-solarized"
+version = "0.1.0"
+category = "themes"
+description = "The Solarized theme preset for Spec"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

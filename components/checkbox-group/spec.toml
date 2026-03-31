@@ -1,0 +1,13 @@
+[package]
+name = "checkbox-group"
+version = "0.1.0"
+category = "components"
+description = "Grouped set of checkboxes with shared label and validation"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "checkbox-group.spec"

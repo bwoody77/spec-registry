@@ -1,0 +1,12 @@
+[package]
+name = "heroicons"
+version = "0.1.0"
+category = "icons"
+description = "Spec wrappers for the Heroicons icon set by Tailwind Labs"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/icons-heroicons"

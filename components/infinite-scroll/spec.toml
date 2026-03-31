@@ -1,0 +1,13 @@
+[package]
+name = "infinite-scroll"
+version = "0.1.0"
+category = "components"
+description = "Automatic content loading triggered by scroll position"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "infinite-scroll.spec"

@@ -1,0 +1,9 @@
+[package]
+name = "theme-newspaper"
+version = "0.1.0"
+category = "themes"
+description = "The Newspaper theme preset for Spec"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

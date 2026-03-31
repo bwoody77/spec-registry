@@ -1,0 +1,13 @@
+[package]
+name = "checkbox"
+version = "0.1.0"
+category = "components"
+description = "Toggle control for boolean selections with label support"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "checkbox.spec"

@@ -1,0 +1,13 @@
+[package]
+name = "chart"
+version = "0.1.0"
+category = "components"
+description = "Data visualization component supporting bar, line, and pie chart types"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "chart.spec"

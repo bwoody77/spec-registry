@@ -1,0 +1,13 @@
+[package]
+name = "command-palette"
+version = "0.1.0"
+category = "components"
+description = "Searchable command launcher overlay activated by keyboard shortcut"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "command-palette.spec"

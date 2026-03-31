@@ -1,0 +1,13 @@
+[package]
+name = "image"
+version = "0.1.0"
+category = "components"
+description = "Responsive image with lazy loading, fallback, and aspect ratio control"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "image.spec"

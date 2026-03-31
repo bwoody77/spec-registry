@@ -1,0 +1,21 @@
+[registry]
+name = "spec-registry"
+version = "0.1.0"
+description = "Official curated package registry for the Spec language"
+
+[categories]
+components = "Core UI building blocks"
+themes = "Visual theme presets that swap design tokens"
+icons = "Icon set wrappers for popular icon libraries"
+layouts = "Page-level layout patterns and templates"
+fonts = "Bundled fonts with matching type scale tokens"
+animations = "Reusable animation and transition presets"
+validators = "Input validation rules for forms"
+connectors = "Data source bindings (REST, GraphQL, etc.)"
+i18n = "Internationalization and locale bundles"
+a11y = "Accessibility presets and overlays"
+charts = "Data visualization chart types"
+starters = "Full app scaffold templates"
+integrations = "Third-party service wrappers (auth, payments, etc.)"
+dev-tools = "Development-only debugging and inspection tools"
+base = "Core visual system and design token definitions"

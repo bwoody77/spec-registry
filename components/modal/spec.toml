@@ -1,0 +1,13 @@
+[package]
+name = "modal"
+version = "0.1.0"
+category = "components"
+description = "Overlay dialog for focused content and actions"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "modal.spec"

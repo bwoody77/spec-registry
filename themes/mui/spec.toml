@@ -1,0 +1,9 @@
+[package]
+name = "theme-mui"
+version = "0.1.0"
+category = "themes"
+description = "The MUI theme preset for Spec"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

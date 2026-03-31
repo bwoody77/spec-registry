@@ -1,0 +1,9 @@
+[package]
+name = "theme-rose-pine"
+version = "0.1.0"
+category = "themes"
+description = "The Rose Pine theme preset for Spec"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

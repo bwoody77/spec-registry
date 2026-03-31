@@ -1,0 +1,13 @@
+[package]
+name = "list"
+version = "0.1.0"
+category = "components"
+description = "Vertical list of items with optional icons, actions, and dividers"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "list.spec"

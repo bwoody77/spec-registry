@@ -1,0 +1,13 @@
+[package]
+name = "multi-select"
+version = "0.1.0"
+category = "components"
+description = "Dropdown that allows selecting multiple options with tag display"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "multi-select.spec"

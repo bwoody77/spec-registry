@@ -1,0 +1,13 @@
+[package]
+name = "data-grid"
+version = "0.1.0"
+category = "components"
+description = "High-performance grid for large tabular datasets with sorting and filtering"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "data-grid-spec.spec"

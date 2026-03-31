@@ -1,0 +1,13 @@
+[package]
+name = "empty-state"
+version = "0.1.0"
+category = "components"
+description = "Placeholder display shown when a view has no content or results"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "empty-state.spec"

@@ -1,0 +1,13 @@
+[package]
+name = "button"
+version = "0.1.0"
+category = "components"
+description = "Clickable button with variant and size support"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "button.spec"

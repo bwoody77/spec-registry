@@ -1,0 +1,13 @@
+[package]
+name = "nav-stack"
+version = "0.1.0"
+category = "components"
+description = "Stack-based navigation controller with push and pop transitions"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "nav-stack.spec"

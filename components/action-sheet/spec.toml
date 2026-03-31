@@ -1,0 +1,13 @@
+[package]
+name = "action-sheet"
+version = "0.1.0"
+category = "components"
+description = "Bottom-anchored menu of contextual actions for mobile interfaces"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "action-sheet.spec"

@@ -1,0 +1,13 @@
+[package]
+name = "progress"
+version = "0.1.0"
+category = "components"
+description = "Visual indicator for task completion with bar and circular variants"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "progress.spec"

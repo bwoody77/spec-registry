@@ -1,0 +1,13 @@
+[package]
+name = "editable-grid"
+version = "0.1.0"
+category = "components"
+description = "Spreadsheet-style grid with inline cell editing and validation"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "editable-grid-spec.spec"

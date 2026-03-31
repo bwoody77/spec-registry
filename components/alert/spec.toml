@@ -1,0 +1,13 @@
+[package]
+name = "alert"
+version = "0.1.0"
+category = "components"
+description = "Inline notification banner for status messages and warnings"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "alert.spec"

@@ -1,0 +1,13 @@
+[package]
+name = "confirm-dialog"
+version = "0.1.0"
+category = "components"
+description = "Modal prompt requiring user confirmation before a destructive action"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "confirm-dialog.spec"

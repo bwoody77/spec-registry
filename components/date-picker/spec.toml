@@ -1,0 +1,13 @@
+[package]
+name = "date-picker"
+version = "0.1.0"
+category = "components"
+description = "Calendar-based input for selecting dates or date ranges"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "date-picker.spec"

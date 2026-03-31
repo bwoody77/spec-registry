@@ -1,0 +1,13 @@
+[package]
+name = "breadcrumb"
+version = "0.1.0"
+category = "components"
+description = "Hierarchical navigation trail showing the current page location"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "breadcrumb.spec"

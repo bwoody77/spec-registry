@@ -1,0 +1,13 @@
+[package]
+name = "stat"
+version = "0.1.0"
+category = "components"
+description = "Key metric display with label, value, and optional trend indicator"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "stat.spec"
