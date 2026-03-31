@@ -1,0 +1,9 @@
+[package]
+name = "auth-page"
+version = "0.1.0"
+category = "layouts"
+description = "Centered authentication page layout with logo, form, and footer slots"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

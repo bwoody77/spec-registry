@@ -1,0 +1,9 @@
+[package]
+name = "settings-page"
+version = "0.1.0"
+category = "layouts"
+description = "Settings page layout with sidebar navigation and content area"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

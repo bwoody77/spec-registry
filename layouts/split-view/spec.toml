@@ -1,0 +1,9 @@
+[package]
+name = "split-view"
+version = "0.1.0"
+category = "layouts"
+description = "Two-panel resizable layout with draggable divider"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

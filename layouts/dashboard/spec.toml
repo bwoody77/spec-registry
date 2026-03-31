@@ -1,0 +1,9 @@
+[package]
+name = "dashboard"
+version = "0.1.0"
+category = "layouts"
+description = "Sidebar + header + content area dashboard layout composing AppShell and Sidebar"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"

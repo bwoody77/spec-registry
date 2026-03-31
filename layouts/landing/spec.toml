@@ -1,0 +1,9 @@
+[package]
+name = "landing"
+version = "0.1.0"
+category = "layouts"
+description = "Hero + sections marketing landing page layout"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
