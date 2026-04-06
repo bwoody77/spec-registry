@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme catppuccin {
   palette.primary: purple
   semantic.surface: "#1E1E2E"

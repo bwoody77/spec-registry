@@ -1,3 +1,5 @@
+@import "../fonts/source-sans"
+
 @theme solarized {
   palette.primary: cyan
   semantic.surface: "#EEE8D5"

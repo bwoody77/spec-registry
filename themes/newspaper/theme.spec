@@ -1,3 +1,5 @@
+@import "../fonts/playfair"
+
 @theme newspaper {
   palette.primary: slate
   semantic.surface: "#F5F1EB"

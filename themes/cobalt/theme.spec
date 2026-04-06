@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme cobalt {
   palette.primary: blue
   semantic.surface: "#15232D"

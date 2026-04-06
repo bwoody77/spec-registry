@@ -1,3 +1,5 @@
+@import "../fonts/nunito"
+
 @theme cartoon {
   palette.primary: emerald
   semantic.interactive: "#2d6a4f"

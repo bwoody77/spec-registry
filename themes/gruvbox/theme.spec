@@ -1,3 +1,5 @@
+@import "../fonts/jetbrains-mono"
+
 @theme gruvbox {
   palette.primary: orange
   semantic.surface: "#282828"

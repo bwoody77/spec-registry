@@ -1,3 +1,6 @@
+@import "../fonts/rajdhani"
+@import "../fonts/orbitron"
+
 @theme cyberpunk {
   palette.primary: pink
   semantic.surface: "#0D001A"

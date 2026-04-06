@@ -1,3 +1,5 @@
+@import "../fonts/dm-sans"
+
 @theme lavender {
   palette.primary: violet
   semantic.surface: "#F5F3FF"

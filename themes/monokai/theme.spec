@@ -1,3 +1,5 @@
+@import "../fonts/fira-code"
+
 @theme monokai {
   palette.primary: pink
   semantic.surface: "#272822"

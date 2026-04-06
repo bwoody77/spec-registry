@@ -1,3 +1,5 @@
+@import "../fonts/dm-sans"
+
 @theme sunset {
   palette.primary: orange
   semantic.surface: "#FFF8F1"

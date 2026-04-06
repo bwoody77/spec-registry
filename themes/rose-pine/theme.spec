@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme rose-pine {
   palette.primary: rose
   semantic.surface: "#191724"

@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme synthwave {
   palette.primary: pink
   semantic.surface: "#241B2F"

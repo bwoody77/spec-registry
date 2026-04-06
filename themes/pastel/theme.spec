@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme pastel {
   palette.primary: purple
   semantic.surface: "#F8F6FF"

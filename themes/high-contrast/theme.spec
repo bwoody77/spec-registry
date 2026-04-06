@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme high-contrast {
   palette.primary: blue
   semantic.surface: "#FFFFFF"

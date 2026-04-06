@@ -1,3 +1,5 @@
+@import "../fonts/fira-code"
+
 @theme retro {
   palette.primary: amber
   semantic.surface: "#0A0800"

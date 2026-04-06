@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme nord {
   palette.primary: blue
   semantic.surface: "#2E3440"

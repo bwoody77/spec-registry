@@ -1,3 +1,5 @@
+@import "../fonts/noto-sans"
+
 @theme sakura {
   palette.primary: rose
   semantic.surface: "#FFF5F5"

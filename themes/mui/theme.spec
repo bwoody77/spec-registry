@@ -1,3 +1,5 @@
+@import "../fonts/roboto"
+
 @theme mui {
   palette.primary: blue
   semantic.interactive: "#1976d2"

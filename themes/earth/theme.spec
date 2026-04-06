@@ -1,3 +1,5 @@
+@import "../fonts/merriweather-sans"
+
 @theme earth {
   palette.primary: orange
   semantic.surface: "#F5F0EB"

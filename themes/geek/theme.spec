@@ -1,3 +1,5 @@
+@import "../fonts/fira-code"
+
 @theme geek {
   palette.primary: green
   semantic.surface: "#0a0a0a"

@@ -1,3 +1,5 @@
+@import "../fonts/fira-code"
+
 @theme dracula {
   palette.primary: purple
   semantic.surface: "#282A36"

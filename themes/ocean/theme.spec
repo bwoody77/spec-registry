@@ -1,3 +1,5 @@
+@import "../fonts/inter"
+
 @theme ocean {
   palette.primary: teal
   semantic.surface: "#0C1929"
