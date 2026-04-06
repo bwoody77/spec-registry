@@ -1,0 +1,14 @@
+[package]
+name = "font-dm-sans"
+version = "0.1.0"
+category = "fonts"
+description = "DM Sans — clean geometric sans-serif with a friendly, modern feel"
+license = "OFL-1.1"
+
+[fonts]
+family = "DM Sans"
+variants = ["regular", "medium", "semibold", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

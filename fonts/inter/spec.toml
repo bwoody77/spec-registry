@@ -1,0 +1,14 @@
+[package]
+name = "font-inter"
+version = "0.1.0"
+category = "fonts"
+description = "Inter font family — clean, versatile sans-serif optimized for screens"
+license = "OFL-1.1"
+
+[fonts]
+family = "Inter"
+variants = ["regular", "medium", "semibold", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

@@ -1,0 +1,14 @@
+[package]
+name = "font-jetbrains-mono"
+version = "0.1.0"
+category = "fonts"
+description = "JetBrains Mono — monospace font designed for code readability"
+license = "OFL-1.1"
+
+[fonts]
+family = "JetBrains Mono"
+variants = ["regular", "medium", "bold"]
+style = "monospace"
+
+[compatibility]
+spec = ">=0.1.0"

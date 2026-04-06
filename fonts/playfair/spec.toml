@@ -1,0 +1,14 @@
+[package]
+name = "font-playfair"
+version = "0.1.0"
+category = "fonts"
+description = "Playfair Display — elegant serif typeface for editorial and display use"
+license = "OFL-1.1"
+
+[fonts]
+family = "Playfair Display"
+variants = ["regular", "medium", "semibold", "bold"]
+style = "serif"
+
+[compatibility]
+spec = ">=0.1.0"

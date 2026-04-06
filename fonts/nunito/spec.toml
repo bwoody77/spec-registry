@@ -1,0 +1,14 @@
+[package]
+name = "font-nunito"
+version = "0.1.0"
+category = "fonts"
+description = "Nunito — rounded sans-serif with a friendly, approachable feel"
+license = "OFL-1.1"
+
+[fonts]
+family = "Nunito"
+variants = ["regular", "medium", "semibold", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

@@ -1,0 +1,14 @@
+[package]
+name = "font-source-code-pro"
+version = "0.1.0"
+category = "fonts"
+description = "Source Code Pro — Adobe's open-source monospace designed for coding"
+license = "OFL-1.1"
+
+[fonts]
+family = "Source Code Pro"
+variants = ["regular", "medium", "bold"]
+style = "monospace"
+
+[compatibility]
+spec = ">=0.1.0"

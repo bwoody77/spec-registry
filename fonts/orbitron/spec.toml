@@ -1,0 +1,14 @@
+[package]
+name = "font-orbitron"
+version = "0.1.0"
+category = "fonts"
+description = "Orbitron — geometric display typeface with a sci-fi, futuristic aesthetic"
+license = "OFL-1.1"
+
+[fonts]
+family = "Orbitron"
+variants = ["regular", "medium", "semibold", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

@@ -1,0 +1,14 @@
+[package]
+name = "font-noto-sans"
+version = "0.1.0"
+category = "fonts"
+description = "Noto Sans — Google's universal sans-serif with broad language coverage"
+license = "OFL-1.1"
+
+[fonts]
+family = "Noto Sans"
+variants = ["regular", "medium", "semibold", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

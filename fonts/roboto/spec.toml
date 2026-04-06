@@ -1,0 +1,14 @@
+[package]
+name = "font-roboto"
+version = "0.1.0"
+category = "fonts"
+description = "Roboto — Google's neo-grotesque sans-serif, the Material Design default"
+license = "Apache-2.0"
+
+[fonts]
+family = "Roboto"
+variants = ["regular", "medium", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

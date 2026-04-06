@@ -1,0 +1,14 @@
+[package]
+name = "font-merriweather-sans"
+version = "0.1.0"
+category = "fonts"
+description = "Merriweather Sans — warm, readable sans-serif companion to Merriweather"
+license = "OFL-1.1"
+
+[fonts]
+family = "Merriweather Sans"
+variants = ["regular", "medium", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

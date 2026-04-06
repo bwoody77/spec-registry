@@ -1,0 +1,14 @@
+[package]
+name = "font-fira-code"
+version = "0.1.0"
+category = "fonts"
+description = "Fira Code — monospace font with programming ligatures"
+license = "OFL-1.1"
+
+[fonts]
+family = "Fira Code"
+variants = ["regular", "medium", "semibold", "bold"]
+style = "monospace"
+
+[compatibility]
+spec = ">=0.1.0"

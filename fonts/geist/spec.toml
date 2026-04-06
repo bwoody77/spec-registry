@@ -1,0 +1,16 @@
+[package]
+name = "font-geist"
+version = "0.1.0"
+category = "fonts"
+description = "Geist font family — Vercel's modern sans-serif and monospace pair"
+license = "OFL-1.1"
+
+[fonts]
+family = "Geist"
+variants = ["regular", "medium", "semibold", "bold"]
+mono-family = "Geist Mono"
+mono-variants = ["regular", "medium", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"

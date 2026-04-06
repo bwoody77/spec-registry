@@ -1,0 +1,14 @@
+[package]
+name = "font-source-sans"
+version = "0.1.0"
+category = "fonts"
+description = "Source Sans 3 — Adobe's open-source humanist sans-serif"
+license = "OFL-1.1"
+
+[fonts]
+family = "Source Sans 3"
+variants = ["regular", "semibold", "bold"]
+style = "sans-serif"
+
+[compatibility]
+spec = ">=0.1.0"
