@@ -2,8 +2,11 @@
 name = "auth-page"
 version = "0.1.0"
 category = "layouts"
-description = "Centered authentication page layout with logo, form, and footer slots"
+description = "Centered login/signup/forgot-password card layout with logo, form, and footer slots"
 license = "MIT"
 
 [compatibility]
 spec = ">=0.1.0"
+
+[source]
+file = "auth-page.spec"

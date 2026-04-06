@@ -2,8 +2,11 @@
 name = "dashboard"
 version = "0.1.0"
 category = "layouts"
-description = "Sidebar + header + content area dashboard layout composing AppShell and Sidebar"
+description = "Sidebar + header + content area admin shell with collapsible mobile nav"
 license = "MIT"
 
 [compatibility]
 spec = ">=0.1.0"
+
+[source]
+file = "dashboard.spec"

@@ -2,8 +2,11 @@
 name = "split-view"
 version = "0.1.0"
 category = "layouts"
-description = "Two-panel resizable layout with draggable divider"
+description = "Two-panel resizable layout with draggable divider and mobile stacking"
 license = "MIT"
 
 [compatibility]
 spec = ">=0.1.0"
+
+[source]
+file = "split-view.spec"

@@ -2,8 +2,11 @@
 name = "settings-page"
 version = "0.1.0"
 category = "layouts"
-description = "Settings page layout with sidebar navigation and content area"
+description = "Settings page with sidebar section navigation and responsive stacking"
 license = "MIT"
 
 [compatibility]
 spec = ">=0.1.0"
+
+[source]
+file = "settings-page.spec"

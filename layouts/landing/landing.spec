@@ -54,7 +54,6 @@ component Landing(
       block {
         width: 100%
         max-width: maxWidth
-        margin-x: auto
         layout: horizontal, align: center, justify: between
         @slot("nav")
       }
