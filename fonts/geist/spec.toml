@@ -7,7 +7,7 @@ license = "OFL-1.1"
 
 [fonts]
 family = "Geist"
-variants = ["regular", "medium", "semibold", "bold"]
+variants = ["regular", "medium", "bold"]
 mono-family = "Geist Mono"
 mono-variants = ["regular", "medium", "bold"]
 style = "sans-serif"
