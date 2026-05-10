@@ -1,0 +1,16 @@
+[package]
+name = "autocomplete"
+version = "0.1.0"
+category = "components"
+description = "Type-to-filter combobox — TextInput that opens an inline dropdown filtered by what the user types. Use when option lists are too long for a popup-based Select."
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "autocomplete.spec"
+
+[depends]
+text-input = "0.1.0"
