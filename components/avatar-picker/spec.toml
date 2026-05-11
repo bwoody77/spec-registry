@@ -1,0 +1,16 @@
+[package]
+name = "avatar-picker"
+version = "0.1.0"
+category = "components"
+description = "User avatar uploader with circular crop preview and zoom"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "avatar-picker.spec"
+
+[extern]
+files = ["../_extern/avatar-picker.js"]

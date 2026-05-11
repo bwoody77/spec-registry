@@ -1,0 +1,13 @@
+[package]
+name = "virtual-list"
+version = "0.1.0"
+category = "components"
+description = "Virtualized scroll container — renders only the visible window of a large list, emits range events so the caller can slice their data"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "virtual-list.spec"
