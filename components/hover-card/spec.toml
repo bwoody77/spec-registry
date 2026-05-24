@@ -1,0 +1,13 @@
+[package]
+name = "hover-card"
+version = "0.1.1"
+category = "components"
+description = "Hover-triggered popover anchored to a trigger; portals via position:fixed to escape overflow ancestors"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "hover-card.spec"
