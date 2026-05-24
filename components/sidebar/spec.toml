@@ -1,6 +1,6 @@
 [package]
 name = "sidebar"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Vertical navigation panel with collapsible sections and menu items"
 license = "MIT"

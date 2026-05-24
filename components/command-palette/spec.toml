@@ -1,6 +1,6 @@
 [package]
 name = "command-palette"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Searchable command launcher overlay activated by keyboard shortcut"
 license = "MIT"

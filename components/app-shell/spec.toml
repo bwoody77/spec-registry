@@ -1,6 +1,6 @@
 [package]
 name = "app-shell"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Top-level layout wrapper with header, sidebar, and content regions"
 license = "MIT"

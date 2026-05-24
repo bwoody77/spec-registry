@@ -1,6 +1,6 @@
 [package]
 name = "time-picker"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Input control for selecting a time value with hour and minute fields"
 license = "MIT"

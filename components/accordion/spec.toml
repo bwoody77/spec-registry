@@ -1,6 +1,6 @@
 [package]
 name = "accordion"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Collapsible content sections with expand and collapse behavior"
 license = "MIT"
