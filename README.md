@@ -37,6 +37,8 @@ spec install --frozen    # validates lockfile is in sync with manifest (CI-frien
 
 `spec.packages.json` accepts caret (`^0.2.0`), tilde (`~0.2.0`), and exact (`0.2.0`) ranges. `spec.lock.json` records the exact installed version for each entry — commit both files.
 
+`spec compile` prints a `⚠` warning per outdated cached component, comparing each entry in `spec.packages.json` against this registry. Pass `--no-update-check` to skip (offline builds, pinned CI).
+
 ## Fonts
 
 Font packages bundle woff2 files and declare them via `@fonts` blocks. The compiler emits `FontFace` API calls (pure JS, zero CSS). Fonts are registered lazily — the browser only downloads a font when an element actually uses it.
