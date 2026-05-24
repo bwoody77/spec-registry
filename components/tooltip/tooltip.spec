@@ -1,3 +1,18 @@
+// Tooltip — small hover-triggered text bubble anchored to a trigger.
+//
+// Uses the spec runtime's `anchor:` keyword to position the bubble via
+// positionDropdown — same mechanism comboboxes use. positionDropdown sets
+// `position: fixed` so the bubble escapes any `overflow: hidden | auto`
+// ancestor (a common pain point for tooltips inside data grids, dropdown
+// menus, or scrolling cards). Auto-flips above/below based on viewport
+// space and clamps the right edge.
+//
+// Caveat: if any ancestor of the trigger has a non-`none` `transform`,
+// `filter`, or `perspective`, browsers re-root the bubble's `position:fixed`
+// against that ancestor (CSS Transforms spec). For richer hover overlays
+// that need to escape transformed ancestors, see HoverCard (which doesn't
+// solve this either at the spec level — it's an open Spec limitation).
+
 component Tooltip(text: string = "", placement: string = "top") {
   @state {
     visible: false
@@ -11,88 +26,32 @@ component Tooltip(text: string = "", placement: string = "top") {
     }
   }
 
+  // Outer wrap groups trigger + bubble so `anchor:` on the bubble resolves
+  // to the trigger as previous sibling. `inline: true` keeps Tooltip
+  // composable next to inline siblings (the prior version did the same).
   block {
-    position: "relative"
+    inline: true
     on mouse-enter: showTip()
     on mouse-leave: hideTip()
     on focus: showTip()
     on blur: hideTip()
 
-    @children
-
-    // Tooltip bubble — top
+    // Trigger — caller-supplied content
     block {
-      visibility: visible == true && placement == "top"
-      position: "absolute"
-      z-index: 1000
-      bottom: 100%
-      left: 50%
-      transform: "translateX(-50%)"
-      margin: 8px
-      padding: spacing.2
-      background: "#1e293b"
-      border-radius: 6px
-      shadow: elevation.floating
-
-      text(text) {
-        style: type.label-sm
-        color: "#f1f5f9"
-      }
+      @children
     }
 
-    // Tooltip bubble — bottom
+    // Bubble — anchored to the trigger (previous sibling) via positionDropdown.
+    // visibility on the block (not on the text — text() silently ignores
+    // visibility per spec compiler quirk).
     block {
-      visibility: visible == true && placement == "bottom"
-      position: "absolute"
-      z-index: 1000
-      top: 100%
-      left: 50%
-      transform: "translateX(-50%)"
-      margin: 8px
+      visibility: visible == true
+      anchor: placement
       padding: spacing.2
       background: "#1e293b"
       border-radius: 6px
       shadow: elevation.floating
-
-      text(text) {
-        style: type.label-sm
-        color: "#f1f5f9"
-      }
-    }
-
-    // Tooltip bubble — left
-    block {
-      visibility: visible == true && placement == "left"
-      position: "absolute"
       z-index: 1000
-      right: 100%
-      top: 50%
-      transform: "translateY(-50%)"
-      margin: 8px
-      padding: spacing.2
-      background: "#1e293b"
-      border-radius: 6px
-      shadow: elevation.floating
-
-      text(text) {
-        style: type.label-sm
-        color: "#f1f5f9"
-      }
-    }
-
-    // Tooltip bubble — right
-    block {
-      visibility: visible == true && placement == "right"
-      position: "absolute"
-      z-index: 1000
-      left: 100%
-      top: 50%
-      transform: "translateY(-50%)"
-      margin: 8px
-      padding: spacing.2
-      background: "#1e293b"
-      border-radius: 6px
-      shadow: elevation.floating
 
       text(text) {
         style: type.label-sm
