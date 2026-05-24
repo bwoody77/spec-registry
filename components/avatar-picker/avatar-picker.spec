@@ -121,11 +121,14 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
         }
       }
 
-      text(initials) {
-        visibility: hasAvatar == false
-        color: "#ffffff"
-        weight: 700
-        style: type.body-md
+      block {
+        visibility: !hasAvatar
+        layout: horizontal, justify: center, align: center
+        text(initials) {
+          color: "#ffffff"
+          weight: 700
+          style: type.body-md
+        }
       }
     }
 

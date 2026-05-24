@@ -1,9 +1,17 @@
+
+
 component AppShell(
   breakpoint: string = "md",
   mobileNav: string = "bottom-bar"
 ) {
   @state {
     isMobile: true
+  }
+
+  @actions {
+    setMobile(val) {
+      isMobile = val
+    }
   }
 
   block {
@@ -13,69 +21,31 @@ component AppShell(
     layout: vertical
     scroll-boundary: "contain"
 
-    // Desktop layout (sidebar + content)
+    // Main column (responsive() triggers breakpoint creation for isMobile detection)
     block {
-      visibility: isMobile == false
-      grow: true
-      layout: horizontal
-      overflow: "hidden"
-
-      // Sidebar
-      block {
-        width: responsive(0px, md: 280px)
-        height: 100%
-        overflow: "auto"
-        border-right: borders.default
-        background: semantic.surface
-        @slot("sidebar")
-      }
-
-      // Main content area
-      block {
-        grow: true
-        layout: vertical
-        overflow: "hidden"
-
-        // Header
-        block {
-          @slot("header")
-        }
-
-        // Content
-        block {
-          grow: true
-          overflow: "auto"
-          @children
-        }
-      }
-    }
-
-    // Mobile layout (content + bottom bar)
-    block {
-      visibility: isMobile == true
       grow: true
       layout: vertical
       overflow: "hidden"
+      min-width: responsive(0px, sm: 0px)
 
-      // Mobile header
+      // Header (desktop only — mobile uses bottom bar)
       block {
+        visibility: isMobile == false
         @slot("header")
       }
 
-      // Content
-      block {
+      // Content — scroll container for page content
+      scrollView {
         grow: true
-        overflow: "auto"
         scroll-boundary: "contain"
-        padding-bottom: env(safe-area-inset-bottom)
         @children
       }
+    }
 
-      // Bottom bar slot
-      block {
-        visibility: mobileNav == "bottom-bar"
-        @slot("bottom-bar")
-      }
+    // Bottom bar (mobile only)
+    block {
+      visibility: isMobile == true && mobileNav == "bottom-bar"
+      @slot("bottom-bar")
     }
   }
 }

@@ -1,6 +1,9 @@
-@extern { wrapIndex } from "@spec/components/nav-utils.js"
+fn wrapIndex(index: number, delta: number, len: number) -> number {
+  if len <= 0 { return 0 }
+  return ((index + delta) % len + len) % len
+}
 
-component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "") {
+component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection") {
   @state {
     open: false
     query: ""
@@ -58,7 +61,6 @@ component Select(options: array = [], value: string = "", placeholder: string = 
 
   block {
     layout: vertical, gap: spacing.1
-    position: "relative"
 
     // Label
     block {
@@ -110,83 +112,94 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
     }
 
-    // Backdrop — catches outside clicks
-    block {
-      visibility: open == true
-      position: "fixed"
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 999
-      on click: closeDropdown()
-    }
+    // Dropdown overlay
+    overlay(visible: open, anchor: "parent", backdrop: "transparent", dismissOnTapOutside: true) {
+      on dismiss: closeDropdown()
 
-    // Dropdown panel
-    block {
-      visibility: open == true
-      position: "absolute"
-      top: 100%
-      left: 0px
-      right: 0px
-      z-index: 1000
-      margin: spacing.1
-      padding: spacing.1
-      max-height: 240px
-      overflow: auto
-      background: token.select-bg
-      border: token.input-borderWidth + " solid " + semantic.border
-      border-radius: token.select-radius
-      shadow: "0 4px 16px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04)"
-      layout: vertical
-      role: "listbox"
-
-      // Search input
       block {
-        visibility: searchable
-        padding: spacing.2
-        border-bottom: borders.default
-        TextInput(placeholder: "Search...", value: query) {
-          on change(v): setQuery(v)
-        }
-      }
-
-      // Options list
-      block {
-        visibility: hasOptions
+        margin: spacing.1
+        padding: spacing.1
+        max-height: 240px
+        overflow: auto
+        background: token.select-bg
+        border: token.input-borderWidth + " solid " + semantic.border
+        border-radius: token.select-radius
+        shadow: "0 4px 16px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04)"
         layout: vertical
+        role: "listbox"
 
-        each filteredOptions as option, idx {
+        // Search input
+        block {
+          visibility: searchable
+          padding: spacing.2
+          border-bottom: borders.default
+          TextInput(placeholder: "Search...", value: query) {
+            on change(v): setQuery(v)
+          }
+        }
+
+        // Clear row — shown when `clearable` is set and the field has a
+        // non-empty value. Clicking it emits change("") so the caller can
+        // reset the field. Lives inside the dropdown so the trigger button's
+        // layout doesn't shift when a value is picked. Bottom border acts
+        // as the divider between Clear and the options list.
+        block {
+          visibility: clearable && value != ""
+          padding: spacing.2
+          border-radius: radius.sm
+          border-bottom: borders.default
+          cursor: "pointer"
+          on hover { background: token.select-optionHover }
+          on click: selectOption("")
+
           block {
-            padding: spacing.2
-            border-radius: radius.sm
-            cursor: "pointer"
-            background: match idx == highlightIndex {
-              true -> token.select-optionHover,
-              _ -> match option.value == value {
-                true -> token.select-optionSelected,
-                _ -> "transparent"
-              }
-            }
-            scroll-to: idx == highlightIndex
-            on hover { background: token.select-optionHover }
-            on click: selectOption(option.value)
+            layout: horizontal, gap: spacing.1, align: center
+            text("✕") { style: type.body-md, color: semantic.text-tertiary }
+            text(clearLabel) { style: type.body-md, color: semantic.text-tertiary, weight: 500 }
+          }
+        }
 
-            text(option.label) {
-              style: type.body-md
-              color: option.value == value ? semantic.interactive : semantic.text-primary
-              weight: option.value == value ? 500 : 400
+        // Thin divider after the Clear row — bottom border on the Clear
+        // block itself instead of a sibling div, since the Spec parser
+        // doesn't accept margin-top/-bottom shortcuts (only `margin:`).
+
+        // Options list
+        block {
+          visibility: hasOptions
+          layout: vertical
+
+          each filteredOptions as option, idx {
+            block {
+              padding: spacing.2
+              border-radius: radius.sm
+              cursor: "pointer"
+              background: match idx == highlightIndex {
+                true -> token.select-optionHover,
+                _ -> match option.value == value {
+                  true -> token.select-optionSelected,
+                  _ -> "transparent"
+                }
+              }
+              scroll-to: idx == highlightIndex
+              on hover { background: token.select-optionHover }
+              on click: selectOption(option.value)
+
+              text(option.label) {
+                style: type.body-md
+                color: option.value == value ? semantic.interactive : semantic.text-primary
+                weight: option.value == value ? 500 : 400
+              }
             }
           }
         }
-      }
 
-      // Empty state
-      block {
-        visibility: hasOptions == false
-        padding: spacing.3
-        layout: horizontal, justify: center
-        text("No options") { style: type.body-md, color: semantic.text-tertiary }
+        // Empty state
+        block {
+          visibility: hasOptions == false
+          padding: spacing.3
+          layout: horizontal, justify: center
+          text("No options") { style: type.body-md, color: semantic.text-tertiary }
+        }
       }
     }
   }

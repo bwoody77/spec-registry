@@ -36,28 +36,12 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
     }
   }
 
-  block {
-    // Backdrop
-    block {
-      visibility: showing == true
-      position: "fixed"
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 999
-      background: "rgba(0, 0, 0, 0.4)"
-      on click: doClose()
-    }
+  overlay(visible: showing, anchor: "screen", backdrop: "scrim") {
+    on dismiss: doClose()
 
     // Panel (left side)
     block {
-      visibility: showing == true && side == "left"
-      position: "fixed"
-      top: 0px
-      bottom: 0px
-      left: 0px
-      z-index: 1000
+      visibility: side == "left"
       width: width
       max-width: 90vw
       background: semantic.surface
@@ -112,12 +96,7 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
 
     // Panel (right side)
     block {
-      visibility: showing == true && side == "right"
-      position: "fixed"
-      top: 0px
-      bottom: 0px
-      right: 0px
-      z-index: 1000
+      visibility: side == "right"
       width: width
       max-width: 90vw
       background: semantic.surface

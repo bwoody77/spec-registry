@@ -27,18 +27,8 @@ component CommandPalette(commands: array = [], open: boolean = false, placeholde
     }
   }
 
-  // Modal backdrop
-  block {
-    visibility: open == true
-    position: "fixed"
-    top: 0px
-    left: 0px
-    right: 0px
-    bottom: 0px
-    z-index: 9000
-    background: "rgba(0, 0, 0, 0.5)"
-    layout: horizontal, align: center, justify: center
-    on click: dismiss()
+  overlay(visible: open, anchor: "screen", align: "center", backdrop: "scrim") {
+    on dismiss: dismiss()
 
     // Dialog panel
     block {
@@ -51,7 +41,6 @@ component CommandPalette(commands: array = [], open: boolean = false, placeholde
       shadow: elevation.floating
       overflow: hidden
       layout: vertical
-      on click: {}
 
       // Search input
       block {

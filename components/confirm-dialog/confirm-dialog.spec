@@ -5,22 +5,24 @@ component ConfirmDialog(open: boolean = false, title: string = "Confirm", messag
 
   @actions {
     doOpen() {
+      if showing { return }
       showing = true
       lockScroll()
       trapFocus()
     }
     doClose() {
+      if !showing { return }
       showing = false
       unlockScroll()
       releaseFocus()
     }
     confirm() {
-      doClose()
       emit("confirm")
+      doClose()
     }
     cancel() {
-      doClose()
       emit("cancel")
+      doClose()
     }
   }
 
@@ -33,27 +35,10 @@ component ConfirmDialog(open: boolean = false, title: string = "Confirm", messag
     }
   }
 
-  block {
-    // Backdrop
-    block {
-      visibility: showing == true
-      position: "fixed"
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 1000
-      background: "rgba(0, 0, 0, 0.5)"
-    }
+  overlay(visible: showing, anchor: "screen", align: "center", backdrop: "scrim") {
+    on dismiss: cancel()
 
-    // Dialog
     block {
-      visibility: showing == true
-      position: "fixed"
-      top: 50%
-      left: 50%
-      transform: "translate(-50%, -50%)"
-      z-index: 1001
       width: 440px
       max-width: 95vw
       padding: spacing.5

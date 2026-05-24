@@ -32,31 +32,12 @@ component ActionSheet(
     }
   }
 
-  block {
-    // Backdrop
-    block {
-      visibility: showing == true
-      position: "fixed"
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 998
-      background: "rgba(0, 0, 0, 0.4)"
-      on click: doClose()
-    }
+  overlay(visible: showing, anchor: "screen", align: "bottom", backdrop: "scrim") {
+    on dismiss: doClose()
 
-    // Sheet
     block {
-      visibility: showing == true
-      position: "fixed"
-      bottom: 0px
-      left: 0px
-      right: 0px
-      z-index: 999
       padding-bottom: "env(safe-area-inset-bottom)"
       padding: spacing.2
-
       layout: vertical, gap: 8px
 
       // Actions container
@@ -64,7 +45,6 @@ component ActionSheet(
         background: semantic.surface
         border-radius: 14px
         overflow: "hidden"
-
         layout: vertical
 
         // Title

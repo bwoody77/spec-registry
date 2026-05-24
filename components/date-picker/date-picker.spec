@@ -213,8 +213,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
 
   block {
     layout: vertical, gap: spacing.1
-    position: "relative"
-    z-index: 9990
+    // Establish a positioning context so the calendar overlay (which uses
+    // position:absolute; inset:0 internally) anchors to THIS DatePicker
+    // rather than walking up to the nearest positioned ancestor (which is
+    // typically the modal — yielding a popup that's centered in the modal
+    // instead of pinned to the trigger).
+    position: relative
 
     // Label
     block {
@@ -344,128 +348,129 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       }
     }
 
-    // Backdrop
-    block {
-      visibility: open == true
-      position: "fixed"
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 9998
-      on click: close()
-    }
-
     // Calendar popup
-    block {
-      visibility: open == true
-      position: "absolute"
-      top: 100%
-      left: 0px
-      z-index: 9999
-      margin: spacing.1
-      width: 280px
-      background: semantic.surface
-      border: borders.default
-      border-radius: radius.md
-      shadow: elevation.floating
-      layout: vertical
+    overlay(visible: open, anchor: "parent", backdrop: "transparent", dismissOnTapOutside: true) {
+      on dismiss: close()
 
-      // Month navigation
       block {
-        layout: horizontal, justify: between, align: center
-        padding: spacing.2
-        border-bottom: borders.default
+        // Pin the calendar to the bottom-left of the trigger and let it
+        // extend rightward + downward to its natural 280px. `position:
+        // absolute` removes the popup from the overlay's flex centering
+        // (which would otherwise shrink it to the trigger's column width
+        // and clip the left edge when the trigger is near the modal's
+        // left margin).
+        position: absolute
+        top: 100%
+        left: 0
+        // Margin shorthand applies to all sides; on a position:absolute
+        // element only top/left meaningfully shift placement, giving us
+        // a small gap below the trigger. The spec parser doesn't expose
+        // a margin-top: shortcut.
+        margin: spacing.1
+        width: 280px
+        min-width: 280px
+        background: semantic.surface
+        border: borders.default
+        border-radius: radius.md
+        shadow: elevation.floating
+        layout: vertical
 
+        // Month navigation
         block {
-          cursor: "pointer"
+          layout: horizontal, justify: between, align: center
           padding: spacing.2
-          on click: prevMonth()
-          text("\u25C0") { style: type.body-md, color: semantic.interactive }
-        }
-        text(monthLabel) { style: type.body-md, weight: 600, color: semantic.text-primary }
-        block {
-          cursor: "pointer"
-          padding: spacing.2
-          on click: nextMonth()
-          text("\u25B6") { style: type.body-md, color: semantic.interactive }
-        }
-      }
+          border-bottom: borders.default
 
-      // Day-of-week headers
-      block {
-        layout: grid, columns: "repeat(7, 1fr)"
-        padding: spacing.1
-
-        text('Su') { style: type.caption, color: semantic.text-tertiary }
-        text('Mo') { style: type.caption, color: semantic.text-tertiary }
-        text('Tu') { style: type.caption, color: semantic.text-tertiary }
-        text('We') { style: type.caption, color: semantic.text-tertiary }
-        text('Th') { style: type.caption, color: semantic.text-tertiary }
-        text('Fr') { style: type.caption, color: semantic.text-tertiary }
-        text('Sa') { style: type.caption, color: semantic.text-tertiary }
-      }
-
-      // Calendar grid
-      block {
-        layout: grid, columns: "repeat(7, 1fr)", gap: spacing.1
-        padding: spacing.1
-
-        on key-down(event): {
-          match event.key {
-            "ArrowLeft" -> moveFocusLeft(),
-            "ArrowRight" -> moveFocusRight(),
-            "ArrowUp" -> moveFocusUp(),
-            "ArrowDown" -> moveFocusDown(),
-            "Enter" -> selectFocused(),
-            " " -> selectFocused(),
-            "Escape" -> close(),
-            "PageUp" -> focusPrevMonth(),
-            "PageDown" -> focusNextMonth(),
-            "Home" -> focusFirst(),
-            "End" -> focusLast(),
-            _ -> {}
+          block {
+            cursor: "pointer"
+            padding: spacing.2
+            on click: prevMonth()
+            text("\u25C0") { style: type.body-md, color: semantic.interactive }
+          }
+          text(monthLabel) { style: type.body-md, weight: 600, color: semantic.text-primary }
+          block {
+            cursor: "pointer"
+            padding: spacing.2
+            on click: nextMonth()
+            text("\u25B6") { style: type.body-md, color: semantic.interactive }
           }
         }
 
-        each calendarCells as cell {
-          block {
-            padding: spacing.1
-            min-height: 32px
-            layout: horizontal, justify: center, align: center
-            border-radius: radius.sm
-            cursor: cell.isCurrentMonth ? "pointer" : "default"
-            border: cell.day == focusedDay && cell.isCurrentMonth ? "2px solid " + semantic.interactive : "2px solid transparent"
-            background: match cell.dateStr == valueISO {
-              true -> semantic.interactive,
-              _ -> cell.day == focusedDay && cell.isCurrentMonth ? semantic.surface-raised : "transparent"
-            }
-            tabindex: "-1"
-            focus: cell.day == focusedDay && cell.isCurrentMonth && open
-            on hover { background: cell.isCurrentMonth ? semantic.surface-raised : "transparent" }
-            on click: cell.isCurrentMonth ? selectDay(cell.day) : {}
+        // Day-of-week headers
+        block {
+          layout: grid, columns: "repeat(7, 1fr)"
+          padding: spacing.1
 
-            text(cell.day + "") {
-              style: type.body-sm
-              color: match cell.dateStr == valueISO {
-                true -> semantic.surface,
-                _ -> cell.isCurrentMonth ? semantic.text-primary : semantic.text-tertiary
+          text('Su') { style: type.caption, color: semantic.text-tertiary }
+          text('Mo') { style: type.caption, color: semantic.text-tertiary }
+          text('Tu') { style: type.caption, color: semantic.text-tertiary }
+          text('We') { style: type.caption, color: semantic.text-tertiary }
+          text('Th') { style: type.caption, color: semantic.text-tertiary }
+          text('Fr') { style: type.caption, color: semantic.text-tertiary }
+          text('Sa') { style: type.caption, color: semantic.text-tertiary }
+        }
+
+        // Calendar grid
+        block {
+          layout: grid, columns: "repeat(7, 1fr)", gap: spacing.1
+          padding: spacing.1
+
+          on key-down(event): {
+            match event.key {
+              "ArrowLeft" -> moveFocusLeft(),
+              "ArrowRight" -> moveFocusRight(),
+              "ArrowUp" -> moveFocusUp(),
+              "ArrowDown" -> moveFocusDown(),
+              "Enter" -> selectFocused(),
+              " " -> selectFocused(),
+              "Escape" -> close(),
+              "PageUp" -> focusPrevMonth(),
+              "PageDown" -> focusNextMonth(),
+              "Home" -> focusFirst(),
+              "End" -> focusLast(),
+              _ -> {}
+            }
+          }
+
+          each calendarCells as cell {
+            block {
+              padding: spacing.1
+              min-height: 32px
+              layout: horizontal, justify: center, align: center
+              border-radius: radius.sm
+              cursor: cell.isCurrentMonth ? "pointer" : "default"
+              border: cell.day == focusedDay && cell.isCurrentMonth ? "2px solid " + semantic.interactive : "2px solid transparent"
+              background: match cell.dateStr == valueISO {
+                true -> semantic.interactive,
+                _ -> cell.day == focusedDay && cell.isCurrentMonth ? semantic.surface-raised : "transparent"
+              }
+              tabindex: "-1"
+              focus: cell.day == focusedDay && cell.isCurrentMonth && open
+              on hover { background: cell.isCurrentMonth ? semantic.surface-raised : "transparent" }
+              on click: cell.isCurrentMonth ? selectDay(cell.day) : {}
+
+              text(cell.day + "") {
+                style: type.body-sm
+                color: match cell.dateStr == valueISO {
+                  true -> semantic.surface,
+                  _ -> cell.isCurrentMonth ? semantic.text-primary : semantic.text-tertiary
+                }
               }
             }
           }
         }
-      }
 
-      // Today button
-      block {
-        padding: spacing.2
-        border-top: borders.default
-        layout: horizontal, justify: center
+        // Today button
         block {
-          cursor: "pointer"
-          padding: spacing.1
-          on click: selectToday()
-          text('Today') { style: type.label-sm, color: semantic.interactive }
+          padding: spacing.2
+          border-top: borders.default
+          layout: horizontal, justify: center
+          block {
+            cursor: "pointer"
+            padding: spacing.1
+            on click: selectToday()
+            text('Today') { style: type.label-sm, color: semantic.interactive }
+          }
         }
       }
     }

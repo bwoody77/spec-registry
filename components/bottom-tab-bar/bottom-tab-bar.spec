@@ -10,10 +10,6 @@ component BottomTabBar(
   }
 
   block {
-    position: "fixed"
-    bottom: 0px
-    left: 0px
-    right: 0px
     z-index: 900
     background: semantic.surface
     border-top: borders.default
