@@ -1,4 +1,7 @@
-@extern { wrapIndex } from "@spec/components/nav-utils.js"
+fn wrapIndex(index: number, delta: number, len: number) -> number {
+  if len <= 0 { return 0 }
+  return ((index + delta) % len + len) % len
+}
 
 component MultiSelect(options: array = [], values: array = [], placeholder: string = "Select...", searchable: boolean = true, disabled: boolean = false, label: string = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown") {
   @state {
@@ -9,6 +12,15 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     focused: false
   }
 
+  // Sync internal `selected` state when the parent passes a new `values` prop
+  // (e.g. when a Clear button resets `filterAircraftIds = []`). Without
+  // this, the chips on screen remain stale even though the data is correct.
+  @watch {
+    values: {
+      selected = values
+    }
+  }
+
   @computed {
     safeOptions: options != null ? options : []
     safeSelected: selected != null ? selected : []
@@ -17,7 +29,11 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     hasSelections: safeSelected.length > 0
     hasOptions: filteredOptions.length > 0
     displayPlaceholder: hasSelections == false ? placeholder : ""
-    displayText: selectedOptions.map(o => o.label).join(", ")
+    // Summary text used in display='text' mode. Falls back to `label` when the
+    // option doesn't define a `shortLabel` (e.g. callers building options from
+    // simple {value,label} pairs). Aircraft pickers, for example, set shortLabel
+    // to just the tail so the trigger row stays readable when many are picked.
+    displayText: selectedOptions.map(o => (o.shortLabel != null ? o.shortLabel : o.label)).join(", ")
     isDropdownMode: mode == "dropdown"
     showList: isDropdownMode == false || open == true
   }
@@ -63,10 +79,17 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     selectAll() {
       selected = filteredOptions.filter(o => o.disabled != true).map(o => o.value)
       emit("change", selected)
+      // Bulk actions are intentional terminals — once the user picks "every"
+      // or "none", they're done with the dropdown. Closing automatically
+      // saves a click and matches MVP behavior of macOS / Windows pickers.
+      open = false
+      query = ""
     }
     clearAll() {
       selected = []
       emit("change", selected)
+      open = false
+      query = ""
     }
     moveHighlight(delta) {
       if filteredOptions.length > 0 {
@@ -88,7 +111,6 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
 
   block {
     layout: vertical, gap: spacing.1
-    position: "relative"
 
     // Label
     block {
@@ -100,13 +122,12 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     block {
       visibility: isDropdownMode
       layout: vertical, gap: spacing.1
-      position: "relative"
 
       // Control row — chips/text + placeholder + caret
       // NOTE: no on-click here — toggleOpen lives on the inner toggle block
-      // so that chip × clicks don't bubble into toggleOpen.
+      // so that chip x clicks don't bubble into toggleOpen.
       block {
-        layout: horizontal, gap: spacing.1, align: center
+        layout: horizontal, gap: spacing.1
         padding: spacing.2
         min-height: 40px
         background: token.select-bg
@@ -166,10 +187,20 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
           }
         }
 
-        // Text display — wrapped in block for visibility (text() ignores visibility:)
+        // Text display — single-line summary that truncates with ellipsis when
+        // the joined labels overflow the trigger width. `grow: true` claims
+        // available space; `overflow: hidden` clips; `truncate: 1` adds the
+        // ellipsis. Users see the summary; for full context they reopen the
+        // panel (where individual options are still removable).
         block {
           visibility: hasSelections && display == "text"
-          text(displayText) { style: type.body-md, color: semantic.text-primary }
+          grow: true
+          overflow: hidden
+          text(displayText) {
+            style: type.body-md
+            color: semantic.text-primary
+            truncate: 1
+          }
         }
 
         // Toggle area — clicking here opens/closes dropdown
@@ -188,27 +219,12 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         }
       }
 
-      // Backdrop
+      // Dropdown panel — fixed-position below the trigger via anchor:'bottom'.
+      // positionDropdown sets position:fixed, escaping any overflow:hidden ancestor.
+      // popup.js dispatches Escape to the combobox trigger to close it on outside clicks.
       block {
-        visibility: open == true
-        position: "fixed"
-        top: 0px
-        left: 0px
-        right: 0px
-        bottom: 0px
-        z-index: 999
-        on click: closeDropdown()
-      }
-
-      // Dropdown panel
-      block {
-        visibility: open == true
-        position: "absolute"
-        top: 100%
-        left: 0px
-        right: 0px
-        z-index: 1000
-        margin: spacing.1
+        visibility: open
+        anchor: 'bottom'
         padding: spacing.1
         max-height: 280px
         overflow: auto
@@ -218,83 +234,104 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         shadow: "0 4px 16px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04)"
         layout: vertical
         role: "listbox"
+        z-index: 200
 
-        // Search input
-        block {
-          visibility: searchable
-          padding: spacing.2
-          border-bottom: borders.default
-          TextInput(placeholder: "Search...", value: query) {
-            on change(v): setQuery(v)
-          }
-        }
-
-        // Action buttons
-        block {
-          layout: horizontal, gap: spacing.2, justify: end
-          padding: spacing.2
-          border-bottom: borders.default
-
+          // Search input
           block {
-            cursor: "pointer"
-            on click: selectAll()
-            text('Select all') { style: type.label-sm, color: semantic.interactive }
+            visibility: searchable
+            padding: spacing.2
+            border-bottom: borders.default
+            TextInput(placeholder: "Search...", value: query) {
+              on change(v): setQuery(v)
+            }
           }
+
+          // Action buttons
           block {
-            cursor: "pointer"
-            on click: clearAll()
-            text('Clear all') { style: type.label-sm, color: semantic.interactive }
-          }
-        }
+            layout: horizontal, gap: spacing.2, justify: end
+            padding: spacing.2
+            border-bottom: borders.default
 
-        // Options list (dropdown)
-        block {
-          visibility: hasOptions
-          layout: vertical
-
-          each filteredOptions as option, idx {
             block {
-              layout: horizontal, gap: spacing.2, align: center
-              padding: spacing.2
-              border-radius: radius.sm
-              cursor: option.disabled == true ? "default" : "pointer"
-              opacity: option.disabled == true ? 0.5 : 1
-              background: match idx == highlightIndex {
-                true -> token.select-optionHover,
-                _ -> match safeSelected.includes(option.value) {
-                  true -> token.select-optionSelected,
-                  _ -> "transparent"
+              cursor: "pointer"
+              on click: selectAll()
+              text('Select all') { style: type.label-sm, color: semantic.interactive }
+            }
+            block {
+              cursor: "pointer"
+              on click: clearAll()
+              text('Clear all') { style: type.label-sm, color: semantic.interactive }
+            }
+          }
+
+          // Options list (dropdown)
+          block {
+            visibility: hasOptions
+            layout: vertical
+
+            each filteredOptions as option, idx {
+              block {
+                layout: horizontal, gap: spacing.2, align: center
+                padding: spacing.2
+                border-radius: radius.sm
+                cursor: option.disabled == true ? "default" : "pointer"
+                opacity: option.disabled == true ? 0.5 : 1
+                background: match idx == highlightIndex {
+                  true -> token.select-optionHover,
+                  _ -> match safeSelected.includes(option.value) {
+                    true -> token.select-optionSelected,
+                    _ -> "transparent"
+                  }
                 }
-              }
-              scroll-to: idx == highlightIndex
-              on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
-              on click: toggleOption(option.value)
+                scroll-to: idx == highlightIndex
+                on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
+                on click: toggleOption(option.value)
 
-              // Checkbox / checkmark indicator
-              text(match showCheckbox {
-                true -> safeSelected.includes(option.value) ? "\u2611" : "\u2610",
-                _ -> safeSelected.includes(option.value) ? "\u2713" : ""
-              }) {
-                style: type.label-sm
-                color: semantic.interactive
-                width: 16px
-              }
+                // Checkbox / checkmark indicator
+                text(match showCheckbox {
+                  true -> safeSelected.includes(option.value) ? "\u2611" : "\u2610",
+                  _ -> safeSelected.includes(option.value) ? "\u2713" : ""
+                }) {
+                  style: type.label-sm
+                  color: semantic.interactive
+                  width: 16px
+                }
 
-              text(option.label) {
-                style: type.body-md
-                color: safeSelected.includes(option.value) ? semantic.interactive : semantic.text-primary
+                text(option.label) {
+                  style: type.body-md
+                  color: safeSelected.includes(option.value) ? semantic.interactive : semantic.text-primary
+                }
               }
             }
           }
+
+          // Empty state
+          block {
+            visibility: hasOptions == false
+            padding: spacing.3
+            layout: horizontal, justify: center
+            text("No options") { style: type.body-md, color: semantic.text-tertiary }
+          }
         }
 
-        // Empty state
-        block {
-          visibility: hasOptions == false
-          padding: spacing.3
-          layout: horizontal, justify: center
-          text("No options") { style: type.body-md, color: semantic.text-tertiary }
-        }
+      // Backdrop — catches clicks outside the dropdown so the panel closes
+      // without needing a global document handler. Without this, a previously
+      // opened dropdown stays open in the background and the user's next
+      // click on the SAME trigger toggles it closed (requiring a second
+      // click to reopen) — the recurring "sometimes 2 clicks to open" bug.
+      // z-index sits below the panel (200) so the panel still wins clicks.
+      // Placed AFTER the panel block so the panel's `anchor: 'bottom'`
+      // resolves to its actual previous sibling (the trigger row), not the
+      // backdrop.
+      block {
+        visibility: open
+        position: 'fixed'
+        top: 0px
+        left: 0px
+        right: 0px
+        bottom: 0px
+        z-index: 190
+        on click: closeDropdown()
       }
     }
 

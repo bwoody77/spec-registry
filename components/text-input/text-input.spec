@@ -14,7 +14,10 @@ component TextInput(
   @state { focused: false }
 
   @actions {
-    handleFocus() { focused = true }
+    handleFocus() {
+      focused = true
+      emit("focus")
+    }
     handleBlur() {
       focused = false
       emit("blur")

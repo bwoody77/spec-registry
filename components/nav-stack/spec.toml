@@ -1,6 +1,6 @@
 [package]
 name = "nav-stack"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Stack-based navigation controller with push and pop transitions"
 license = "MIT"

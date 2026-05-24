@@ -1,6 +1,6 @@
 [package]
 name = "bottom-tab-bar"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Fixed bottom navigation bar with icon and label tabs"
 license = "MIT"

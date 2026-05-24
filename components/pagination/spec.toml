@@ -1,6 +1,6 @@
 [package]
 name = "pagination"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Page navigation controls for paginated data sets"
 license = "MIT"

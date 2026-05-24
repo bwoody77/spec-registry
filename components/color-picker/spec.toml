@@ -1,6 +1,6 @@
 [package]
 name = "color-picker"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Single-swatch trigger that opens the browser's native color chooser (full HSV picker, eyedropper, hex input)"
 license = "MIT"

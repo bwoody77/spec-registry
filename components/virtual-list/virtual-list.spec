@@ -1,31 +1,5 @@
 // VirtualList — virtualized scroll container for very large lists.
 //
-// ─── PREFER THE NATIVE `each ... virtual` SYNTAX ──────────────────────────
-// In almost every case the spec language's built-in virtualized `each` is
-// the better choice. It does the same job (~15 rows in the DOM regardless
-// of dataset size, fixed-row-height windowing) with no boilerplate state,
-// no `range` event plumbing, and no `viewportHeight` prop — the runtime
-// reads the parent's `clientHeight` directly. Reach for VirtualList ONLY if
-// you need to drive the slice yourself (e.g. unusual virtualization rules
-// like grouped headers, snap-to-section, or paired columns).
-//
-// Native syntax (recommended for new code):
-//
-//   block {
-//     height: 600px
-//     each pilots as p (p.id) {
-//       virtual: true
-//       row-height: 64
-//       PilotRow(p: p)
-//     }
-//   }
-//
-// VirtualList compiles to a wrapper component that emits visible-range
-// events; the native `each` compiles to bindVirtualCollection in the
-// runtime — fewer DOM nodes, no surface-level @state, no caller-side
-// slice() and re-binding on every scroll. See docs section 3.17.
-// ──────────────────────────────────────────────────────────────────────────
-//
 // Renders only the rows currently in the viewport (plus a small overscan
 // buffer above and below), keeping the DOM constant-size regardless of how
 // many items the list contains. Works with ANY child template — the caller

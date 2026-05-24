@@ -1,6 +1,6 @@
 [package]
 name = "virtual-list"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Virtualized scroll container — renders only the visible window of a large list, emits range events so the caller can slice their data"
 license = "MIT"

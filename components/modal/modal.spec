@@ -26,29 +26,11 @@ component Modal(open: boolean = false, title: string = "", width: string = "500p
     }
   }
 
-  block {
-    // Backdrop
-    block {
-      visibility: showing == true
-      position: "fixed"
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 1000
-      background: "rgba(15, 23, 42, 0.5)"
-      backdrop-filter: "blur(4px)"
-      on click: doClose()
-    }
+  overlay(visible: showing, anchor: "screen", align: "center", backdrop: "scrim") {
+    on dismiss: doClose()
 
     // Dialog
     block {
-      visibility: showing == true
-      position: "fixed"
-      top: 50%
-      left: 50%
-      transform: "translate(-50%, -50%)"
-      z-index: 1001
       width: width
       max-width: 95vw
       max-height: 90vh
@@ -56,6 +38,7 @@ component Modal(open: boolean = false, title: string = "", width: string = "500p
       background: semantic.surface
       border-radius: 14px
       shadow: elevation.floating
+      backdrop-filter: "blur(4px)"
       role: "dialog"
       aria-label: "Dialog"
 

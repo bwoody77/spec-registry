@@ -1,4 +1,34 @@
-@extern { resolveSeries, resolveSegmentMeta } from "@spec/components/chart-utils.js"
+@extern { _registerChart } from "@spec/components/chart-utils.js"
+
+fn _defaultColor(i: number) -> string {
+  let colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#84cc16']
+  return colors[i % length(colors)]
+}
+
+fn resolveSeries(type: string, series: list, yKey: string, color: string, colors: list) -> list {
+  if type == 'pie' || type == 'donut' { return [] }
+  if series != null && length(series) > 0 {
+    return series |> map((s, i) => {
+      return {
+        key: s.key,
+        label: s.label ?? s.key,
+        color: s.color ?? (colors?.[i] ?? _defaultColor(i)),
+        dashed: s.dashed ?? false
+      }
+    })
+  }
+  let k = yKey ?? 'y'
+  return [{ key: k, label: k, color: color ?? _defaultColor(0), dashed: false }]
+}
+
+fn resolveSegmentMeta(data: list, colors: list, labelKey: string) -> list {
+  return data |> map((d, i) => {
+    return {
+      label: toString(d[labelKey] ?? i),
+      color: colors?.[i] ?? _defaultColor(i)
+    }
+  })
+}
 
 component Chart(
   type: string = "line",
@@ -14,7 +44,13 @@ component Chart(
   title: string = "",
   showLegend: boolean = true,
   showGrid: boolean = true,
-  showValues: boolean = false
+  showValues: boolean = false,
+  yMin: number = null,
+  yMax: number = null,
+  connectNulls: boolean = false,
+  colorKey: string = "",
+  formatX: string = "",
+  formatY: string = ""
 ) {
   @computed {
     isEmpty: data == null || data.length == 0
@@ -50,6 +86,12 @@ component Chart(
         valueKey: valueKey
         showGrid: showGrid
         showValues: showValues
+        yMin: yMin
+        yMax: yMax
+        connectNulls: connectNulls
+        colorKey: colorKey
+        formatX: formatX
+        formatY: formatY
       }
     }
 

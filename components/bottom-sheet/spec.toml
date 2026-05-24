@@ -1,6 +1,6 @@
 [package]
 name = "bottom-sheet"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Draggable sheet that slides up from the bottom of the screen"
 license = "MIT"
