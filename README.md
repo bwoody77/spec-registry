@@ -30,10 +30,12 @@ We don't have 2 million packages. We have the right ones.
 ## Usage
 
 ```bash
-spec add button          # there's only one — the good one
-spec add theme-nord      # curated theme
-spec install             # install everything listed in spec.packages.json
+spec add button          # adds button + writes ^X.Y.Z range to spec.packages.json
+spec install             # installs everything listed; resolves ranges, writes spec.lock.json
+spec install --frozen    # validates lockfile is in sync with manifest (CI-friendly)
 ```
+
+`spec.packages.json` accepts caret (`^0.2.0`), tilde (`~0.2.0`), and exact (`0.2.0`) ranges. `spec.lock.json` records the exact installed version for each entry — commit both files.
 
 ## Fonts
 
