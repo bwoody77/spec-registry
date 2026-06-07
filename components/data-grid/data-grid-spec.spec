@@ -1,4 +1,49 @@
-@extern { toggleSortState, applySortAndFilter } from "@spec/components/grid-spec-utils.js"
+fn toggleSortState(sortState: list, colKey: string) -> list {
+  let existing = sortState |> find(s => s.key == colKey)
+  if existing != null {
+    if existing.direction == 'asc' {
+      return sortState |> map(s => s.key == colKey ? { key: colKey, direction: 'desc' } : s)
+    }
+    return sortState |> filter(s => s.key != colKey)
+  }
+  return [{ key: colKey, direction: 'asc' }]
+}
+
+fn applySortAndFilter(rows: list, sortState: list, filters: list) -> list {
+  let sorted = _applySortToRows(rows, sortState)
+  return _applyFilters(sorted, filters)
+}
+
+fn _applySortToRows(rows: list, sortState: list) -> list {
+  if length(sortState) == 0 { return rows }
+  return sort(rows, (a, b) => {
+    for { key, direction } in sortState {
+      let aVal = a[key]
+      let bVal = b[key]
+      let cmp = 0
+      if aVal == null && bVal == null { cmp = 0 }
+      else if aVal == null { cmp = 0 - 1 }
+      else if bVal == null { cmp = 1 }
+      else if typeOf(aVal) == 'number' && typeOf(bVal) == 'number' { cmp = aVal - bVal }
+      else { cmp = localeCompare(toString(aVal), toString(bVal)) }
+      if cmp != 0 { return direction == 'asc' ? cmp : 0 - cmp }
+    }
+    return 0
+  })
+}
+
+fn _applyFilters(rows: list, filters: list) -> list {
+  let activeFilters = filters |> filter(f => f.value != null && length(f.value) > 0)
+  if length(activeFilters) == 0 { return rows }
+  return rows |> filter(row => {
+    for { key, value } in activeFilters {
+      let val = row[key]
+      if val == null { return false }
+      if !(toString(val) |> toLowerCase() |> includes(value |> toLowerCase())) { return false }
+    }
+    return true
+  })
+}
 
 component DataGridSpec(
   columns: array,
@@ -153,11 +198,11 @@ component DataGridSpec(
             block {
               visibility: col.filterable == true
               textInput(filters.find(f => f.key == col.key) != null ? filters.find(f => f.key == col.key).value : "") {
-                placeholder: "Filter\u2026"
+                placeholder: "Filter..."
                 border: borders.default
                 border-radius: radius.sm
                 width: 100%
-                on change(v): setFilter(col.key, v)
+                on input(e): setFilter(col.key, e.target.value)
               }
             }
           }
