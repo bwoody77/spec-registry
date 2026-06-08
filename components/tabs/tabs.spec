@@ -50,7 +50,6 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // changing prop get stuck stale (see pilot-detail.spec PilotTab note).
 component TabsItem(tab: object, active: boolean = false, variant: string = "pill") {
   @computed {
-    isPill:      variant == 'pill'
     padY:        variant == 'pill' ? 9px : 10px
     padX:        variant == 'pill' ? 12px : 16px
     itemRadius:  variant == 'pill' ? 8px : 0px
