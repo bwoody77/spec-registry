@@ -28,8 +28,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
   }
 
   block {
-    layout: grid, columns: gridColumns, gap: 4px
-    align: center
+    layout: grid, columns: gridColumns, gap: 4px, align: center
     overflow: scrollMode
     background: stripBg
     border: stripBorder
