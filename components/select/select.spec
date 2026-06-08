@@ -112,12 +112,18 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
     }
 
-    // Dropdown overlay
-    overlay(visible: open, anchor: "parent", backdrop: "transparent", dismissOnTapOutside: true) {
-      on dismiss: closeDropdown()
-
+    // Dropdown panel — fixed-position below the trigger via anchor:'bottom'.
+    // positionDropdown sets position:fixed with viewport-relative coords, so
+    // the panel escapes any overflow:hidden|auto ancestor (data grids,
+    // scrollable cards, modal bodies that scroll). The previous
+    // overlay(anchor:"parent") rendered this panel position:absolute and
+    // flex-centered over the ~40px trigger, so a clipping ancestor cut off its
+    // top half — see MultiSelect, which uses this same pattern.
+    // popup.js dispatches Escape to the combobox trigger on outside click; the
+    // sibling backdrop below catches the remaining clicks.
       block {
-        margin: spacing.1
+        visibility: open
+        anchor: 'bottom'
         padding: spacing.1
         max-height: 240px
         overflow: auto
@@ -127,6 +133,7 @@ component Select(options: array = [], value: string = "", placeholder: string = 
         shadow: "0 4px 16px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04)"
         layout: vertical
         role: "listbox"
+        z-index: 200
 
         // Search input
         block {
@@ -201,6 +208,22 @@ component Select(options: array = [], value: string = "", placeholder: string = 
           text("No options") { style: type.body-md, color: semantic.text-tertiary }
         }
       }
-    }
+
+      // Outside-click backdrop — a fixed-position fullscreen sibling sitting
+      // BELOW the panel in z-order (190 < 200) so the panel still wins clicks.
+      // Placed AFTER the panel so the panel's `anchor: 'bottom'` resolves to
+      // the trigger (its previous sibling), not the backdrop. Without this a
+      // previously opened dropdown stays open and the next click on the same
+      // trigger just toggles it closed (the "two clicks to reopen" bug).
+      block {
+        visibility: open
+        position: 'fixed'
+        top: 0px
+        left: 0px
+        right: 0px
+        bottom: 0px
+        z-index: 190
+        on click: closeDropdown()
+      }
   }
 }
