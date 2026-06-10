@@ -7,6 +7,11 @@
 // menus, or scrolling cards). Auto-flips above/below based on viewport
 // space and clamps the right edge.
 //
+// `anchor: placement` passes the prop through as an expression — evaluated
+// when positionDropdown runs (compiler support added 2026-06-10; before
+// that a non-literal anchor was silently dropped and the identifier parsed
+// as a phantom component).
+//
 // Caveat: if any ancestor of the trigger has a non-`none` `transform`,
 // `filter`, or `perspective`, browsers re-root the bubble's `position:fixed`
 // against that ancestor (CSS Transforms spec). For richer hover overlays
@@ -56,6 +61,7 @@ component Tooltip(text: string = "", placement: string = "top") {
       text(text) {
         style: type.label-sm
         color: "#f1f5f9"
+        white-space: 'nowrap'
       }
     }
   }
