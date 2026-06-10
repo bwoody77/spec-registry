@@ -1,6 +1,6 @@
 [package]
 name = "autocomplete"
-version = "0.2.0"
+version = "0.2.1"
 category = "components"
 description = "Type-to-filter combobox — TextInput that opens an inline dropdown filtered by what the user types. Supports openOnFocus (browse without typing) and freeText (caller-controlled options for server-side filtering / free-form input like ICAO codes)."
 license = "MIT"

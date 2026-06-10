@@ -56,6 +56,11 @@
 //   ArrowDown / ArrowUp — move highlight (wraps).
 //   Enter               — pick highlighted option (if any).
 //   Escape              — close dropdown without picking.
+//   Tab                 — in strict mode, commits the typed text when it
+//                         exactly matches an option label (case-insensitive);
+//                         otherwise reverts to the selected label so the
+//                         field never displays an uncommitted value. In
+//                         freeText mode it just closes the dropdown.
 //
 // Outside-click dismissal — the dropdown carries `role="listbox"` so a
 // host application can wire up its own outside-click → Escape dispatch
@@ -181,6 +186,26 @@ component Autocomplete(
       typing = false
       highlightIndex = 0
     }
+    // Tab-away while typing. Strict mode previously left the typed text
+    // VISIBLE while the bound value silently kept its old selection — the
+    // field lied (forms then submitted the stale value). Tab is handled in
+    // key-down (it fires before blur, so this can't race the dropdown's
+    // click-to-pick the way an on-blur handler would). Note: NOT
+    // preventDefault'd — focus still moves to the next field.
+    handleTabAway() {
+      if !typing { return }
+      if freeText {
+        closeDropdown()
+      } else {
+        let q = query.trim().toLowerCase()
+        let exactHit = safeOptions |> find(o => o.label.toLowerCase() == q)
+        if exactHit != null {
+          pickOption(exactHit)
+        } else {
+          closeDropdown()
+        }
+      }
+    }
   }
 
   block {
@@ -196,6 +221,7 @@ component Autocomplete(
         "ArrowUp"   -> moveUp(),
         "Enter"     -> selectHighlighted(),
         "Escape"    -> closeDropdown(),
+        "Tab"       -> handleTabAway(),
         _ -> {}
       }
 
