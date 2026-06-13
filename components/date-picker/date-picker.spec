@@ -133,6 +133,19 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       editing = true
       digitBuffer = ""
     }
+    // Click a specific segment to edit it. Without this, focusing the field
+    // always parks editing on segment 0; for a YYYY-MM-DD format that's the
+    // YEAR, so digits the user intends for the month/day land in the year
+    // (typing "07" "10" produced year 0710). Clicking a segment moves the
+    // active cursor there. `on focus` runs first and arms editing; this then
+    // re-targets the clicked segment.
+    focusSegment(idx) {
+      if disabled == false {
+        if editing == false { activateSegments() }
+        activeSegment = idx
+        digitBuffer = ""
+      }
+    }
     prevSegment() {
       digitBuffer = ""
       if activeSegment > 0 { activeSegment = activeSegment - 1 }
@@ -191,7 +204,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         if segType == 'year' {
           if digitBuffer.length >= 4 {
             let v = parseInt(digitBuffer)
-            segYear = v > 0 ? v : segYear
+            // Reject out-of-range years (a stray digit run like 0710 must
+            // not corrupt the field). Keep the prior year if the typed
+            // value is implausible; the user can retype.
+            segYear = v >= 1900 && v <= 2200 ? v : segYear
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
           }
@@ -199,7 +215,11 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       }
     }
     commitSegments() {
-      emit("change", formatDateOutput(segYear, segMonth - 1, segDay, format))
+      // Never emit an out-of-range year (defends against a corrupt incoming
+      // `value` parsed back into segYear). Clamp into the supported window
+      // rather than emitting e.g. 0710 downstream.
+      let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
+      emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
       activeSegment = -1
       editing = false
       digitBuffer = ""
@@ -291,8 +311,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           // Segment 0
           block {
             padding-x: 2px
+            cursor: "text"
             background: activeSegment == 0 ? semantic.interactive : "transparent"
             border-radius: radius.sm
+            on click: focusSegment(0)
             text(seg0Label) {
               style: type.body-md
               color: activeSegment == 0 ? semantic.surface : semantic.text-primary
@@ -302,8 +324,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           // Segment 1
           block {
             padding-x: 2px
+            cursor: "text"
             background: activeSegment == 1 ? semantic.interactive : "transparent"
             border-radius: radius.sm
+            on click: focusSegment(1)
             text(seg1Label) {
               style: type.body-md
               color: activeSegment == 1 ? semantic.surface : semantic.text-primary
@@ -313,8 +337,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           // Segment 2
           block {
             padding-x: 2px
+            cursor: "text"
             background: activeSegment == 2 ? semantic.interactive : "transparent"
             border-radius: radius.sm
+            on click: focusSegment(2)
             text(seg2Label) {
               style: type.body-md
               color: activeSegment == 2 ? semantic.surface : semantic.text-primary
