@@ -91,6 +91,14 @@ component Autocomplete(
     open: false
     typing: false
     highlightIndex: 0
+    // True only once the user has actively moved the highlight with the
+    // arrow keys. Distinguishes "option 0 is highlighted because it's the
+    // default resting position" from "the user chose this option". Enter
+    // must NOT silently commit the default-position option (that booked
+    // phantom 6:00 AM flights — the first time-slot option — when a user
+    // pressed Enter on an empty/partial field). Reset on focus / fresh
+    // input so a stale highlight can't leak across edits.
+    userHighlighted: false
   }
 
   @computed {
@@ -135,6 +143,7 @@ component Autocomplete(
         typing = false
         query = ""
         highlightIndex = 0
+        userHighlighted = false
       }
     }
     handleInput(v) {
@@ -145,6 +154,7 @@ component Autocomplete(
       // toggles open for the non-focus path.
       open = openOnFocus || v != ""
       highlightIndex = 0
+      userHighlighted = false
       // freeText: propagate every keystroke so the caller's signal tracks
       // what the user is typing (and can refresh `options` from it).
       // Strict: stay silent until pickOption / clearSelection.
@@ -156,6 +166,7 @@ component Autocomplete(
       typing = false
       open = false
       highlightIndex = 0
+      userHighlighted = false
     }
     clearSelection() {
       emit("change", "")
@@ -163,28 +174,49 @@ component Autocomplete(
       typing = false
       open = false
       highlightIndex = 0
+      userHighlighted = false
     }
     moveDown() {
       if matchLen > 0 {
         highlightIndex = _wrapIndex(safeIndex, 1, matchLen)
+        userHighlighted = true
         if !open { open = true }
       }
     }
     moveUp() {
       if matchLen > 0 {
         highlightIndex = _wrapIndex(safeIndex, -1, matchLen)
+        userHighlighted = true
         if !open { open = true }
       }
     }
+    // Enter handling. We only commit an option when the user has either
+    // (a) actively highlighted it with the arrow keys, or (b) typed a query
+    // that EXACTLY matches an option's label. Pressing Enter on an empty /
+    // partial field where option 0 just happens to sit at the default
+    // highlight position must NOT silently pick it — in freeText mode we
+    // keep the typed value and just close the dropdown; in strict mode we
+    // close without committing a wrong selection.
     selectHighlighted() {
-      if open && matchLen > 0 && safeIndex < matchLen {
+      if open && userHighlighted && matchLen > 0 && safeIndex < matchLen {
         pickOption(filteredOptions[safeIndex])
+        return
       }
+      let q = query.trim().toLowerCase()
+      let exactHit = q != "" ? (safeOptions |> find(o => o.label.toLowerCase() == q)) : null
+      if exactHit != null {
+        pickOption(exactHit)
+        return
+      }
+      // No user-chosen highlight and no exact-match query: don't snap to the
+      // default option. freeText keeps the typed value; both modes close.
+      closeDropdown()
     }
     closeDropdown() {
       open = false
       typing = false
       highlightIndex = 0
+      userHighlighted = false
     }
     // Tab-away while typing. Strict mode previously left the typed text
     // VISIBLE while the bound value silently kept its old selection — the
