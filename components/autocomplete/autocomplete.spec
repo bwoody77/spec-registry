@@ -66,16 +66,18 @@
 // `anchor: 'bottom'`, which positionDropdown renders position:fixed with
 // viewport-relative coords. It therefore floats OVER the page (no sibling
 // push-down) and escapes any overflow:hidden|auto ancestor (scrollable cards,
-// data grids, modal bodies) — same pattern as Select / MultiSelect. A
-// fullscreen backdrop sibling (placed AFTER the panel so the panel's
-// `anchor:'bottom'` still resolves to the input row, its previous sibling)
-// handles outside-click dismissal. The input row is elevated above the
-// backdrop while open so the user can keep clicking into the field to edit.
+// data grids, modal bodies) — same pattern as Select / MultiSelect.
+// positionDropdown only restyles the panel in place (no reparenting), so it
+// stays a child of this component's wrapper.
 //
-// (popup.js's outside-click helper relies on offsetParent, which is null for
-// position:fixed elements, so it no longer governs this dropdown — the
-// backdrop does. The `data-autocomplete-popup` / `role="listbox"` attributes
-// are retained for back-compat and a11y.)
+// Outside-click dismissal — the panel carries `role="listbox"` and
+// `data-autocomplete-popup` so a host application can wire its own
+// outside-click → Escape dispatch (see e.g. the popup.js helper used by golf /
+// vector). Such helpers must detect visibility via offsetHeight rather than
+// offsetParent: a position:fixed element reports offsetParent === null even
+// when fully visible. Spec's `overlay()` would auto-dismiss but tends to
+// collapse the surrounding layout when nested in a vertical stack; the
+// anchored-panel approach here is more predictable.
 //
 // Styling — uses semantic + token color names so it adapts to themes.
 // Override `font` and `border` tokens via the host's @theme to reskin.
@@ -142,10 +144,6 @@ component Autocomplete(
     // options list and the empty hint live inside this single anchored panel.
     showEmptyHint:  open && typing && query != "" && matchLen == 0
     showPanel:      open && (matchLen > 0 || showEmptyHint)
-    // Lift the input row above the outside-click backdrop (190) while open so
-    // the field stays clickable; drop back to 1 when closed so it never sits
-    // over unrelated page chrome.
-    inputZ:         open ? 201 : 1
   }
 
   @actions {
@@ -263,11 +261,8 @@ component Autocomplete(
 
     // Input row — listens for arrow / Enter / Escape via key-down
     // bubbling up from the wrapped textInput primitive. Also the anchor the
-    // floating panel positions against (its immediate next sibling). Elevated
-    // above the outside-click backdrop while open so the field stays clickable.
+    // floating panel positions against (its immediate next sibling).
     block {
-      position: 'relative'
-      z-index: inputZ
       layout: horizontal, gap: spacing.1, align: center
       on key-down(event): match event.key {
         "ArrowDown" -> moveDown(),
@@ -351,21 +346,6 @@ component Autocomplete(
         padding: spacing.2
         text("No matches for {query}") { style: type.body-md, color: semantic.text-tertiary }
       }
-    }
-
-    // Outside-click backdrop — fullscreen fixed sibling BELOW the panel in
-    // z-order (190 < 200) and placed AFTER it so the panel's `anchor:'bottom'`
-    // resolves to the input row (its previous sibling), not the backdrop.
-    // Closes the dropdown on any click outside the (elevated) input + panel.
-    block {
-      visibility: open
-      position: 'fixed'
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 190
-      on click: closeDropdown()
     }
   }
 }
