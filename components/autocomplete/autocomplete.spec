@@ -62,12 +62,20 @@
 //                         field never displays an uncommitted value. In
 //                         freeText mode it just closes the dropdown.
 //
-// Outside-click dismissal — the dropdown carries `role="listbox"` so a
-// host application can wire up its own outside-click → Escape dispatch
-// (see e.g. the popup.js helper used by golf / vector). Spec's
-// `overlay()` would handle this automatically but tends to collapse the
-// surrounding layout when nested inside a vertical stack with siblings;
-// the inline-block approach here is more predictable.
+// Floating dropdown — the suggestion panel is anchored to the input row via
+// `anchor: 'bottom'`, which positionDropdown renders position:fixed with
+// viewport-relative coords. It therefore floats OVER the page (no sibling
+// push-down) and escapes any overflow:hidden|auto ancestor (scrollable cards,
+// data grids, modal bodies) — same pattern as Select / MultiSelect. A
+// fullscreen backdrop sibling (placed AFTER the panel so the panel's
+// `anchor:'bottom'` still resolves to the input row, its previous sibling)
+// handles outside-click dismissal. The input row is elevated above the
+// backdrop while open so the user can keep clicking into the field to edit.
+//
+// (popup.js's outside-click helper relies on offsetParent, which is null for
+// position:fixed elements, so it no longer governs this dropdown — the
+// backdrop does. The `data-autocomplete-popup` / `role="listbox"` attributes
+// are retained for back-compat and a11y.)
 //
 // Styling — uses semantic + token color names so it adapts to themes.
 // Override `font` and `border` tokens via the host's @theme to reskin.
@@ -129,6 +137,15 @@ component Autocomplete(
     hasSelection:   freeText ? (value != "" && !typing) : (selectedOption != null && !typing)
     matchLen:       filteredOptions.length
     safeIndex:      matchLen > 0 && highlightIndex < matchLen ? highlightIndex : 0
+    // The floating panel is shown when there are matches to list OR a typed
+    // query yielded none (so the "no matches" hint can render). Both the
+    // options list and the empty hint live inside this single anchored panel.
+    showEmptyHint:  open && typing && query != "" && matchLen == 0
+    showPanel:      open && (matchLen > 0 || showEmptyHint)
+    // Lift the input row above the outside-click backdrop (190) while open so
+    // the field stays clickable; drop back to 1 when closed so it never sits
+    // over unrelated page chrome.
+    inputZ:         open ? 201 : 1
   }
 
   @actions {
@@ -245,8 +262,12 @@ component Autocomplete(
     opacity: match disabled { true -> 0.5, _ -> 1 }
 
     // Input row — listens for arrow / Enter / Escape via key-down
-    // bubbling up from the wrapped textInput primitive.
+    // bubbling up from the wrapped textInput primitive. Also the anchor the
+    // floating panel positions against (its immediate next sibling). Elevated
+    // above the outside-click backdrop while open so the field stays clickable.
     block {
+      position: 'relative'
+      z-index: inputZ
       layout: horizontal, gap: spacing.1, align: center
       on key-down(event): match event.key {
         "ArrowDown" -> moveDown(),
@@ -281,12 +302,14 @@ component Autocomplete(
       }
     }
 
-    // Inline dropdown — push siblings down. The host application is
-    // expected to lay this component out in a column-flex container that
-    // tolerates inline expansion. Use `Select` instead if you need a
-    // floating popup.
+    // Floating suggestion panel — anchored to the input row above, rendered
+    // position:fixed by positionDropdown so it floats over the page instead of
+    // pushing siblings down, and escapes overflow:hidden|auto ancestors. Holds
+    // both the options list and the empty-state hint.
     block {
-      visibility: open && matchLen > 0
+      visibility: showPanel
+      anchor: 'bottom'
+      z-index: 200
       role: "listbox"
       data-autocomplete-popup: "true"
       background: token.select-bg
@@ -297,36 +320,52 @@ component Autocomplete(
       shadow: "0 8px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)"
       layout: vertical
 
-      each filteredOptions as opt, idx {
-        block {
-          padding: spacing.2
-          cursor: "pointer"
-          background: match idx == safeIndex {
-            true -> token.select-optionHover,
-            _ -> "transparent"
-          }
-          scroll-to: idx == safeIndex
-          on click: pickOption(opt)
-          on hover { background: token.select-optionHover }
-          text(opt.label) {
-            style: type.body-md
-            color: idx == safeIndex ? semantic.interactive : semantic.text-primary
-            weight: idx == safeIndex ? 700 : 500
+      // Options list
+      block {
+        visibility: matchLen > 0
+        layout: vertical
+
+        each filteredOptions as opt, idx {
+          block {
+            padding: spacing.2
+            cursor: "pointer"
+            background: match idx == safeIndex {
+              true -> token.select-optionHover,
+              _ -> "transparent"
+            }
+            scroll-to: idx == safeIndex
+            on click: pickOption(opt)
+            on hover { background: token.select-optionHover }
+            text(opt.label) {
+              style: type.body-md
+              color: idx == safeIndex ? semantic.interactive : semantic.text-primary
+              weight: idx == safeIndex ? 700 : 500
+            }
           }
         }
       }
+
+      // Empty-state hint while typing
+      block {
+        visibility: showEmptyHint
+        padding: spacing.2
+        text("No matches for {query}") { style: type.body-md, color: semantic.text-tertiary }
+      }
     }
 
-    // Empty-state hint while typing
+    // Outside-click backdrop — fullscreen fixed sibling BELOW the panel in
+    // z-order (190 < 200) and placed AFTER it so the panel's `anchor:'bottom'`
+    // resolves to the input row (its previous sibling), not the backdrop.
+    // Closes the dropdown on any click outside the (elevated) input + panel.
     block {
-      visibility: open && typing && query != "" && matchLen == 0
-      data-autocomplete-popup: "true"
-      padding: spacing.2
-      background: token.select-bg
-      border: token.input-borderWidth + " solid " + semantic.border
-      border-radius: token.select-radius
-      shadow: "0 8px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)"
-      text("No matches for {query}") { style: type.body-md, color: semantic.text-tertiary }
+      visibility: open
+      position: 'fixed'
+      top: 0px
+      left: 0px
+      right: 0px
+      bottom: 0px
+      z-index: 190
+      on click: closeDropdown()
     }
   }
 }
