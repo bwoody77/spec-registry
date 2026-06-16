@@ -1,6 +1,6 @@
 [package]
 name = "date-picker"
-version = "0.2.1"
+version = "0.3.0"
 category = "components"
 description = "Calendar-based input for selecting dates or date ranges"
 license = "MIT"

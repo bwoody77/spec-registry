@@ -15,6 +15,8 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     segYear: 2026
     editing: false
     digitBuffer: ""
+    popupView: 0
+    yearGridStart: 2020
   }
 
   @computed {
@@ -23,13 +25,23 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     placeholderText: placeholder != "" ? placeholder : format
     daysInCurrentMonth: daysInMonth(viewYear, viewMonth)
     monthNames: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    monthLabel: monthNames[viewMonth] + " " + viewYear
     calendarCells: calendarGrid(viewYear, viewMonth)
     segments: formatSegments(format)
     sep: formatSeparator(format)
-    seg0Label: segments[0] == 'month' ? (segMonth < 10 ? "0" + segMonth : segMonth + "") : segments[0] == 'day' ? (segDay < 10 ? "0" + segDay : segDay + "") : segYear + ""
-    seg1Label: segments[1] == 'month' ? (segMonth < 10 ? "0" + segMonth : segMonth + "") : segments[1] == 'day' ? (segDay < 10 ? "0" + segDay : segDay + "") : segYear + ""
-    seg2Label: segments[2] == 'month' ? (segMonth < 10 ? "0" + segMonth : segMonth + "") : segments[2] == 'day' ? (segDay < 10 ? "0" + segDay : segDay + "") : segYear + ""
+    parts: value != "" ? parseDateInput(value, format) : null
+    showMask: value == "" && editing == false
+    dMonth: editing == true ? segMonth : (parts != null ? parts.month + 1 : 1)
+    dDay: editing == true ? segDay : (parts != null ? parts.day : 1)
+    dYear: editing == true ? segYear : (parts != null ? parts.year : 2026)
+    mStr: dMonth < 10 ? "0" + dMonth : dMonth + ""
+    dStr: dDay < 10 ? "0" + dDay : dDay + ""
+    yStr: dYear + ""
+    monthShort: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    gridIndices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    yearRangeLabel: yearGridStart + " – " + (yearGridStart + 11)
+    seg0Label: showMask == true ? (segments[0] == 'month' ? "MM" : segments[0] == 'day' ? "DD" : "YYYY") : (segments[0] == 'month' ? mStr : segments[0] == 'day' ? dStr : yStr)
+    seg1Label: showMask == true ? (segments[1] == 'month' ? "MM" : segments[1] == 'day' ? "DD" : "YYYY") : (segments[1] == 'month' ? mStr : segments[1] == 'day' ? dStr : yStr)
+    seg2Label: showMask == true ? (segments[2] == 'month' ? "MM" : segments[2] == 'day' ? "DD" : "YYYY") : (segments[2] == 'month' ? mStr : segments[2] == 'day' ? dStr : yStr)
   }
 
   @actions {
@@ -38,6 +50,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         open = open == false
         if open == true {
           activeSegment = -1
+          popupView = 0
           editing = false
           if value != "" {
             let parts = parseDateInput(value, format)
@@ -57,6 +70,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     }
     close() {
       open = false
+      popupView = 0
       focusTrigger = focusTrigger == false
     }
     prevMonth() {
@@ -75,6 +89,21 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         viewMonth = viewMonth + 1
       }
     }
+    openMonthView() { popupView = 1 }
+    openYearView() {
+      yearGridStart = viewYear - 6
+      popupView = 2
+    }
+    pickMonth(m) {
+      viewMonth = m
+      popupView = 0
+    }
+    pickYear(y) {
+      viewYear = y
+      popupView = 0
+    }
+    prevDecade() { yearGridStart = yearGridStart - 12 }
+    nextDecade() { yearGridStart = yearGridStart + 12 }
     selectDay(day) {
       emit("change", formatDateOutput(viewYear, viewMonth, day, format))
       open = false
@@ -129,7 +158,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         segMonth = today.month + 1
         segDay = today.day
       }
-      activeSegment = 0
+      if activeSegment < 0 { activeSegment = 0 }
       editing = true
       digitBuffer = ""
     }
@@ -185,18 +214,20 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         digitBuffer = digitBuffer + key
         let segType = segments[activeSegment]
         if segType == 'month' {
-          if digitBuffer.length >= 2 {
-            let v = parseInt(digitBuffer)
-            segMonth = v >= 1 && v <= 12 ? v : segMonth
+          let n = parseInt(digitBuffer)
+          let advance = (digitBuffer.length == 1 && n >= 2) || digitBuffer.length >= 2
+          if advance == true {
+            segMonth = n >= 1 && n <= 12 ? n : segMonth
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
           }
         }
         if segType == 'day' {
-          if digitBuffer.length >= 2 {
-            let maxD = daysInMonth(segYear, segMonth - 1)
-            let v = parseInt(digitBuffer)
-            segDay = v >= 1 && v <= maxD ? v : segDay
+          let maxD = daysInMonth(segYear, segMonth - 1)
+          let n = parseInt(digitBuffer)
+          let advance = (digitBuffer.length == 1 && n >= 4) || digitBuffer.length >= 2
+          if advance == true {
+            segDay = n >= 1 && n <= maxD ? n : segDay
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
           }
@@ -204,9 +235,6 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         if segType == 'year' {
           if digitBuffer.length >= 4 {
             let v = parseInt(digitBuffer)
-            // Reject out-of-range years (a stray digit run like 0710 must
-            // not corrupt the field). Keep the prior year if the typed
-            // value is implausible; the user can retype.
             segYear = v >= 1900 && v <= 2200 ? v : segYear
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
@@ -305,7 +333,6 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
 
         // Segmented date display (when editing segments)
         block {
-          visibility: editing == true
           layout: horizontal, align: center, gap: 0px
 
           // Segment 0
@@ -317,7 +344,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             on click: focusSegment(0)
             text(seg0Label) {
               style: type.body-md
-              color: activeSegment == 0 ? semantic.surface : semantic.text-primary
+              color: activeSegment == 0 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
             }
           }
           text(sep) { style: type.body-md, color: semantic.text-tertiary }
@@ -330,7 +357,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             on click: focusSegment(1)
             text(seg1Label) {
               style: type.body-md
-              color: activeSegment == 1 ? semantic.surface : semantic.text-primary
+              color: activeSegment == 1 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
             }
           }
           text(sep) { style: type.body-md, color: semantic.text-tertiary }
@@ -343,17 +370,8 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             on click: focusSegment(2)
             text(seg2Label) {
               style: type.body-md
-              color: activeSegment == 2 ? semantic.surface : semantic.text-primary
+              color: activeSegment == 2 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
             }
-          }
-        }
-
-        // Plain display (when not editing segments)
-        block {
-          visibility: editing == false
-          text(displayValue != "" ? displayValue : placeholderText) {
-            style: type.body-md
-            color: displayValue != "" ? semantic.text-primary : semantic.text-tertiary
           }
         }
       }
@@ -401,6 +419,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         shadow: elevation.floating
         layout: vertical
 
+        block {
+          visibility: popupView == 0
+          layout: vertical
+
         // Month navigation
         block {
           layout: horizontal, justify: between, align: center
@@ -413,7 +435,25 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             on click: prevMonth()
             text("\u25C0") { style: type.body-md, color: semantic.interactive }
           }
-          text(monthLabel) { style: type.body-md, weight: 600, color: semantic.text-primary }
+          block {
+            layout: horizontal, align: center, gap: spacing.1
+            block {
+              cursor: "pointer"
+              padding-x: spacing.1
+              border-radius: radius.sm
+              on hover { background: semantic.surface-raised }
+              on click: openMonthView()
+              text(monthNames[viewMonth]) { style: type.body-md, weight: 600, color: semantic.text-primary }
+            }
+            block {
+              cursor: "pointer"
+              padding-x: spacing.1
+              border-radius: radius.sm
+              on hover { background: semantic.surface-raised }
+              on click: openYearView()
+              text(viewYear + "") { style: type.body-md, weight: 600, color: semantic.text-primary }
+            }
+          }
           block {
             cursor: "pointer"
             padding: spacing.2
@@ -496,6 +536,79 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             padding: spacing.1
             on click: selectToday()
             text('Today') { style: type.label-sm, color: semantic.interactive }
+          }
+        }
+        }
+
+        block {
+          visibility: popupView == 1
+          layout: vertical
+          block {
+            layout: horizontal, justify: center, align: center
+            padding: spacing.2
+            border-bottom: borders.default
+            text('Select month') { style: type.label-sm, color: semantic.text-secondary }
+          }
+          block {
+            layout: grid, columns: "repeat(3, 1fr)", gap: spacing.1
+            padding: spacing.2
+            each monthShort as name, idx {
+              block {
+                padding: spacing.2
+                layout: horizontal, justify: center, align: center
+                border-radius: radius.sm
+                cursor: "pointer"
+                background: idx == viewMonth ? semantic.interactive : "transparent"
+                on hover { background: idx == viewMonth ? semantic.interactive : semantic.surface-raised }
+                on click: pickMonth(idx)
+                text(name) {
+                  style: type.body-sm
+                  color: idx == viewMonth ? semantic.surface : semantic.text-primary
+                }
+              }
+            }
+          }
+        }
+
+        block {
+          visibility: popupView == 2
+          layout: vertical
+          block {
+            layout: horizontal, justify: between, align: center
+            padding: spacing.2
+            border-bottom: borders.default
+            block {
+              cursor: "pointer"
+              padding: spacing.2
+              on click: prevDecade()
+              text("◀") { style: type.body-md, color: semantic.interactive }
+            }
+            text(yearRangeLabel) { style: type.body-md, weight: 600, color: semantic.text-primary }
+            block {
+              cursor: "pointer"
+              padding: spacing.2
+              on click: nextDecade()
+              text("▶") { style: type.body-md, color: semantic.interactive }
+            }
+          }
+          block {
+            layout: grid, columns: "repeat(3, 1fr)", gap: spacing.1
+            padding: spacing.2
+            each gridIndices as idx {
+              block {
+                padding: spacing.2
+                layout: horizontal, justify: center, align: center
+                border-radius: radius.sm
+                cursor: "pointer"
+                background: (yearGridStart + idx) == viewYear ? semantic.interactive : "transparent"
+                on hover { background: (yearGridStart + idx) == viewYear ? semantic.interactive : semantic.surface-raised }
+                on click: pickYear(yearGridStart + idx)
+                text((yearGridStart + idx) + "") {
+                  style: type.body-sm
+                  color: (yearGridStart + idx) == viewYear ? semantic.surface : semantic.text-primary
+                }
+              }
+            }
           }
         }
       }
