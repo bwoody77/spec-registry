@@ -1,0 +1,16 @@
+[package]
+name = "time-range-picker"
+version = "0.1.0"
+category = "components"
+description = "Paired start/end time selects where the end is constrained to at least a minimum gap after the start; the end options recompute and auto-advance when the start changes."
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "time-range-picker.spec"
+
+[depends]
+select = "0.2.1"
