@@ -179,6 +179,10 @@ component Button(
       text(effectiveLabel) {
         style: type.label-md
         font-weight: token.btn-fontWeight
+        // Button labels must never wrap to a second line — a button squeezed
+        // by a flex sibling should keep its width and let the sibling reflow,
+        // not break "Reload saved" across two lines.
+        white-space: 'nowrap'
         color: match variant {
           "primary" -> semantic.on-interactive,
           "secondary" -> semantic.text-primary,
