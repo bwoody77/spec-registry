@@ -45,7 +45,7 @@ component DateTimeRangePicker(startDate: string = "", startTime: string = "09:00
         layout: horizontal, gap: spacing.2, align: center
         block {
           grow: true
-          DatePicker(value: startDate, disabled: disabled) {
+          DatePicker(value: startDate, disabled: disabled, format: "YYYY-MM-DD") {
             on change(v): setStartDate(v)
           }
         }
@@ -71,7 +71,7 @@ component DateTimeRangePicker(startDate: string = "", startTime: string = "09:00
         layout: horizontal, gap: spacing.2, align: center
         block {
           grow: true
-          DatePicker(value: endDate, disabled: disabled) {
+          DatePicker(value: endDate, disabled: disabled, format: "YYYY-MM-DD") {
             on change(v): setEndDate(v)
           }
         }

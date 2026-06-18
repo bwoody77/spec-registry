@@ -1,6 +1,6 @@
 [package]
 name = "datetime-range-picker"
-version = "0.1.0"
+version = "0.1.1"
 category = "components"
 description = "Start date+time to end date+time range that may span multiple days (e.g. Fri 5pm to Tue 9am); the end is constrained to at least a minimum gap after the start."
 license = "MIT"
