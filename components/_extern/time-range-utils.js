@@ -5,6 +5,8 @@ function pad2(n) {
     return String(n).padStart(2, '0');
 }
 function toMinutes(hhmm) {
+    if (!hhmm || !hhmm.includes(':'))
+        return 0; // guard: empty/malformed → 00:00, never NaN
     const [h, m] = hhmm.split(':').map(Number);
     return h * 60 + m;
 }
