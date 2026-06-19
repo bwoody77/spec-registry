@@ -53,11 +53,11 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           popupView = 0
           editing = false
           if value != "" {
-            let parts = parseDateInput(value, format)
-            if parts != null {
-              viewYear = parts.year
-              viewMonth = parts.month
-              focusedDay = parts.day
+            let parsed = parseDateInput(value, format)
+            if parsed != null {
+              viewYear = parsed.year
+              viewMonth = parsed.month
+              focusedDay = parsed.day
             }
           } else {
             let today = todayParts()
@@ -146,11 +146,11 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     // Segment navigation
     activateSegments() {
       if value != "" {
-        let parts = parseDateInput(value, format)
-        if parts != null {
-          segYear = parts.year
-          segMonth = parts.month + 1
-          segDay = parts.day
+        let parsed = parseDateInput(value, format)
+        if parsed != null {
+          segYear = parsed.year
+          segMonth = parsed.month + 1
+          segDay = parsed.day
         }
       } else {
         let today = todayParts()
