@@ -10,6 +10,7 @@ component TextInput(
   suffix: string = "",
   icon: string = "",
   unit: string = "",
+  tone: string = "default",
   error: boolean = false,
   errorMessage: string = ""
 ) {
@@ -44,12 +45,21 @@ component TextInput(
       layout: horizontal, align: center, gap: 8px
       padding: spacing.2
       border-radius: token.input-radius
-      background: token.input-bg
+      background: match tone {
+        "warning" -> semantic.warning-bg,
+        "danger"  -> semantic.destructive-bg,
+        _ -> token.input-bg
+      }
       border: match error {
         true -> token.input-borderWidth + " solid " + semantic.destructive,
-        _ -> match focused {
-          true -> token.input-borderWidth + " solid " + token.input-focusBorder,
-          _ -> token.input-borderWidth + " solid " + token.input-border
+        _ -> match tone {
+          "warning"   -> token.input-borderWidth + " solid " + semantic.warning,
+          "danger"    -> token.input-borderWidth + " solid " + semantic.destructive,
+          "highlight" -> token.input-borderWidth + " solid " + semantic.interactive,
+          _ -> match focused {
+            true  -> token.input-borderWidth + " solid " + token.input-focusBorder,
+            _     -> token.input-borderWidth + " solid " + token.input-border
+          }
         }
       }
       shadow: match focused {
