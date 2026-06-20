@@ -22,7 +22,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // Strip chrome differs by variant.
     stripBg:        variant == 'pill' ? semantic.surface : 'transparent'
     stripBorder:    variant == 'pill' ? borders.default : '1px solid transparent'
-    stripBorderBot: variant == 'pill' ? borders.default : '1px solid #e6ebf2'
+    stripBorderBot: variant == 'pill' ? borders.default : ('1px solid ' + semantic.border)
     stripRadius:    variant == 'pill' ? 12px : 0px
     stripPad:       variant == 'pill' ? 6px : 0px
   }
@@ -58,7 +58,7 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // underline: 2px indicator on the bottom. pill: keep bottom consistent
     // with the other three sides so the chip border is uniform.
     itemBorderBot: variant == 'underline'
-                     ? (active ? '2px solid #0067e6' : '2px solid transparent')
+                     ? (active ? ('2px solid ' + semantic.interactive) : '2px solid transparent')
                      : ((variant == 'pill' && active) ? '1px solid #bfdbfe' : '1px solid transparent')
     hoverBg:     active ? (variant == 'pill' ? semantic.interactive-bg : 'transparent') : semantic.surface-hover
     fg:          active ? semantic.interactive-hover : semantic.text-secondary

@@ -1,6 +1,6 @@
 [package]
 name = "tabs"
-version = "0.3.2"
+version = "0.3.3"
 category = "components"
 description = "Tabbed interface for switching between related content panels"
 license = "MIT"
