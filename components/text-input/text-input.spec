@@ -1,4 +1,4 @@
-// Input — form text input with label, prefix/suffix, error state, and focus ring
+// Input — form text input with label, prefix/suffix, leading icon, segmented unit, error state, focus ring
 component TextInput(
   type: string = "text",
   label: string = "",
@@ -8,6 +8,8 @@ component TextInput(
   readonly: boolean = false,
   prefix: string = "",
   suffix: string = "",
+  icon: string = "",
+  unit: string = "",
   error: boolean = false,
   errorMessage: string = ""
 ) {
@@ -57,6 +59,13 @@ component TextInput(
       transition: transition.focus
       cursor: match disabled { true -> "not-allowed", _ -> "text" }
 
+      // Leading icon
+      block {
+        visibility: icon != ""
+        layout: horizontal, align: center
+        Icon(name: icon, size: 16, color: semantic.text-tertiary)
+      }
+
       // Prefix
       block {
         visibility: prefix != ""
@@ -81,6 +90,7 @@ component TextInput(
           on input: emit("change", value)
           on focus: handleFocus()
           on blur: handleBlur()
+          on key-down(e): emit("keydown", e)
         }
       }
 
@@ -99,15 +109,32 @@ component TextInput(
           on input: emit("change", value)
           on focus: handleFocus()
           on blur: handleBlur()
+          on key-down(e): emit("keydown", e)
         }
       }
 
-      // Suffix
+      // Suffix (inline)
       block {
         visibility: suffix != ""
         text(suffix) {
           style: type.body-md
           color: semantic.text-tertiary
+        }
+      }
+
+      // Segmented unit (e.g. "qts", "gal") — right-aligned box with a full-height divider
+      block {
+        visibility: unit != ""
+        layout: horizontal, align: center, justify: center
+        padding-x: spacing.2
+        border-left: match focused {
+          true -> "1px solid " + token.input-focusBorder,
+          _ -> "1px solid " + token.input-border
+        }
+        text(unit) {
+          style: type.body-sm
+          color: semantic.text-tertiary
+          weight: 600
         }
       }
     }
