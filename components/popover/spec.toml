@@ -1,6 +1,6 @@
 [package]
 name = "popover"
-version = "0.2.1"
+version = "0.2.2"
 category = "components"
 description = "Floating content panel anchored to a trigger element"
 license = "MIT"

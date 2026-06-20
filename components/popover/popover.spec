@@ -15,7 +15,7 @@
 // against that ancestor (CSS Transforms spec). Audit ancestors if the panel
 // lands at the wrong coordinates.
 
-component Popover(placement: string = "bottom") {
+component Popover(placement: string = "bottom", closeOnContentClick: boolean = false) {
   @state {
     open: false
   }
@@ -36,6 +36,10 @@ component Popover(placement: string = "bottom") {
 
     // Panel — anchored to the trigger (previous sibling). `anchor:` invokes
     // positionDropdown which sets position:fixed + viewport-relative coords.
+    // When closeOnContentClick is true, any click inside the panel (e.g. on
+    // a select option) bubbles up to this block and calls close(). The child's
+    // own handler fires first (event propagation order), so the selection
+    // action completes before the panel closes.
     block {
       visibility: open
       anchor: placement
@@ -48,6 +52,7 @@ component Popover(placement: string = "bottom") {
       shadow: elevation.floating
       z-index: 200
       layout: vertical, gap: spacing.2
+      on click: closeOnContentClick ? close() : {}
 
       @slot("content")
     }
