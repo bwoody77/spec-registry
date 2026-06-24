@@ -44,6 +44,14 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     seg2Label: showMask == true ? (segments[2] == 'month' ? "MM" : segments[2] == 'day' ? "DD" : "YYYY") : (segments[2] == 'month' ? mStr : segments[2] == 'day' ? dStr : yStr)
   }
 
+  @watch {
+    // Close the calendar once a pick has flowed back through `value`. selectDay
+    // intentionally does NOT close (see closeAfterPick) — closing in the same
+    // action as emit() drops the picked date. This fires on the resulting value
+    // change instead. Does not fire on mount, so it won't fight an open popup.
+    value: { closeAfterPick() }
+  }
+
   @actions {
     toggle() {
       if disabled == false {
@@ -106,8 +114,6 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     nextDecade() { yearGridStart = yearGridStart + 12 }
     selectDay(day) {
       emit("change", formatDateOutput(viewYear, viewMonth, day, format))
-      open = false
-      focusTrigger = focusTrigger == false
     }
     selectToday() {
       let today = todayParts()
@@ -257,6 +263,18 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       editing = false
       digitBuffer = ""
     }
+    // Close the calendar overlay AFTER a pick has flowed back through `value`.
+    // This must NOT happen inside selectDay: setting open=false in the same
+    // action as emit() unmounts the overlay (which hosts the clicked day cell)
+    // before the deferred "change" event propagates, so the picked date is
+    // dropped and the field never updates. Closing on the value change instead
+    // fires once the parent has applied the new value.
+    closeAfterPick() {
+      if open == true {
+        open = false
+        focusTrigger = focusTrigger == false
+      }
+    }
   }
 
   block {
@@ -318,7 +336,14 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               "ArrowDown" -> decrementSegment(),
               "Enter" -> commitSegments(),
               "Escape" -> cancelSegments(),
-              "Tab" -> {},
+              // Tab: commit the typed value so it isn't lost, then allow the
+              // browser's native Tab to move focus. Because this match arm is
+              // inside an `if` block the compiler does NOT auto-preventDefault
+              // for any key in this handler — Tab therefore falls through to
+              // the browser naturally. The real fix for the tab-trap was
+              // adding tabindex:"-1" to each segment block so Tab no longer
+              // cycles through seg0→seg1→seg2 inside the picker.
+              "Tab" -> commitSegments(),
               _ -> handleDigit(event.key)
             }
           } else {
@@ -335,10 +360,14 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         block {
           layout: horizontal, align: center, gap: 0px
 
-          // Segment 0
+          // Segment 0 — tabindex:"-1" removes it from the tab order so Tab
+          // moves focus OUT of the picker rather than cycling through segments.
+          // Click-to-focus still works; the parent block (tabindex:"0") is the
+          // sole tab stop for the whole date-input area.
           block {
             padding-x: 2px
             cursor: "text"
+            tabindex: "-1"
             background: activeSegment == 0 ? semantic.interactive : "transparent"
             border-radius: radius.sm
             on click: focusSegment(0)
@@ -352,6 +381,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           block {
             padding-x: 2px
             cursor: "text"
+            tabindex: "-1"
             background: activeSegment == 1 ? semantic.interactive : "transparent"
             border-radius: radius.sm
             on click: focusSegment(1)
@@ -365,6 +395,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           block {
             padding-x: 2px
             cursor: "text"
+            tabindex: "-1"
             background: activeSegment == 2 ? semantic.interactive : "transparent"
             border-radius: radius.sm
             on click: focusSegment(2)
