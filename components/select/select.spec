@@ -3,7 +3,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
-component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection") {
+component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "") {
   @state {
     open: false
     query: ""
@@ -74,9 +74,12 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       padding: spacing.2
       min-height: 40px
       background: token.select-bg
-      border: match focused {
-        true -> token.input-borderWidth + " solid " + token.input-focusBorder,
-        _ -> token.input-borderWidth + " solid " + token.select-border
+      border: match error {
+        true -> token.input-borderWidth + " solid " + semantic.destructive,
+        _ -> match focused {
+          true -> token.input-borderWidth + " solid " + token.input-focusBorder,
+          _ -> token.input-borderWidth + " solid " + token.select-border
+        }
       }
       shadow: match focused {
         true -> "0 0 0 3px " + token.input-focusRing,
@@ -225,5 +228,14 @@ component Select(options: array = [], value: string = "", placeholder: string = 
         z-index: 190
         on click: closeDropdown()
       }
+
+    // Error message
+    block {
+      visibility: error == true
+      text(errorMessage) {
+        style: type.caption
+        color: semantic.destructive
+      }
+    }
   }
 }
