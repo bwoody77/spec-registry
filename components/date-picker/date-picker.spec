@@ -14,6 +14,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     segDay: 1
     segYear: 2026
     editing: false
+    // True once the user actually changes a segment in the current edit session.
+    // Until then an empty field keeps showing the MM/DD/YYYY mask instead of the
+    // today-prefill in segMonth/Day/Year, so a field the user merely focused (but
+    // never edited) reads as empty — not a misleading "today" that was never
+    // committed to `value`.
+    dirty: false
     digitBuffer: ""
     popupView: 0
     yearGridStart: 2020
@@ -29,7 +35,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     segments: formatSegments(format)
     sep: formatSeparator(format)
     parts: value != "" ? parseDateInput(value, format) : null
-    showMask: value == "" && editing == false
+    showMask: value == "" && (editing == false || dirty == false)
     dMonth: editing == true ? segMonth : (parts != null ? parts.month + 1 : 1)
     dDay: editing == true ? segDay : (parts != null ? parts.day : 1)
     dYear: editing == true ? segYear : (parts != null ? parts.year : 2026)
@@ -166,7 +172,18 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       }
       if activeSegment < 0 { activeSegment = 0 }
       editing = true
+      // Armed but not yet edited: keep the mask showing for an empty field.
+      dirty = false
       digitBuffer = ""
+    }
+    // Push the current segment buffer to `value` immediately, so a typed or
+    // arrowed date is committed as the user edits — not only on blur. Without
+    // this, submitting a form while a date field is still focused reads the old
+    // (often empty) value even though the field visibly shows a date.
+    emitBuffer() {
+      dirty = true
+      let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
+      emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
     }
     // Click a specific segment to edit it. Without this, focusing the field
     // always parks editing on segment 0; for a YYYY-MM-DD format that's the
@@ -201,6 +218,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       if segType == 'year' {
         segYear = segYear + 1
       }
+      emitBuffer()
     }
     decrementSegment() {
       let segType = segments[activeSegment]
@@ -214,6 +232,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       if segType == 'year' {
         segYear = segYear > 1 ? segYear - 1 : 1
       }
+      emitBuffer()
     }
     handleDigit(key) {
       if key >= "0" && key <= "9" {
@@ -226,6 +245,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             segMonth = n >= 1 && n <= 12 ? n : segMonth
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
+            emitBuffer()
           }
         }
         if segType == 'day' {
@@ -236,6 +256,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             segDay = n >= 1 && n <= maxD ? n : segDay
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
+            emitBuffer()
           }
         }
         if segType == 'year' {
@@ -244,6 +265,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             segYear = v >= 1900 && v <= 2200 ? v : segYear
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
+            emitBuffer()
           }
         }
       }
@@ -256,11 +278,13 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
       activeSegment = -1
       editing = false
+      dirty = false
       digitBuffer = ""
     }
     cancelSegments() {
       activeSegment = -1
       editing = false
+      dirty = false
       digitBuffer = ""
     }
     // Close the calendar overlay AFTER a pick has flowed back through `value`.
