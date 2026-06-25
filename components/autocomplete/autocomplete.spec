@@ -92,6 +92,7 @@ component Autocomplete(
   value: string = "",
   placeholder: string = "Type to search…",
   error: boolean = false,
+  errorMessage: string = "",
   disabled: boolean = false,
   freeText: boolean = false,
   openOnFocus: boolean = false
@@ -275,7 +276,7 @@ component Autocomplete(
 
       block {
         grow: true
-        TextInput(value: inputValue, placeholder: placeholder, error: error, disabled: disabled) {
+        TextInput(value: inputValue, placeholder: placeholder, error: error, errorMessage: errorMessage, disabled: disabled) {
           on change(v): handleInput(v)
           on focus: handleFocus()
         }
