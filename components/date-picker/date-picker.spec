@@ -1,7 +1,8 @@
 @extern { calendarGrid, todayStr, parseDateInput, daysInMonth, todayParts, formatDateOutput, formatSegments, formatSeparator, toISODate } from "@spec/components/date-utils.js"
 
 component DatePicker(value: string = "", label: string = "", placeholder: string = "",
-                     disabled: boolean = false, format: string = "MM/DD/YYYY") {
+                     disabled: boolean = false, format: string = "MM/DD/YYYY",
+                     error: boolean = false, errorMessage: string = "") {
   @state {
     open: false
     viewYear: 2026
@@ -322,9 +323,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       layout: horizontal, align: center, gap: 0px
       min-height: 36px
       background: token.input-bg
-      border: match focused {
-        true -> token.input-borderWidth + " solid " + semantic.interactive,
-        _ -> token.input-borderWidth + " solid " + token.input-border
+      border: match error {
+        true -> token.input-borderWidth + " solid " + semantic.destructive,
+        _ -> match focused {
+          true -> token.input-borderWidth + " solid " + semantic.interactive,
+          _ -> token.input-borderWidth + " solid " + token.input-border
+        }
       }
       shadow: match focused {
         true -> "0 0 0 3px " + token.input-focusRing,
@@ -667,6 +671,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           }
         }
       }
+    }
+
+    // Error caption
+    block {
+      visibility: error == true
+      text(errorMessage) { style: type.caption, color: semantic.destructive }
     }
   }
 }
