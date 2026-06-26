@@ -120,7 +120,14 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     prevDecade() { yearGridStart = yearGridStart - 12 }
     nextDecade() { yearGridStart = yearGridStart + 12 }
     selectDay(day) {
-      emit("change", formatDateOutput(viewYear, viewMonth, day, format))
+      let out = formatDateOutput(viewYear, viewMonth, day, format)
+      if out == value {
+        // Same date re-selected: no value change, so @watch won't fire.
+        // Close directly — safe because there is no emit() here.
+        closeAfterPick()
+        return
+      }
+      emit("change", out)
     }
     selectToday() {
       let today = todayParts()
@@ -304,11 +311,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
 
   block {
     layout: vertical, gap: spacing.1
-    // Establish a positioning context so the calendar overlay (which uses
-    // position:absolute; inset:0 internally) anchors to THIS DatePicker
-    // rather than walking up to the nearest positioned ancestor (which is
-    // typically the modal — yielding a popup that's centered in the modal
-    // instead of pinned to the trigger).
+    // `position: relative` kept for legacy reasons; no longer needed for
+    // the calendar popup (which now uses anchor:'bottom' → position:fixed
+    // via positionDropdown, escaping any overflow ancestors).
     position: relative
 
     // Label
@@ -451,32 +456,24 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       }
     }
 
-    // Calendar popup
-    overlay(visible: open, anchor: "parent", backdrop: "transparent", dismissOnTapOutside: true) {
-      on dismiss: close()
-
-      block {
-        // Pin the calendar to the bottom-left of the trigger and let it
-        // extend rightward + downward to its natural 280px. `position:
-        // absolute` removes the popup from the overlay's flex centering
-        // (which would otherwise shrink it to the trigger's column width
-        // and clip the left edge when the trigger is near the modal's
-        // left margin).
-        position: absolute
-        top: 100%
-        left: 0
-        // Margin shorthand applies to all sides; on a position:absolute
-        // element only top/left meaningfully shift placement, giving us
-        // a small gap below the trigger. The spec parser doesn't expose
-        // a margin-top: shortcut.
-        margin: spacing.1
-        width: 280px
-        min-width: 280px
-        background: semantic.surface
-        border: borders.default
-        border-radius: radius.md
-        shadow: elevation.floating
-        layout: vertical
+    // Calendar popup — anchor:'bottom' invokes positionDropdown (position:fixed,
+    // viewport-clamped), so the calendar escapes any overflow-clipping ancestor.
+    // The trigger block is the previous sibling; positionDropdown reads its rect
+    // and positions the popup below it. z-index:100 keeps the popup above the
+    // transparent dismiss-backdrop (z-index:99).
+    // GATE-2 check: verify positionDropdown fires correctly on each open and
+    // that click-outside dismiss works inside an overflow-clipping container.
+    block {
+      visibility: open
+      anchor: 'bottom'
+      z-index: 100
+      width: 280px
+      min-width: 280px
+      background: semantic.surface
+      border: borders.default
+      border-radius: radius.md
+      shadow: elevation.floating
+      layout: vertical
 
         block {
           visibility: popupView == 0
@@ -571,7 +568,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               }
               tabindex: "-1"
               focus: cell.day == focusedDay && cell.isCurrentMonth && open
-              on hover { background: cell.isCurrentMonth ? semantic.surface-raised : "transparent" }
+              on hover { background: cell.dateStr == valueISO ? semantic.interactive-hover : (cell.isCurrentMonth ? semantic.surface-raised : "transparent") }
               on click: cell.isCurrentMonth ? selectDay(cell.day) : {}
 
               text(cell.day + "") {
@@ -670,7 +667,20 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             }
           }
         }
-      }
+    }
+
+    // Transparent full-screen backdrop: intercepts click-outside to dismiss the
+    // calendar. Sits below the popup in z-index (99 < 100) so day-cell clicks
+    // still reach the popup. ESC key is handled by the trigger's on key-down.
+    block {
+      visibility: open
+      position: fixed
+      top: 0px
+      left: 0px
+      right: 0px
+      bottom: 0px
+      z-index: 99
+      on click: close()
     }
 
     // Error caption
