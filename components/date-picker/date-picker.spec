@@ -459,14 +459,15 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     // Calendar popup — anchor:'bottom' invokes positionDropdown (position:fixed,
     // viewport-clamped), so the calendar escapes any overflow-clipping ancestor.
     // The trigger block is the previous sibling; positionDropdown reads its rect
-    // and positions the popup below it. z-index:100 keeps the popup above the
-    // transparent dismiss-backdrop (z-index:99).
-    // GATE-2 check: verify positionDropdown fires correctly on each open and
-    // that click-outside dismiss works inside an overflow-clipping container.
+    // and positions the popup below it. z-index:1000 keeps the position:fixed
+    // popup above Vector's sticky page chrome (sticky headers/overlays live at
+    // 100-300) and above the transparent dismiss-backdrop (z-index:999), while
+    // staying below top toasts (9999). Modal-embedded pickers are bounded by the
+    // modal's own stacking context, so this only affects same-root sticky chrome.
     block {
       visibility: open
       anchor: 'bottom'
-      z-index: 100
+      z-index: 1000
       width: 280px
       min-width: 280px
       background: semantic.surface
@@ -670,8 +671,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     }
 
     // Transparent full-screen backdrop: intercepts click-outside to dismiss the
-    // calendar. Sits below the popup in z-index (99 < 100) so day-cell clicks
-    // still reach the popup. ESC key is handled by the trigger's on key-down.
+    // calendar. Sits below the popup in z-index (999 < 1000) so day-cell clicks
+    // still reach the popup, but above sticky page chrome (100-300). ESC key is
+    // handled by the trigger's on key-down.
     block {
       visibility: open
       position: fixed
@@ -679,7 +681,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       left: 0px
       right: 0px
       bottom: 0px
-      z-index: 99
+      z-index: 999
       on click: close()
     }
 
