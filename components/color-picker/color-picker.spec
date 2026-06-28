@@ -62,7 +62,7 @@ component ColorPicker(value: string = "#1684ff", name: string = "color") {
         height: 24px
         border-radius: 6px
         background: localColor
-        border: token.border-default
+        border: borders.default
       }
 
       text(localColor) {
