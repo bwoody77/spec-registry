@@ -211,6 +211,18 @@ export function toISODate(str, format) {
         return '';
     return `${parts.year}-${String(parts.month + 1).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
 }
+/**
+ * Convert an ISO "YYYY-MM-DD" date string into the given display format.
+ * Lets a calendar cell from an adjacent month — which already carries its true
+ * ISO dateStr — be selected and emitted with the correct month/year, instead of
+ * being forced through the currently-viewed month.
+ */
+export function isoToOutput(dateStr, format) {
+    const parts = parseDateParts(dateStr);
+    if (!parts)
+        return '';
+    return formatDateOutput(parts.year, parts.month, parts.day, format);
+}
 // Internal helper
 function formatDateStr(year, month, day) {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
