@@ -17,6 +17,10 @@ component Select(options: array = [], value: string = "", placeholder: string = 
     selectedOption: safeOptions.find(o => o.value == value)
     displayText: selectedOption != null ? selectedOption.label : placeholder
     hasOptions: filteredOptions.length > 0
+    // Index of the currently-selected option (0 when none) so opening the
+    // dropdown highlights it — the `scroll-to: idx == highlightIndex` binding
+    // below then scrolls the selected value into view instead of the top.
+    selectedIndex: selectedOption != null ? safeOptions.findIndex(o => o.value == value) : 0
   }
 
   @actions {
@@ -24,14 +28,14 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       if disabled == false {
         open = open == false
         query = ""
-        highlightIndex = 0
+        highlightIndex = selectedIndex
       }
     }
     openDropdown() {
       if disabled == false && open == false {
         open = true
         query = ""
-        highlightIndex = 0
+        highlightIndex = selectedIndex
       }
     }
     closeDropdown() {
