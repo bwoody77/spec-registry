@@ -1,4 +1,4 @@
-@extern { calendarGrid, todayStr, parseDateInput, daysInMonth, todayParts, formatDateOutput, formatSegments, formatSeparator, toISODate } from "@spec/components/date-utils.js"
+@extern { calendarGrid, todayStr, parseDateInput, daysInMonth, todayParts, formatDateOutput, formatSegments, formatSeparator, toISODate, isoToOutput } from "@spec/components/date-utils.js"
 
 component DatePicker(value: string = "", label: string = "", placeholder: string = "",
                      disabled: boolean = false, format: string = "MM/DD/YYYY",
@@ -121,6 +121,20 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     nextDecade() { yearGridStart = yearGridStart + 12 }
     selectDay(day) {
       let out = formatDateOutput(viewYear, viewMonth, day, format)
+      if out == value {
+        // Same date re-selected: no value change, so @watch won't fire.
+        // Close directly — safe because there is no emit() here.
+        closeAfterPick()
+        return
+      }
+      emit("change", out)
+    }
+    // Select any visible calendar cell by its true ISO dateStr. Leading/trailing
+    // cells belong to the previous/next month, so we must emit from the cell's
+    // own date — NOT from viewYear/viewMonth, which would wrongly snap e.g. a
+    // clicked "July 1" (visible while viewing June) back to June 1.
+    selectCell(iso) {
+      let out = isoToOutput(iso, format)
       if out == value {
         // Same date re-selected: no value change, so @watch won't fire.
         // Close directly — safe because there is no emit() here.
@@ -561,7 +575,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               min-height: 32px
               layout: horizontal, justify: center, align: center
               border-radius: radius.sm
-              cursor: cell.isCurrentMonth ? "pointer" : "default"
+              cursor: "pointer"
               border: cell.day == focusedDay && cell.isCurrentMonth ? "2px solid " + semantic.interactive : "2px solid transparent"
               background: match cell.dateStr == valueISO {
                 true -> semantic.interactive,
@@ -569,8 +583,8 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               }
               tabindex: "-1"
               focus: cell.day == focusedDay && cell.isCurrentMonth && open
-              on hover { background: cell.dateStr == valueISO ? semantic.interactive-hover : (cell.isCurrentMonth ? semantic.surface-raised : "transparent") }
-              on click: cell.isCurrentMonth ? selectDay(cell.day) : {}
+              on hover { background: cell.dateStr == valueISO ? semantic.interactive-hover : semantic.surface-raised }
+              on click: selectCell(cell.dateStr)
 
               text(cell.day + "") {
                 style: type.body-sm
