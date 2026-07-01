@@ -204,8 +204,15 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         }
 
         // Toggle area — clicking here opens/closes dropdown
+        // NOTE: only grows when it's the sole flexible sibling in the row.
+        // When display=='text' AND there are selections, the text-summary
+        // block above (also grow:true) is visible too — two grow:true
+        // siblings split the row and shove this area (and its caret)
+        // inward, reading as a "box within the box" with the caret off-
+        // center. Growing only when the text block is absent keeps the
+        // caret pinned to the far right in every mode.
         block {
-          grow: true
+          grow: (hasSelections && display == "text") ? false : true
           layout: horizontal, align: center, justify: between
           on click: toggleOpen()
 
