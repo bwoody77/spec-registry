@@ -36,6 +36,13 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     displayText: selectedOptions.map(o => (o.shortLabel != null ? o.shortLabel : o.label)).join(", ")
     isDropdownMode: mode == "dropdown"
     showList: isDropdownMode == false || open == true
+    // The text-summary block (below) also grows when display=='text' and
+    // something is selected. Two grow:true siblings in the same row split
+    // it, shoving the toggle area (and its caret) inward — reads as a
+    // "box within the box" with an off-center caret. Grow only when that
+    // sibling is absent so the caret stays pinned to the far right.
+    showTextSummary: hasSelections && display == "text"
+    toggleAreaGrows: showTextSummary == false
   }
 
   @actions {
@@ -193,7 +200,7 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         // ellipsis. Users see the summary; for full context they reopen the
         // panel (where individual options are still removable).
         block {
-          visibility: hasSelections && display == "text"
+          visibility: showTextSummary
           grow: true
           overflow: hidden
           text(displayText) {
@@ -204,15 +211,8 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         }
 
         // Toggle area — clicking here opens/closes dropdown
-        // NOTE: only grows when it's the sole flexible sibling in the row.
-        // When display=='text' AND there are selections, the text-summary
-        // block above (also grow:true) is visible too — two grow:true
-        // siblings split the row and shove this area (and its caret)
-        // inward, reading as a "box within the box" with the caret off-
-        // center. Growing only when the text block is absent keeps the
-        // caret pinned to the far right in every mode.
         block {
-          grow: (hasSelections && display == "text") ? false : true
+          grow: toggleAreaGrows
           layout: horizontal, align: center, justify: between
           on click: toggleOpen()
 
