@@ -39,10 +39,11 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     // The text-summary block (below) also grows when display=='text' and
     // something is selected. Two grow:true siblings in the same row split
     // it, shoving the toggle area (and its caret) inward — reads as a
-    // "box within the box" with an off-center caret. Grow only when that
-    // sibling is absent so the caret stays pinned to the far right.
+    // "box within the box" with an off-center caret. The toggle area only
+    // grows when that sibling is absent, so the caret stays pinned to the
+    // far right (two visibility-gated blocks below, not a computed `grow:`
+    // — grow: doesn't take a dynamic value in Spec).
     showTextSummary: hasSelections && display == "text"
-    toggleAreaGrows: showTextSummary == false
   }
 
   @actions {
@@ -212,7 +213,8 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
 
         // Toggle area — clicking here opens/closes dropdown
         block {
-          grow: toggleAreaGrows
+          visibility: showTextSummary == false
+          grow: true
           layout: horizontal, align: center, justify: between
           on click: toggleOpen()
 
@@ -221,6 +223,13 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
             visibility: hasSelections == false
             text(placeholder) { style: type.body-md, color: semantic.text-tertiary }
           }
+
+          text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
+        }
+        block {
+          visibility: showTextSummary == true
+          layout: horizontal, align: center, justify: between
+          on click: toggleOpen()
 
           text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
         }
