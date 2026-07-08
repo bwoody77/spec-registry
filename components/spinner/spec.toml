@@ -1,0 +1,13 @@
+[package]
+name = "spinner"
+version = "0.2.0"
+category = "components"
+description = "Ring loading indicator with size and tone variants"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "spinner.spec"
