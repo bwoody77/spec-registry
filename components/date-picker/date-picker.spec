@@ -21,6 +21,15 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     // never edited) reads as empty — not a misleading "today" that was never
     // committed to `value`.
     dirty: false
+    // Has the user actually typed these segments this session, or are they
+    // still the today-prefill from activateSegments? The day segment must not
+    // be range-checked against a year/month the user hasn't entered yet: on
+    // MM/DD/YYYY (the default) the year is typed LAST, so validating day 29
+    // against the prefilled current year silently rejected every Feb-29 date
+    // whenever today's year was not a leap year — the day kept its default and
+    // 02/29/1968 committed as 1968-02-14. See reconcileDay.
+    monthTyped: false
+    yearTyped: false
     digitBuffer: ""
     popupView: 0
     yearGridStart: 2020
@@ -185,12 +194,20 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           segYear = parsed.year
           segMonth = parsed.month + 1
           segDay = parsed.day
+          // Parsed from a real value: month/year are genuine, so the day can be
+          // range-checked against them straight away.
+          monthTyped = true
+          yearTyped = true
         }
       } else {
         let today = todayParts()
         segYear = today.year
         segMonth = today.month + 1
         segDay = today.day
+        // Prefill only — NOT the user's intent. Until they type these, the day
+        // is validated permissively (see handleDigit).
+        monthTyped = false
+        yearTyped = false
       }
       if activeSegment < 0 { activeSegment = 0 }
       editing = true
@@ -256,6 +273,16 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       }
       emitBuffer()
     }
+    // Trim the day once a newly-typed month/year makes it impossible (Feb 30,
+    // or Feb 29 in a non-leap year). Runs AFTER the month/year segments are
+    // set, so the day is judged against what the user actually entered rather
+    // than against a prefill. Only ever shrinks the day, and the field shows
+    // the trimmed value — it never silently keeps a stale default.
+    reconcileDay() {
+      let refYear = yearTyped ? segYear : 2000
+      let mx = daysInMonth(refYear, segMonth - 1)
+      if segDay > mx { segDay = mx }
+    }
     handleDigit(key) {
       if key >= "0" && key <= "9" {
         digitBuffer = digitBuffer + key
@@ -265,13 +292,23 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           let advance = (digitBuffer.length == 1 && n >= 2) || digitBuffer.length >= 2
           if advance == true {
             segMonth = n >= 1 && n <= 12 ? n : segMonth
+            monthTyped = true
+            reconcileDay()
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
             emitBuffer()
           }
         }
         if segType == 'day' {
-          let maxD = daysInMonth(segYear, segMonth - 1)
+          // Only range-check against segments the user has actually typed.
+          // Month unknown (DD/MM/YYYY types day first) -> allow any real day.
+          // Month known but year not (MM/DD/YYYY) -> use a LEAP reference year
+          // so Feb 29 is accepted; reconcileDay trims it if the year they go on
+          // to type isn't a leap year. Previously this checked the day against
+          // the today-prefilled year, so Feb 29 was silently dropped and the
+          // default day was kept instead.
+          let refYear = yearTyped ? segYear : 2000
+          let maxD = monthTyped ? daysInMonth(refYear, segMonth - 1) : 31
           let n = parseInt(digitBuffer)
           let advance = (digitBuffer.length == 1 && n >= 4) || digitBuffer.length >= 2
           if advance == true {
@@ -285,6 +322,8 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           if digitBuffer.length >= 4 {
             let v = parseInt(digitBuffer)
             segYear = v >= 1900 && v <= 2200 ? v : segYear
+            yearTyped = true
+            reconcileDay()
             digitBuffer = ""
             if activeSegment < 2 { activeSegment = activeSegment + 1 }
             emitBuffer()
@@ -301,12 +340,16 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       activeSegment = -1
       editing = false
       dirty = false
+      monthTyped = false
+      yearTyped = false
       digitBuffer = ""
     }
     cancelSegments() {
       activeSegment = -1
       editing = false
       dirty = false
+      monthTyped = false
+      yearTyped = false
       digitBuffer = ""
     }
     // Close the calendar overlay AFTER a pick has flowed back through `value`.
