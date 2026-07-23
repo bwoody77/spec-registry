@@ -139,8 +139,11 @@ component DataGridSpec(
     sortState: sort
     selectedSet: selected
     filters: []
-    focusedRow: 0
-    focusedCol: 0
+    // -1 = nothing focused yet. Starting at 0,0 painted a focus tint on the
+    // first cell of every freshly-rendered grid, which reads as a selection the
+    // user did not make. Arrow-key navigation moves off -1 on the first press.
+    focusedRow: 0 - 1
+    focusedCol: 0 - 1
     openGroups: defaultOpen
   }
 
@@ -162,6 +165,9 @@ component DataGridSpec(
     trackMin: gridTrackMin(visibleColumns)
     pinBg: pinBackground != "" ? pinBackground : semantic.surface
     groupBg: groupBackground != "" ? groupBackground : semantic.surface-raised
+    // `height` bounds the grid so its body scrolls internally (sticky header +
+    // always-visible horizontal scrollbar); '' = grow to content, no bound.
+    gridMaxH: height != "" ? height : "none"
     hasFilters: columns.some(c => c.filterable == true)
     allSelected: selectedSet.length == displayRows.length && displayRows.length > 0
   }
@@ -210,10 +216,11 @@ component DataGridSpec(
       emit("rowClick", row, idx)
     }
     moveUp()    { if focusedRow > 0 { focusedRow = focusedRow - 1 } }
-    moveDown()  { if focusedRow < processedRows.length - 1 { focusedRow = focusedRow + 1 } }
+    // From "nothing focused", the first Down/Right press lands on the first cell.
+    moveDown()  { if focusedRow < displayRows.length - 1 { focusedRow = focusedRow + 1  if focusedCol < 0 { focusedCol = 0 } } }
     moveLeft()  { if focusedCol > 0 { focusedCol = focusedCol - 1 } }
-    moveRight() { if focusedCol < visibleColumns.length - 1 { focusedCol = focusedCol + 1 } }
-    selectFocused() { selectRow(focusedRow) }
+    moveRight() { if focusedCol < visibleColumns.length - 1 { focusedCol = focusedCol + 1  if focusedRow < 0 { focusedRow = 0 } } }
+    selectFocused() { if focusedRow >= 0 { selectRow(focusedRow) } }
   }
 
   block {
@@ -241,6 +248,7 @@ component DataGridSpec(
     block {
       overflow: auto
       height: 100%
+      max-height: gridMaxH
       data-grid-scroll: "true"
 
       // Width track. Every row is a 100%-wide child of this one element, so a
@@ -388,6 +396,11 @@ component DataGridSpec(
                 left: 0px
                 z-index: 2
                 background: gridRowKind(row) != "row" ? groupBg : pinBg
+                // The row's left rail (_accent) is drawn on the row container, but
+                // this sticky pinned column's opaque background paints over it — so
+                // re-draw the rail here, on top of the pin background, or a
+                // provenance accent is invisible whenever the first column is pinned.
+                shadow: gridRowRail(row)
                 layout: horizontal, gap: spacing.1, align: center
                 // Group rows carry the expand/collapse control: the open state
                 // is the grid's, so the caller's cell slot cannot own it.
@@ -400,7 +413,7 @@ component DataGridSpec(
                   height: 22px
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
-                  aria-label: "Toggle group"
+                  aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
                   on click: toggleGroup(row._key)
                   text(gridGroupIsOpen(openGroups, row._key) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
@@ -437,7 +450,7 @@ component DataGridSpec(
                   height: 22px
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
-                  aria-label: "Toggle group"
+                  aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
                   on click: toggleGroup(row._key)
                   text(gridGroupIsOpen(openGroups, row._key) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
