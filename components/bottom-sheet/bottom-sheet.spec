@@ -1,9 +1,16 @@
+// NOTE: the `backdrop` prop was removed because it never worked. It was wired
+// to `overlay(backdrop: match backdrop { … })`, but overlay compiles its
+// backdrop into a static cssText and only reads a string literal — a non-literal
+// silently resolved to the default, so the scrim always rendered no matter what
+// a caller passed. The compiler now rejects a non-literal there instead of
+// ignoring it. Removing the prop changes no behaviour; it only stops the
+// component advertising an option it never honoured. A scrim-less sheet needs a
+// second component with its own `backdrop: "none"` overlay.
 component BottomSheet(
   open: boolean = false,
   snapPoints: array = [0.5, 1.0],
   initialSnap: number = 0,
-  showHandle: boolean = true,
-  backdrop: boolean = true
+  showHandle: boolean = true
 ) {
   @state {
     showing: false
@@ -77,7 +84,7 @@ component BottomSheet(
     }
   }
 
-  overlay(visible: showing, anchor: "screen", align: "bottom", backdrop: match backdrop { true -> "scrim", _ -> "none" }) {
+  overlay(visible: showing, anchor: "screen", align: "bottom", backdrop: "scrim") {
     on dismiss: doClose()
 
     // Sheet
