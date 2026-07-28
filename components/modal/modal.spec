@@ -1,6 +1,49 @@
-component Modal(open: boolean = false, title: string = "", width: string = "500px") {
+// Modal — centred overlay dialog for focused content and actions.
+//
+// Handles the things every dialog needs and most hand-rolled ones forget:
+// scroll lock and focus trap while open, focus release on close, Escape /
+// backdrop dismiss, and a labelled `role="dialog"`.
+//
+// Props:
+//   open      — controlled visibility
+//   title     — header text; also the default accessible name
+//   width     — dialog width (capped at 95vw)
+//   chrome    — true (default) renders the built-in header and body padding.
+//               Pass false when the caller supplies its own header — otherwise
+//               the dialog shows two. With chrome: false the children fill the
+//               dialog and own their padding.
+//   ariaLabel — accessible name. Defaults to `title`, then "Dialog". Set this
+//               when chrome is false, since there is no title to fall back on.
+//
+// Emits: close()
+//
+// NO `align` PROP, deliberately. `overlay(align: …)` is compiled into a static
+// cssText, so it only accepts a literal — a prop silently resolves to "center"
+// and the dialog stays centred no matter what the caller passes. The compiler
+// now rejects a non-literal there rather than quietly ignoring it. Bottom-sheet
+// dialogs therefore need their own component with its own `align: "bottom"`
+// overlay; they cannot be a variant of this one, because two overlays inside
+// one component would each hold `@children` and render the caller's content
+// twice.
+component Modal(
+  open: boolean = false,
+  title: string = "",
+  width: string = "500px",
+  chrome: boolean = true,
+  ariaLabel: string = ""
+) {
   @state {
     showing: false
+  }
+
+  @computed {
+    // A generic "Dialog" tells a screen-reader user nothing about which dialog
+    // they are in. Prefer the caller's label, then the visible title.
+    label: ariaLabel != "" ? ariaLabel : (title != "" ? title : "Dialog")
+
+    // Conditional styling is hoisted: an inline ternary on a prop is evaluated
+    // once at mount and never re-read.
+    bodyPadding: chrome ? spacing.5 : "0"
   }
 
   @actions {
@@ -40,12 +83,13 @@ component Modal(open: boolean = false, title: string = "", width: string = "500p
       shadow: elevation.floating
       backdrop-filter: "blur(4px)"
       role: "dialog"
-      aria-label: "Dialog"
+      aria-label: label
 
       layout: vertical
 
-      // Header
+      // Header — suppressed when the caller supplies its own.
       block {
+        visibility: chrome
         layout: horizontal, justify: between, align: center
         padding: spacing.4
         border-bottom: borders.default
@@ -56,28 +100,34 @@ component Modal(open: boolean = false, title: string = "", width: string = "500p
           color: semantic.text-primary
         }
 
-        // Close button
-        block {
+        // Close — a real button, so it is keyboard reachable and announced as a
+        // control. A div with an on-click is invisible to assistive tech.
+        button {
           width: 32px
           height: 32px
           border-radius: 8px
+          border: "none"
+          background: "transparent"
           cursor: "pointer"
+          aria-label: "Close dialog"
           layout: horizontal, align: center, justify: center
           on click: doClose()
           on hover {
             background: semantic.surface-raised
           }
 
-          text("\u00D7") {
+          text("×") {
             style: type.heading-sm
             color: semantic.text-tertiary
           }
         }
       }
 
-      // Body
+      // Body — one slot, padding computed. Two visibility-gated blocks each
+      // holding @children would render the caller's content twice, since
+      // visibility is display:none rather than removal.
       block {
-        padding: spacing.5
+        padding: bodyPadding
         grow: true
         overflow: "auto"
         @children
