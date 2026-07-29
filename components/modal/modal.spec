@@ -14,6 +14,11 @@
 //               dialog and own their padding.
 //   ariaLabel — accessible name. Defaults to `title`, then "Dialog". Set this
 //               when chrome is false, since there is no title to fall back on.
+//   dialogShadow — shadow for the dialog. Defaults to elevation.floating. Apps
+//               whose design system specifies a heavier dialog shadow can pass
+//               their own rather than having every dialog flatten on adoption.
+//               Named dialogShadow, not shadow, so it cannot be confused with
+//               the `shadow:` style key it feeds.
 //
 // Emits: close()
 //
@@ -30,7 +35,8 @@ component Modal(
   title: string = "",
   width: string = "500px",
   chrome: boolean = true,
-  ariaLabel: string = ""
+  ariaLabel: string = "",
+  dialogShadow: string = ""
 ) {
   @state {
     showing: false
@@ -44,6 +50,7 @@ component Modal(
     // Conditional styling is hoisted: an inline ternary on a prop is evaluated
     // once at mount and never re-read.
     bodyPadding: chrome ? spacing.5 : "0"
+    shadowValue: dialogShadow != "" ? dialogShadow : elevation.floating
   }
 
   @actions {
@@ -80,7 +87,7 @@ component Modal(
       overflow: "auto"
       background: semantic.surface
       border-radius: 14px
-      shadow: elevation.floating
+      shadow: shadowValue
       backdrop-filter: "blur(4px)"
       role: "dialog"
       aria-label: label
