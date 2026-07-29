@@ -111,9 +111,18 @@ component HoverCard(
         visible = true
       }
     }
-    closeSticky() {
+    // Backdrop + card clicks must NOT bubble: both blocks are DOM
+    // descendants of the trigger's ancestors, so inside a clickable row a
+    // bubbled click would fire the row's own handler (navigate/open) the
+    // moment the user dismisses the card. (Popover has the same structure
+    // but its consumers don't sit inside clickable rows, so it never bit.)
+    closeSticky(ev) {
+      ev.stopPropagation()
       sticky = false
       visible = false
+    }
+    swallowCardTap(ev) {
+      ev.stopPropagation()
     }
   }
 
@@ -147,6 +156,7 @@ component HoverCard(
       anchor: placement
       on mouse-enter: keepOpen()
       on mouse-leave: hideCard()
+      on click(event): swallowCardTap(event)
       min-width: 240px
       max-width: 90vw
       padding: spacing.3
@@ -172,7 +182,7 @@ component HoverCard(
       right: 0px
       bottom: 0px
       z-index: 990
-      on click: closeSticky()
+      on click(event): closeSticky(event)
     }
   }
 }
