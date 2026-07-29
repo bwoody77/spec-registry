@@ -36,7 +36,8 @@ component FAB(
       transition: "transform 150ms ease, box-shadow 150ms ease"
       user-select: "none"
 
-      on click: emit("click")
+      // Forward the DOM event so consumers can stopPropagation — see Button.
+      on click(event): emit("click", event)
       on hover {
         transform: "scale(1.05)"
         shadow: elevation.floating
