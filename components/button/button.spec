@@ -156,7 +156,12 @@ component Button(
       transform: "scale(.97)"
     }
 
-    on click: emit("click")
+    // Forward the DOM event as the payload. Consumers that need it write
+    // `on click(event): { event.stopPropagation() ... }`; without a payload
+    // their `event` is undefined and the handler throws on first use, killing
+    // every statement after it. Handlers that declare no parameter simply
+    // ignore the extra argument.
+    on click(event): emit("click", event)
 
     // Icon-only mode
     block {
