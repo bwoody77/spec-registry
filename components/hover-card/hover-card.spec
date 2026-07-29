@@ -22,7 +22,7 @@
 //   hideDelay defaults to 80ms so the user can sweep from trigger into
 //   the card without crossing a "dead zone" that closes the card mid-move.
 //
-//   tapAndFocus (default false — hover-only, the pre-0.2 behavior) adds
+//   tapAndFocus (default false — hover-only, the pre-0.3 behavior) adds
 //   three trigger modes for touch and keyboard reachability:
 //     • keyboard focus opens the card immediately; blur closes it (via the
 //       normal hideDelay so a focus→card-hover sweep doesn't flicker).
@@ -128,7 +128,7 @@ component HoverCard(
 
     // Trigger — wraps the user-supplied content with hover handlers.
     // The focus/blur/click handlers are no-ops unless tapAndFocus is set
-    // (each checks the prop first), preserving pre-0.2 behavior exactly.
+    // (each checks the prop first), preserving pre-0.3 behavior exactly.
     block {
       on mouse-enter: showCard()
       on mouse-leave: hideCard()
