@@ -138,11 +138,22 @@ component HoverCard(
     // Trigger — wraps the user-supplied content with hover handlers.
     // The focus/blur/click handlers are no-ops unless tapAndFocus is set
     // (each checks the prop first), preserving pre-0.3 behavior exactly.
+    //
+    // focus-in/focus-out (the BUBBLING variants), not focus/blur: plain
+    // focus never bubbles, so a listener on this wrapper would only fire
+    // for the wrapper itself, not for the caller's button inside the slot.
+    // tabindex "-1" keeps this wrapper OUT of the tab order — without it
+    // the compiler's kbActivate rule (any div with `on click`) adds
+    // tabindex="0" and keyboard users hit TWO tab stops per trigger, only
+    // one of which works. The caller's slot content must be natively
+    // focusable (a `button {}` or Button) for keyboard access: Enter/Space
+    // fire its native click, which bubbles here to tapToggle.
     block {
+      tabindex: "-1"
       on mouse-enter: showCard()
       on mouse-leave: hideCard()
-      on focus: focusShow()
-      on blur: blurHide()
+      on focus-in: focusShow()
+      on focus-out: blurHide()
       on click(event): tapToggle(event)
       @slot("trigger")
     }
