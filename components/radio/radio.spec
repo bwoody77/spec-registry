@@ -20,12 +20,19 @@ component RadioGroup(options: array = [], value: string = "", disabled: boolean 
   }
 }
 
+// Renders a <button role="radio"> carrying aria-checked, so assistive tech
+// announces which option in the group is selected. RadioGroup already wraps
+// these in role="radiogroup"; without aria-checked on the items that grouping
+// described a set whose state could not be read.
 component Radio(label: string, value: string = "", checked: boolean = false, disabled: boolean = false) {
   button {
     disabled: disabled
     border: "none"
     background: "transparent"
     padding: 0
+    role: "radio"
+    aria-checked: checked
+    aria-disabled: disabled
     layout: horizontal, gap: 10px, align: center
     opacity: match disabled {
       true -> 0.5,
