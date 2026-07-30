@@ -53,7 +53,7 @@ component ColorPicker(value: string = "#1684ff", name: string = "color") {
       padding-x: 10px
       border-radius: 8px
       // input-border is a COLOUR token; compose it the way date-picker and
-      // multi-select do, or the swatch trigger renders borderless.
+      // multi-select do rather than relying on the compiler border guard.
       border: token.input-borderWidth + " solid " + token.input-border
       background: token.input-bg
       width: 160px
