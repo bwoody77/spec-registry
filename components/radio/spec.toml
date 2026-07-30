@@ -1,6 +1,6 @@
 [package]
 name = "radio"
-version = "0.3.1"
+version = "0.3.2"
 category = "components"
 description = "Single-selection control within a mutually exclusive group"
 license = "MIT"
