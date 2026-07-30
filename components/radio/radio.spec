@@ -50,7 +50,9 @@ component Radio(label: string, value: string = "", checked: boolean = false, dis
       width: 18px
       height: 18px
       border-radius: 9999px
-      border: match checked { true -> "none", _ -> token.checkbox-border }
+      // See checkbox.spec — checkbox-border is a colour, so it must be
+      // composed into a full border shorthand or nothing renders.
+      border: match checked { true -> "none", _ -> "1px solid " + token.checkbox-border }
       background: match checked { true -> token.checkbox-checkedBg, _ -> "transparent" }
       layout: horizontal, align: center, justify: center
 
