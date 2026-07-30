@@ -32,10 +32,15 @@ component Checkbox(label: string, checked: boolean = false, disabled: boolean = 
       width: 18px
       height: 18px
       border-radius: token.checkbox-radius
-      // "1px solid " + the token, not the token alone: checkbox-border is a
-      // COLOR (every other component composes it that way). Used bare as a
-      // `border` shorthand the browser parses it as colour-only, defaults
-      // border-style to none, and the unchecked box renders NO BORDER AT ALL.
+      // checkbox-border is a COLOUR; compose it into a full shorthand, the way
+      // date-picker and multi-select already do with input-border.
+      //
+      // The bare form also worked: for a runtime token lookup the compiler
+      // wraps border values in a guard that turns a space-less value into
+      // "1px solid " + value. But that guard is only emitted on the runtime
+      // path — with no @theme in the program the token resolves statically to
+      // a bare "#d1d5db", which CSS reads as colour-only and renders NO border
+      // at all. Being explicit does not depend on which path a consumer hits.
       border: match checked { true -> "none", _ -> "1px solid " + token.checkbox-border }
       background: match checked { true -> token.checkbox-checkedBg, _ -> "transparent" }
       layout: horizontal, align: center, justify: center
