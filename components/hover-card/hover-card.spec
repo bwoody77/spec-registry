@@ -22,8 +22,8 @@
 //   hideDelay defaults to 80ms so the user can sweep from trigger into
 //   the card without crossing a "dead zone" that closes the card mid-move.
 //
-//   tapAndFocus (default false — hover-only, the pre-0.3 behavior) adds
-//   three trigger modes for touch and keyboard reachability:
+//   tapAndFocus (default false) adds three trigger modes for touch and
+//   keyboard reachability:
 //     • keyboard focus opens the card immediately; blur closes it (via the
 //       normal hideDelay so a focus→card-hover sweep doesn't flicker).
 //     • click/tap toggles a STICKY open: a click while hover-open pins the
@@ -35,6 +35,24 @@
 //       swallows hover on other triggers; the user dismisses first, exactly
 //       like Popover. The trigger's click stops propagation, so a HoverCard
 //       inside a clickable row never fires the row's own click.
+//   Keyboard access rides the caller's slot content: it must be natively
+//   focusable (a `button {}` or Button). Tab reaches it (the wrapper, card,
+//   and backdrop are all tabindex -1 — a single tab stop per trigger),
+//   focusin opens the card, Enter/Space fire the button's native click
+//   which bubbles here and toggles the pin, Escape dismisses.
+//
+// Behavior compatibility with pre-0.3 (hover-only consumers, tapAndFocus
+// unset): hover open/close is unchanged; focus/click/blur handlers are
+// no-ops; the trigger keeps its natural cursor and text-selection (the
+// wrapper declares `cursor:` explicitly, which transfers pointer-affordance
+// responsibility from the compiler's click-handler defaults to this
+// component). One deliberate delta: Escape now dismisses an open card.
+//
+// Content constraint: the card body is intended for TEXT + read-only
+// content. Focusable/interactive elements inside slot("content") are not
+// part of the keyboard contract (the card is tabindex -1 and closes on the
+// trigger's focus-out; a button inside the card is mouse-reachable but not
+// Tab-reachable while the trigger holds focus).
 //
 // Caveat (web target):
 //   positionDropdown anchors via `position: fixed`. If ANY ancestor of the
@@ -56,9 +74,17 @@ component HoverCard(
   @state {
     visible: false
     // Set by a click/tap (tapAndFocus mode): the card is pinned open and
-    // ignores mouse-leave/blur until unpinned by a second click or a
-    // backdrop tap.
+    // ignores mouse-leave/blur until unpinned by a second click, a backdrop
+    // tap, or Escape.
     sticky: false
+  }
+
+  @computed {
+    // Pointer affordance only when the trigger is actually tappable.
+    // Declaring `cursor:` explicitly also suppresses the compiler's blanket
+    // click-handler cursor:pointer + user-select:none defaults, keeping the
+    // trigger's text selectable and hover-only consumers visually unchanged.
+    trigCursor: tapAndFocus ? 'pointer' : 'inherit'
   }
 
   @actions {
@@ -84,6 +110,9 @@ component HoverCard(
     // ── tapAndFocus mode ─────────────────────────────────────────────────
     // Keyboard focus shows immediately (no showDelay — a keyboard user has
     // already committed; the delay only exists to filter accidental hovers).
+    // Bound to focus-in/focus-out (the BUBBLING variants): plain focus/blur
+    // never bubble, so a wrapper listener would only fire for the wrapper
+    // itself, never for the caller's button inside the slot.
     focusShow() {
       if !tapAndFocus { return }
       clearDelay("hc-hide")
@@ -98,6 +127,10 @@ component HoverCard(
     }
     // Click/tap sticky-toggle. stopPropagation keeps a HoverCard inside a
     // clickable row (table rows opening a detail view) from firing the row.
+    // Keyboard Enter/Space arrive here as the slotted button's NATIVE click
+    // (the explicit key-down handler below opts this wrapper out of the
+    // compiler's kbActivate Enter/Space→click redirect, so the native
+    // activation is the only firing — exactly one toggle per press).
     tapToggle(ev) {
       if !tapAndFocus { return }
       ev.stopPropagation()
@@ -111,18 +144,34 @@ component HoverCard(
         visible = true
       }
     }
-    // Backdrop + card clicks must NOT bubble: both blocks are DOM
-    // descendants of the trigger's ancestors, so inside a clickable row a
-    // bubbled click would fire the row's own handler (navigate/open) the
-    // moment the user dismisses the card. (Popover has the same structure
-    // but its consumers don't sit inside clickable rows, so it never bit.)
+    // Backdrop + card clicks must NOT bubble in tapAndFocus mode: both
+    // blocks are DOM descendants of the trigger's ancestors, so inside a
+    // clickable row a bubbled click would fire the row's own handler
+    // (navigate/open) the moment the user dismisses the card. (Popover has
+    // the same structure but its consumers don't sit inside clickable rows,
+    // so it never bit.) Gated on tapAndFocus so hover-only consumers keep
+    // the pre-0.3 bubbling behavior.
     closeSticky(ev) {
       ev.stopPropagation()
       sticky = false
       visible = false
     }
     swallowCardTap(ev) {
+      if !tapAndFocus { return }
       ev.stopPropagation()
+    }
+    // Escape dismisses from either the trigger (focused pill) or the card.
+    // Also serves double duty: an explicit key-down handler suppresses the
+    // compiler's kbActivate keydown redirect on these blocks (developer
+    // takes responsibility) — without it, Enter/Space on focusable content
+    // would be preventDefault-ed and re-routed to a synthetic click.
+    dismissKey(event) {
+      if event.key == "Escape" {
+        clearDelay("hc-show")
+        clearDelay("hc-hide")
+        sticky = false
+        visible = false
+      }
     }
   }
 
@@ -136,25 +185,19 @@ component HoverCard(
     inline: true
 
     // Trigger — wraps the user-supplied content with hover handlers.
-    // The focus/blur/click handlers are no-ops unless tapAndFocus is set
-    // (each checks the prop first), preserving pre-0.3 behavior exactly.
-    //
-    // focus-in/focus-out (the BUBBLING variants), not focus/blur: plain
-    // focus never bubbles, so a listener on this wrapper would only fire
-    // for the wrapper itself, not for the caller's button inside the slot.
-    // tabindex "-1" keeps this wrapper OUT of the tab order — without it
-    // the compiler's kbActivate rule (any div with `on click`) adds
-    // tabindex="0" and keyboard users hit TWO tab stops per trigger, only
-    // one of which works. The caller's slot content must be natively
-    // focusable (a `button {}` or Button) for keyboard access: Enter/Space
-    // fire its native click, which bubbles here to tapToggle.
+    // tabindex "-1" keeps this wrapper OUT of the tab order (the caller's
+    // native button is the single tab stop; without it the compiler's
+    // kbActivate rule would add tabindex="0" and keyboard users would hit
+    // two stops per trigger, only one of which works).
     block {
       tabindex: "-1"
+      cursor: trigCursor
       on mouse-enter: showCard()
       on mouse-leave: hideCard()
       on focus-in: focusShow()
       on focus-out: blurHide()
       on click(event): tapToggle(event)
+      on key-down(event): dismissKey(event)
       @slot("trigger")
     }
 
@@ -162,12 +205,21 @@ component HoverCard(
     // flips true. positionDropdown sets `position: fixed`, computes top/left
     // from the previous sibling's getBoundingClientRect(), and auto-flips
     // above/below if there isn't enough space in the requested direction.
+    // tabindex "-1" + explicit cursor: the card must never join the tab
+    // order (tabbing into it would blur the trigger and hide the card WHILE
+    // FOCUSED, dropping keyboard focus to document body), and its text must
+    // stay selectable (the doc lists/details it exists to show are exactly
+    // what users copy).
     block {
       visibility: visible
       anchor: placement
+      tabindex: "-1"
+      cursor: 'default'
+      aria-live: "polite"
       on mouse-enter: keepOpen()
       on mouse-leave: hideCard()
       on click(event): swallowCardTap(event)
+      on key-down(event): dismissKey(event)
       min-width: 240px
       max-width: 90vw
       padding: spacing.3
@@ -182,11 +234,13 @@ component HoverCard(
 
     // Outside-tap backdrop — only while sticky (tapAndFocus mode). Same
     // idiom as Popover's: a fixed fullscreen sibling BELOW the card in
-    // z-order; a click on it unpins and closes. Order matters: this block
-    // MUST come AFTER the card so `anchor:` on the card resolves to the
-    // trigger (the card's previous sibling), not to the backdrop.
+    // z-order; a click on it unpins and closes. tabindex "-1" so the
+    // invisible backdrop never becomes a tab stop. Order matters: this
+    // block MUST come AFTER the card so `anchor:` on the card resolves to
+    // the trigger (the card's previous sibling), not to the backdrop.
     block {
       visibility: sticky
+      tabindex: "-1"
       position: 'fixed'
       top: 0px
       left: 0px
