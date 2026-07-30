@@ -65,7 +65,11 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // moves, selection waits for a deliberate keypress.
     moveFocus(delta) {
       if tabCount > 0 {
-        let from = _tabIndexOfId(tabs, tabStopId)
+        // Read the raw `focusedId` state, NOT the tabStopId @computed derived
+        // from it: two arrow presses in quick succession would both see the
+        // pre-first-press computed and the second press would go nowhere.
+        let currentId = focusedId != '' ? focusedId : activeTab
+        let from = _tabIndexOfId(tabs, currentId)
         focusedId = tabs[_tabWrap(from, delta, tabCount)].id
       }
     }
