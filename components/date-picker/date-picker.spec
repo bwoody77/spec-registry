@@ -498,7 +498,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       }
 
       // Divider + calendar button
-      block {
+      button {
+        border: "none"
+        background: "transparent"
+        aria-label: "Open the calendar"
         width: 36px
         min-height: 36px
         layout: horizontal, justify: center, align: center
@@ -543,7 +546,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           padding: spacing.2
           border-bottom: borders.default
 
-          block {
+          button {
+            border: "none"
+            background: "transparent"
+            aria-label: "Previous month"
             cursor: "pointer"
             padding: spacing.2
             on click: prevMonth()
@@ -551,7 +557,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           }
           block {
             layout: horizontal, align: center, gap: spacing.1
-            block {
+            button {
+              border: "none"
+              background: "transparent"
+              aria-label: "Choose a month"
               cursor: "pointer"
               padding-x: spacing.1
               border-radius: radius.sm
@@ -559,7 +568,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               on click: openMonthView()
               text(monthNames[viewMonth]) { style: type.body-md, weight: 600, color: semantic.text-primary }
             }
-            block {
+            button {
+              border: "none"
+              background: "transparent"
+              aria-label: "Choose a year"
               cursor: "pointer"
               padding-x: spacing.1
               border-radius: radius.sm
@@ -568,7 +580,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               text(viewYear + "") { style: type.body-md, weight: 600, color: semantic.text-primary }
             }
           }
-          block {
+          button {
+            border: "none"
+            background: "transparent"
+            aria-label: "Next month"
             cursor: "pointer"
             padding: spacing.2
             on click: nextMonth()
@@ -613,7 +628,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           }
 
           each calendarCells as cell {
-            block {
+            button {
+              border: "none"
+              background: "transparent"
+              aria-label: cell.dateStr
               padding: spacing.1
               min-height: 32px
               layout: horizontal, justify: center, align: center
@@ -645,7 +663,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           padding: spacing.2
           border-top: borders.default
           layout: horizontal, justify: center
-          block {
+          button {
+            border: "none"
+            background: "transparent"
             cursor: "pointer"
             padding: spacing.1
             on click: selectToday()
@@ -667,7 +687,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             layout: grid, columns: "repeat(3, 1fr)", gap: spacing.1
             padding: spacing.2
             each monthShort as name, idx {
-              block {
+              button {
+                border: "none"
+                background: "transparent"
                 padding: spacing.2
                 layout: horizontal, justify: center, align: center
                 border-radius: radius.sm
@@ -691,14 +713,20 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             layout: horizontal, justify: between, align: center
             padding: spacing.2
             border-bottom: borders.default
-            block {
+            button {
+              border: "none"
+              background: "transparent"
+              aria-label: "Earlier years"
               cursor: "pointer"
               padding: spacing.2
               on click: prevDecade()
               text("◀") { style: type.body-md, color: semantic.interactive }
             }
             text(yearRangeLabel) { style: type.body-md, weight: 600, color: semantic.text-primary }
-            block {
+            button {
+              border: "none"
+              background: "transparent"
+              aria-label: "Later years"
               cursor: "pointer"
               padding: spacing.2
               on click: nextDecade()
@@ -709,7 +737,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             layout: grid, columns: "repeat(3, 1fr)", gap: spacing.1
             padding: spacing.2
             each gridIndices as idx {
-              block {
+              button {
+                border: "none"
+                background: "transparent"
                 padding: spacing.2
                 layout: horizontal, justify: center, align: center
                 border-radius: radius.sm
@@ -739,6 +769,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       right: 0px
       bottom: 0px
       z-index: 999
+      // Explicit tabindex suppresses the synthetic tabindex="0" the compiler
+      // adds to every click-handling block. Without it this invisible
+      // full-screen element is a tab stop sitting in front of the whole page,
+      // and Enter on it "clicks" the backdrop. It stays a block (not a button)
+      // because it is not a control — it exists to swallow an outside click.
+      tabindex: "-1"
       on click: close()
     }
 
