@@ -32,7 +32,11 @@ component Checkbox(label: string, checked: boolean = false, disabled: boolean = 
       width: 18px
       height: 18px
       border-radius: token.checkbox-radius
-      border: match checked { true -> "none", _ -> token.checkbox-border }
+      // "1px solid " + the token, not the token alone: checkbox-border is a
+      // COLOR (every other component composes it that way). Used bare as a
+      // `border` shorthand the browser parses it as colour-only, defaults
+      // border-style to none, and the unchecked box renders NO BORDER AT ALL.
+      border: match checked { true -> "none", _ -> "1px solid " + token.checkbox-border }
       background: match checked { true -> token.checkbox-checkedBg, _ -> "transparent" }
       layout: horizontal, align: center, justify: center
 
