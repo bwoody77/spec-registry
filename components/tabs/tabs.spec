@@ -28,6 +28,9 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
   }
 
   block {
+    // role=tablist pairs with role=tab on each item, so assistive tech
+    // announces "tab 2 of 5" instead of reading five unrelated buttons.
+    role: "tablist"
     layout: grid, columns: gridColumns, gap: 4px, align: center
     overflow: scrollMode
     background: stripBg
@@ -47,6 +50,14 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // One tab button. Styling that depends on `active` (which changes at runtime)
 // lives in @computed so it re-evaluates reactively — inline ternaries on a
 // changing prop get stuck stale (see pilot-detail.spec PilotTab note).
+//
+// Renders a real <button role="tab"> carrying aria-selected. It was a
+// `block { on click }` — a <div> — until 0.4.0: not focusable, not
+// keyboard-activatable, and announced as nothing, so a tab strip built on this
+// component could not be operated without a mouse. The button primitive needs
+// its browser chrome zeroed (border/background/padding) to keep the previous
+// visual output byte-for-byte; the compiler already emits
+// `style.fontFamily = 'inherit'` for buttons, so typography is unaffected.
 component TabsItem(tab: object, active: boolean = false, variant: string = "pill") {
   @computed {
     padY:        variant == 'pill' ? 9px : 10px
@@ -66,9 +77,18 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     labelWeight: active ? 700 : 600
   }
 
-  block {
+  button {
+    role: "tab"
+    // Pass the boolean, not a 'true'/'false' string — a binding only removes an
+    // attribute when the value is null, so false correctly sets "false"
+    // (ai-reference §31b). Reactive, so it re-announces on every switch.
+    aria-selected: active
     layout: horizontal, gap: 8px, align: center, justify: center
     cursor: 'pointer'
+    // The button's own chrome, zeroed so the styling below is the only thing
+    // that paints. width:100% keeps a grid item filling its column exactly as
+    // the div did (a button does not stretch on its own).
+    width: 100%
     padding-y: padY
     padding-x: padX
     border-radius: itemRadius
