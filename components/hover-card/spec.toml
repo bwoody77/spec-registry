@@ -1,6 +1,6 @@
 [package]
 name = "hover-card"
-version = "0.3.4"
+version = "0.3.5"
 category = "components"
 description = "Hover-triggered popover anchored to a trigger; portals via position:fixed to escape overflow ancestors"
 license = "MIT"

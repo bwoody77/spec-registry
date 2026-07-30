@@ -167,10 +167,26 @@ component HoverCard(
     // would be preventDefault-ed and re-routed to a synthetic click.
     dismissKey(event) {
       if event.key == "Escape" {
-        clearDelay("hc-show")
-        clearDelay("hc-hide")
-        sticky = false
-        visible = false
+        if visible || sticky {
+          event.stopPropagation()
+          clearDelay("hc-show")
+          clearDelay("hc-hide")
+          sticky = false
+          visible = false
+        }
+        return
+      }
+      if !tapAndFocus { return }
+      // Keep the activation keys LOCAL. The keydown otherwise bubbles to an
+      // ancestor's kbActivate listener (e.g. a clickable roster row), which
+      // preventDefaults it — suppressing the trigger button's native click —
+      // and fires a synthetic click on the ANCESTOR instead: Enter on the
+      // pill navigated to the row's detail view instead of pinning the card.
+      // stopPropagation on keydown does not affect the button's own native
+      // activation (that's the un-prevented default), so exactly one
+      // tapToggle still fires.
+      if event.key == "Enter" || event.key == " " {
+        event.stopPropagation()
       }
     }
   }
