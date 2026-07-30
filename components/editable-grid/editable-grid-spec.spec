@@ -1,5 +1,232 @@
-@extern { applyUndoChanges, computePaste, computeFillDown, buildChangesetFromEdits, validateCell, getRowChanges, getCellDisplayValue, pushUndoEntry } from "@spec/components/editable-grid-spec-utils.js"
-@extern { toggleSortState } from "@spec/components/grid-spec-utils.js"
+// ─── Cell key helpers ───────────────────────────────────────────────────────
+
+fn _buildCellKey(rowId: any, colKey: string) -> string {
+  return toString(rowId) + "::" + colKey
+}
+
+fn _splitCellKey(ck: string) -> list {
+  let i = indexOf(ck, "::")
+  return [slice(ck, 0, i), slice(ck, i + 2)]
+}
+
+// ─── TSV Parsing ────────────────────────────────────────────────────────────
+
+fn _parseTSV(text: string) -> list {
+  return split(text, "\n")
+    |> filter(line => length(line) > 0)
+    |> map(line => split(line, "\t"))
+}
+
+// ─── Sort toggle ────────────────────────────────────────────────────────────
+
+fn toggleSortState(sortState: list, colKey: string) -> list {
+  let existing = sortState |> find(s => s.key == colKey)
+  if existing != null {
+    if existing.direction == 'asc' {
+      return sortState |> map(s => s.key == colKey ? { key: colKey, direction: 'desc' } : s)
+    }
+    return sortState |> filter(s => s.key != colKey)
+  }
+  return [{ key: colKey, direction: 'asc' }]
+}
+
+// ─── Validation ─────────────────────────────────────────────────────────────
+
+fn validateCell(value: any, column: any) -> any {
+  if column.required == true && (value == null || value == "") {
+    let label = column.header ?? column.key
+    return label + " is required"
+  }
+  return null
+}
+
+// ─── Row changes ────────────────────────────────────────────────────────────
+
+fn getRowChanges(rowId: string, editedValues: list) -> any {
+  let prefix = rowId + "::"
+  let entries = editedValues |> filter(e => startsWith(e.key, prefix))
+  if length(entries) > 0 { return entries }
+  return null
+}
+
+// ─── Display value ──────────────────────────────────────────────────────────
+
+fn getCellDisplayValue(rowIdx: number, colIdx: number, visibleColumns: list, rows: list, rowIdField: string, editedValues: list) -> string {
+  if rowIdx < 0 || rowIdx >= length(rows) { return "" }
+  if colIdx < 0 || colIdx >= length(visibleColumns) { return "" }
+  let row = rows[rowIdx]
+  let col = visibleColumns[colIdx]
+  let ck = _buildCellKey(row[rowIdField], col.key)
+  let edited = editedValues |> find(e => e.key == ck)
+  if edited != null { return toString(edited.value) }
+  if row[col.key] != null { return toString(row[col.key]) }
+  return ""
+}
+
+// ─── Undo stack ─────────────────────────────────────────────────────────────
+
+fn pushUndoEntry(stack: list, entry: any, maxDepth: number) -> list {
+  let newStack = concat(stack, [entry])
+  if length(newStack) > maxDepth {
+    return slice(newStack, length(newStack) - maxDepth)
+  }
+  return newStack
+}
+
+// ─── Apply undo / redo ──────────────────────────────────────────────────────
+
+fn applyUndoChanges(direction: string, changes: list, editedValues: list, dirtyCells: list, rows: list, rowIdField: string) -> any {
+  let ev = editedValues
+  let dc = dirtyCells
+  for change in changes {
+    let targetValue = direction == "undo" ? change.oldValue : change.newValue
+    let parts = _splitCellKey(change.key)
+    let rowId = parts[0]
+    let colKey = parts[1]
+    let row = rows |> find(r => toString(r[rowIdField]) == rowId)
+    let originalStr = ""
+    if row != null && row[colKey] != null { originalStr = toString(row[colKey]) }
+    if targetValue == originalStr {
+      ev = ev |> filter(e => e.key != change.key)
+      dc = dc |> filter(k => k != change.key)
+    } else {
+      ev = concat(ev |> filter(e => e.key != change.key), [{ key: change.key, value: targetValue }])
+      if !includes(dc, change.key) {
+        dc = concat(dc, [change.key])
+      }
+    }
+  }
+  return { editedValues: ev, dirtyCells: dc }
+}
+
+// ─── Compute paste ──────────────────────────────────────────────────────────
+
+fn computePaste(text: string, activeRow: number, activeCol: number, visibleColumns: list, rows: list, rowIdField: string, editedValues: list, dirtyCells: list) -> any {
+  let grid = _parseTSV(text)
+  let ev = editedValues
+  let dc = dirtyCells
+  let undoChanges = []
+
+  for gridRow, r in grid {
+    let rowIdx = activeRow + r
+    if rowIdx < length(rows) {
+      let row = rows[rowIdx]
+      let rowId = toString(row[rowIdField])
+      let colOffset = 0
+      for cell, c in gridRow {
+        let targetCol = activeCol + colOffset
+        // Skip non-editable columns
+        for _ in range(0, length(visibleColumns)) {
+          if targetCol < length(visibleColumns) && visibleColumns[targetCol].editable == false {
+            colOffset = colOffset + 1
+            targetCol = activeCol + colOffset
+          }
+        }
+        if targetCol < length(visibleColumns) {
+          let col = visibleColumns[targetCol]
+          let ck = _buildCellKey(rowId, col.key)
+          let newValue = cell
+          let originalStr = ""
+          if row[col.key] != null { originalStr = toString(row[col.key]) }
+          let existing = ev |> find(e => e.key == ck)
+          let oldValue = existing != null ? existing.value : originalStr
+          if oldValue != newValue {
+            undoChanges = concat(undoChanges, [{ key: ck, oldValue: oldValue, newValue: newValue }])
+            if newValue == originalStr {
+              ev = ev |> filter(e => e.key != ck)
+              dc = dc |> filter(k => k != ck)
+            } else {
+              ev = concat(ev |> filter(e => e.key != ck), [{ key: ck, value: newValue }])
+              if !includes(dc, ck) {
+                dc = concat(dc, [ck])
+              }
+            }
+          }
+          colOffset = colOffset + 1
+        }
+      }
+    }
+  }
+  return { editedValues: ev, dirtyCells: dc, undoChanges: undoChanges }
+}
+
+// ─── Fill down ──────────────────────────────────────────────────────────────
+
+fn computeFillDown(activeRow: number, activeCol: number, visibleColumns: list, rows: list, rowIdField: string, editedValues: list, dirtyCells: list) -> any {
+  if activeCol < 0 || activeCol >= length(visibleColumns) {
+    return { editedValues: editedValues, dirtyCells: dirtyCells, undoChanges: [] }
+  }
+  if activeRow < 0 || activeRow >= length(rows) {
+    return { editedValues: editedValues, dirtyCells: dirtyCells, undoChanges: [] }
+  }
+  let col = visibleColumns[activeCol]
+  let sourceRow = rows[activeRow]
+  let sourceRowId = toString(sourceRow[rowIdField])
+  let sourceCk = _buildCellKey(sourceRowId, col.key)
+  let sourceEdited = editedValues |> find(e => e.key == sourceCk)
+  let sourceValue = ""
+  if sourceEdited != null {
+    sourceValue = sourceEdited.value
+  } else if sourceRow[col.key] != null {
+    sourceValue = toString(sourceRow[col.key])
+  }
+
+  let ev = editedValues
+  let dc = dirtyCells
+  let undoChanges = []
+
+  for r in range(activeRow + 1, length(rows)) {
+    let row = rows[r]
+    let rowId = toString(row[rowIdField])
+    let ck = _buildCellKey(rowId, col.key)
+    let originalStr = ""
+    if row[col.key] != null { originalStr = toString(row[col.key]) }
+    let existing = ev |> find(e => e.key == ck)
+    let oldValue = existing != null ? existing.value : originalStr
+    if oldValue != sourceValue {
+      undoChanges = concat(undoChanges, [{ key: ck, oldValue: oldValue, newValue: sourceValue }])
+      if sourceValue == originalStr {
+        ev = ev |> filter(e => e.key != ck)
+        dc = dc |> filter(k => k != ck)
+      } else {
+        ev = concat(ev |> filter(e => e.key != ck), [{ key: ck, value: sourceValue }])
+        if !includes(dc, ck) {
+          dc = concat(dc, [ck])
+        }
+      }
+    }
+  }
+  return { editedValues: ev, dirtyCells: dc, undoChanges: undoChanges }
+}
+
+// ─── Build changeset from edits ─────────────────────────────────────────────
+
+fn buildChangesetFromEdits(editedValues: list, dirtyCells: list, rows: list, rowIdField: string) -> any {
+  // Collect distinct rowIds touched by dirty cells
+  let rowIds = []
+  for ck in dirtyCells {
+    let rid = _splitCellKey(ck)[0]
+    if !includes(rowIds, rid) {
+      rowIds = concat(rowIds, [rid])
+    }
+  }
+
+  let modified = rowIds |> map(rowId => {
+    let row = rows |> find(r => toString(r[rowIdField]) == rowId)
+    let myCells = dirtyCells |> filter(ck => _splitCellKey(ck)[0] == rowId)
+    let entries = myCells |> map(ck => {
+      let colKey = _splitCellKey(ck)[1]
+      let edited = editedValues |> find(e => e.key == ck)
+      let originalStr = ""
+      if row != null && row[colKey] != null { originalStr = toString(row[colKey]) }
+      let newVal = edited != null ? edited.value : ""
+      return { colKey: colKey, old: originalStr, new: newVal }
+    })
+    return { rowId: rowId, changes: entries }
+  })
+
+  return { modified: modified, added: [], deleted: [] }
+}
 
 component EditableGridSpec(
   rowIdField: string = "id",
@@ -240,9 +467,7 @@ component EditableGridSpec(
     }
   }
 
-  // Wrapper with position:relative so the select overlay can escape the scroll container
   block {
-    position: "relative"
     height: height != "" ? height : "auto"
 
     // Grid container
@@ -300,7 +525,7 @@ component EditableGridSpec(
         block {
           layout: horizontal
           background: semantic.surface
-          border-bottom: borders.heavy
+          border-bottom: borders.strong
           position: "sticky"
           top: 0px
           z-index: 2
@@ -430,24 +655,11 @@ component EditableGridSpec(
       }
     }
 
-    // Select overlay — rendered OUTSIDE the grid scroll container to avoid clipping
-    block {
-      visibility: isSelectEditing
-      position: "absolute"
-      top: 0px
-      left: 0px
-      right: 0px
-      bottom: 0px
-      z-index: 10
-      background: "rgba(0,0,0,0.15)"
-      on click: cancelEdit()
+    // Select overlay
+    overlay(visible: isSelectEditing, backdrop: "scrim", anchor: "parent") {
+      on dismiss: cancelEdit()
 
-      // Options panel
       block {
-        position: "absolute"
-        top: 50%
-        left: 50%
-        transform: "translate(-50%, -50%)"
         min-width: 180px
         max-height: 200px
         overflow: auto
