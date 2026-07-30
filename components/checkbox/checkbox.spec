@@ -6,7 +6,20 @@
 // a screen-reader user was told "Share as house preset, button" with no way to
 // know whether it was ticked. Hand-rolled copies in apps had started adding
 // role="checkbox" themselves precisely because this component lacked it.
-component Checkbox(label: string, checked: boolean = false, disabled: boolean = false) {
+//
+// `size` exists so dense contexts (filter bars, compact panels) can adopt this
+// component without their label text growing. Vector had ~50 hand-rolled
+// checkboxes, nearly all of them a body-sm label beside a 15-16px box; forcing
+// them all up to body-md on adoption would have reflowed real layouts. Default
+// stays "md" so existing call sites are untouched.
+component Checkbox(label: string, checked: boolean = false, disabled: boolean = false, size: string = "md") {
+  @computed {
+    isSm:      size == "sm"
+    boxSize:   isSm ? 16px : 18px
+    iconSize:  isSm ? "12px" : "14px"
+    labelType: isSm ? type.body-sm : type.body-md
+    rowGap:    isSm ? 8px : 10px
+  }
   button {
     disabled: disabled
     border: "none"
@@ -15,7 +28,7 @@ component Checkbox(label: string, checked: boolean = false, disabled: boolean = 
     role: "checkbox"
     aria-checked: checked
     aria-disabled: disabled
-    layout: horizontal, gap: 10px, align: center
+    layout: horizontal, gap: rowGap, align: center
     opacity: match disabled {
       true -> 0.5,
       _ -> 1
@@ -29,8 +42,8 @@ component Checkbox(label: string, checked: boolean = false, disabled: boolean = 
 
     // Single box — always present, style changes based on checked
     block {
-      width: 18px
-      height: 18px
+      width: boxSize
+      height: boxSize
       border-radius: token.checkbox-radius
       // checkbox-border is a COLOUR; compose it into a full shorthand, the way
       // date-picker and multi-select already do with input-border.
@@ -48,12 +61,12 @@ component Checkbox(label: string, checked: boolean = false, disabled: boolean = 
       // Check icon only visible when checked
       block {
         visibility: checked == true
-        Icon(name: "check", size: "14px", color: "#ffffff")
+        Icon(name: "check", size: iconSize, color: "#ffffff")
       }
     }
 
     text(label) {
-      style: type.body-md
+      style: labelType
       weight: 500
       color: semantic.text-secondary
     }
