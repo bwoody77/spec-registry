@@ -1,10 +1,20 @@
 // Checkbox — custom visual checkbox with event forwarding
+//
+// Renders a <button role="checkbox"> carrying aria-checked, so assistive tech
+// announces both the control AND its state. Before aria-* state attributes
+// existed this was a plain <button> whose accessible name was just the label:
+// a screen-reader user was told "Share as house preset, button" with no way to
+// know whether it was ticked. Hand-rolled copies in apps had started adding
+// role="checkbox" themselves precisely because this component lacked it.
 component Checkbox(label: string, checked: boolean = false, disabled: boolean = false) {
   button {
     disabled: disabled
     border: "none"
     background: "transparent"
     padding: 0
+    role: "checkbox"
+    aria-checked: checked
+    aria-disabled: disabled
     layout: horizontal, gap: 10px, align: center
     opacity: match disabled {
       true -> 0.5,
