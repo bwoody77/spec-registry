@@ -420,12 +420,23 @@ component DataGridSpec(
                     color: semantic.text-secondary
                   }
                 }
-                @slot("cell", col._col, row)
+                // The cell's content fills the cell. Without this the slot's own
+                // wrapper is a `flex: 0 1 auto` item in this row and shrink-fits
+                // to its text, so a caller CANNOT align content to the cell's
+                // right edge -- the header cell is a plain block and does fill,
+                // so every right-aligned column came out with its heading and
+                // its values on different edges. `grow` here, not `width: 100%`
+                // on the caller's root: a component's root styling applies
+                // inside its mount wrapper, never to the wrapper itself.
                 block {
-                  visibility: !hasSlot("cell")
-                  text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
-                    style: type.body-sm
-                    color: semantic.text-primary
+                  grow: true
+                  @slot("cell", col._col, row)
+                  block {
+                    visibility: !hasSlot("cell")
+                    text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
+                      style: type.body-sm
+                      color: semantic.text-primary
+                    }
                   }
                 }
               }
@@ -457,12 +468,23 @@ component DataGridSpec(
                     color: semantic.text-secondary
                   }
                 }
-                @slot("cell", col._col, row)
+                // The cell's content fills the cell. Without this the slot's own
+                // wrapper is a `flex: 0 1 auto` item in this row and shrink-fits
+                // to its text, so a caller CANNOT align content to the cell's
+                // right edge -- the header cell is a plain block and does fill,
+                // so every right-aligned column came out with its heading and
+                // its values on different edges. `grow` here, not `width: 100%`
+                // on the caller's root: a component's root styling applies
+                // inside its mount wrapper, never to the wrapper itself.
                 block {
-                  visibility: !hasSlot("cell")
-                  text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
-                    style: type.body-sm
-                    color: semantic.text-primary
+                  grow: true
+                  @slot("cell", col._col, row)
+                  block {
+                    visibility: !hasSlot("cell")
+                    text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
+                      style: type.body-sm
+                      color: semantic.text-primary
+                    }
                   }
                 }
               }
