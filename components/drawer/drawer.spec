@@ -4,8 +4,22 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
   }
 
   @computed {
+    // The open value is `none`, NOT `translateX(0)`. Any transform other than
+    // none — including an identity one — makes the panel the containing block
+    // for position:fixed descendants, which silently breaks positionDropdown:
+    // an anchored popup (Select, DatePicker, Autocomplete, Tooltip, HoverCard)
+    // inside the drawer would land offset by the panel's origin and re-enter
+    // the panel's scrollable overflow. For a right-side drawer that origin is
+    // most of the viewport width, so the popup lands far off its trigger. Same
+    // bug modal.spec had via backdrop-filter.
+    //
+    // Transitioning TO `none` still animates: transitions interpolate through
+    // the identity matrix and then settle on the specified value, so the slide
+    // is unchanged and the containing block is released once open. (An
+    // `animation` with fill-forwards does NOT work here — it retains the
+    // interpolated matrix and the containing block survives. Measured.)
     panelTransform: match showing {
-      true -> "translateX(0)",
+      true -> "none",
       _ -> match side {
         "right" -> "translateX(100%)",
         _ -> "translateX(-100%)"
