@@ -20,10 +20,22 @@ component BottomSheet(
   }
 
   @computed {
+    // The settled-open value is `none`, NOT `translateY(0)`. Any transform
+    // other than none — including an identity one — makes the sheet the
+    // containing block for position:fixed descendants, which silently breaks
+    // positionDropdown: an anchored popup (Select, DatePicker, Autocomplete,
+    // Tooltip) inside the sheet would land offset by the sheet's origin and
+    // re-enter the sheet's scrollable overflow. Same bug modal.spec had via
+    // backdrop-filter, and drawer.spec via translateX(0).
+    //
+    // Transitioning TO `none` still animates: transitions interpolate through
+    // the identity matrix and settle on the specified value, so the slide is
+    // unchanged. Mid-drag keeps a real translate, which is correct — the sheet
+    // is genuinely offset then, and the drag ends in the settled `none`.
     sheetTransform: match showing {
       true -> match dragging {
         true -> "translateY(" + currentY + "px)",
-        _ -> "translateY(0)"
+        _ -> "none"
       },
       _ -> "translateY(100%)"
     }
