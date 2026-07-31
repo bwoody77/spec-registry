@@ -88,7 +88,23 @@ component Modal(
       background: semantic.surface
       border-radius: 14px
       shadow: shadowValue
-      backdrop-filter: "blur(4px)"
+      // NO backdrop-filter on this element. It used to carry blur(4px), which was
+      // visually inert (semantic.surface is opaque, so it blurred a backdrop
+      // nobody could see through) and silently broke every anchored popup inside
+      // a dialog.
+      //
+      // A backdrop-filter other than none makes this element the containing block
+      // for position:fixed descendants. positionDropdown writes viewport
+      // coordinates, so a DatePicker/Select/Autocomplete popup landed offset by
+      // exactly this box's origin, and — because it was no longer viewport-fixed —
+      // started counting toward this box's scrollable overflow. Opening a calendar
+      // grew scrollHeight by the popup's height and the browser then scrolled the
+      // focused day cell into view, pushing the form out of sight.
+      //
+      // Measured in Chromium: scrollHeight 487 -> 959 and popup offset by
+      // (dialog.top, dialog.left) with the filter; both zero without it.
+      // If a blur is ever wanted here, put it on an element that is NOT an
+      // ancestor of anchored popups.
       role: "dialog"
       aria-label: label
 
