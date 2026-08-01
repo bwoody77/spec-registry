@@ -10,7 +10,23 @@ component BottomSheet(
   open: boolean = false,
   snapPoints: array = [0.5, 1.0],
   initialSnap: number = 0,
-  showHandle: boolean = true
+  showHandle: boolean = true,
+  // Size to the content instead of to a snap point.
+  //
+  // The snap-point model assumes a sheet you drag between heights — a map, a
+  // media player. The other common sheet is a short menu or confirm step that
+  // should be exactly as tall as what is in it; forcing that to 50vh leaves
+  // half a screen of empty surface under four rows. `max-height: 95vh` still
+  // applies, so a long fit-content sheet caps and scrolls rather than running
+  // off the top.
+  //
+  // With fitContent the sheet does not snap, so `snapPoints` / `initialSnap`
+  // are ignored and the drag gesture only dismisses.
+  fitContent: boolean = false,
+  // Cap the sheet's width and centre it. Full-bleed by default, which is right
+  // on a phone; on a tablet or a desktop breakpoint a sheet spanning 1200px
+  // reads as a broken dialog. '' keeps the full-bleed behaviour.
+  maxWidth: string = ""
 ) {
   @state {
     showing: false
@@ -39,16 +55,22 @@ component BottomSheet(
       },
       _ -> "translateY(100%)"
     }
-    sheetHeight: match snapIndex {
-      0 -> match snapPoints.length > 0 {
-        true -> (snapPoints[0] * 100) + "vh",
-        _ -> "50vh"
-      },
-      _ -> match snapPoints.length > snapIndex {
-        true -> (snapPoints[snapIndex] * 100) + "vh",
-        _ -> "100vh"
+    sheetHeight: match fitContent {
+      true -> "auto",
+      _ -> match snapIndex {
+        0 -> match snapPoints.length > 0 {
+          true -> (snapPoints[0] * 100) + "vh",
+          _ -> "50vh"
+        },
+        _ -> match snapPoints.length > snapIndex {
+          true -> (snapPoints[snapIndex] * 100) + "vh",
+          _ -> "100vh"
+        }
       }
     }
+    // The overlay container is `display:flex; justify-content:center`, so a
+    // capped sheet centres itself — no margin trickery needed.
+    sheetMaxWidth: maxWidth != "" ? maxWidth : "100%"
   }
 
   @actions {
@@ -103,6 +125,12 @@ component BottomSheet(
     block {
       height: sheetHeight
       max-height: 95vh
+      // A sheet is full-bleed on a phone; `maxWidth` caps it on a wider
+      // viewport. Without an explicit width the sheet is a row-flex item and
+      // would size to its content, which reads as a floating card rather than
+      // a sheet attached to the bottom edge.
+      width: 100%
+      max-width: sheetMaxWidth
       background: semantic.surface
       border-radius: "16px 16px 0 0"
       shadow: elevation.floating
