@@ -53,73 +53,26 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
   overlay(visible: showing, anchor: "screen", backdrop: "scrim") {
     on dismiss: doClose()
 
-    // Panel (left side)
+    // ONE panel, deliberately.
+    //
+    // This used to be two byte-identical blocks gated on `side == "left"` and
+    // `side == "right"`. Nothing in either block depended on `side` — the slide
+    // direction comes from panelTransform — so the pair rendered identically and
+    // the gate only chose which copy was display:none.
+    //
+    // That cost real money. `visibility:` compiles to display:none, not removal,
+    // so BOTH copies mounted, and each held `@children`: every Drawer in the app
+    // mounted the caller's entire content twice. Measured on Vector's
+    // /approvals drawer: 293 elements in each panel, two live FlightDetailPanel
+    // instances, two "Close drawer" buttons — duplicate fetches, duplicate
+    // subscriptions, duplicate ids, and the whole panel announced twice to a
+    // screen reader. modal.spec carries a comment warning about exactly this
+    // ("Two visibility-gated blocks each holding @children would render the
+    // caller's content twice"); Drawer had the bug that comment describes.
+    //
+    // Collapsing is behaviour-preserving for what was VISIBLE: the surviving
+    // block is identical to both originals, and exactly one was ever shown.
     block {
-      visibility: side == "left"
-      width: width
-      max-width: 90vw
-      background: semantic.surface
-      shadow: elevation.floating
-      overflow: "auto"
-      transition: transition.expand
-      transform: panelTransform
-      role: "dialog"
-      aria-label: "Drawer"
-
-      layout: vertical
-
-      // Header
-      block {
-        layout: horizontal, justify: between, align: center
-        padding: spacing.4
-        border-bottom: borders.default
-
-        text(title) {
-          visibility: title != ""
-          style: type.heading-sm
-          color: semantic.text-primary
-        }
-
-        // Close — a real button, so it is keyboard reachable and announced as
-        // a control. A `block { on click }` renders a <div>: not tabbable, not
-        // in the a11y tree as a control, and invisible to a screen reader. This
-        // is the drawer's ONLY close affordance besides backdrop dismiss, so as
-        // a div it left keyboard users no way out of an open drawer. `border`
-        // and `background` are reset because the button primitive brings the
-        // browser's default chrome. Matches modal.spec's close button.
-        button {
-          width: 32px
-          height: 32px
-          border-radius: 8px
-          border: "none"
-          background: "transparent"
-          cursor: "pointer"
-          aria-label: "Close drawer"
-          layout: horizontal, align: center, justify: center
-          on click: doClose()
-          on hover {
-            background: semantic.surface-raised
-          }
-
-          text("\u00D7") {
-            style: type.heading-sm
-            color: semantic.text-tertiary
-          }
-        }
-      }
-
-      // Body
-      block {
-        padding: spacing.4
-        grow: true
-        overflow: "auto"
-        @children
-      }
-    }
-
-    // Panel (right side)
-    block {
-      visibility: side == "right"
       width: width
       max-width: 90vw
       background: semantic.surface
