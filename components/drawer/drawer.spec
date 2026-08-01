@@ -1,4 +1,18 @@
-component Drawer(open: boolean = false, title: string = "", side: string = "left", width: string = "280px") {
+// A centred panel that slides in over a scrim. NOT an edge-anchored drawer,
+// despite the name — the overlay is align:center, so the panel sits in the
+// middle of the viewport at its natural height.
+//
+// The `side` prop was removed. It read as "which edge does this attach to",
+// and it never did that: both `side` branches rendered a centred panel of
+// identical geometry. All it actually chose was the direction the panel slid
+// in from, which is not worth a prop that misdescribes the component. Slide-in
+// is now fixed to `translateX(100%)` — the direction five of the six known call
+// sites already had, all of which passed `side: "right"` expecting a right-hand
+// drawer they were never getting.
+//
+// If an edge-anchored drawer is wanted, that is a different component (or an
+// `align` on the overlay plus a full-height panel), not this prop.
+component Drawer(open: boolean = false, title: string = "", width: string = "280px") {
   @state {
     showing: false
   }
@@ -9,9 +23,9 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
     // for position:fixed descendants, which silently breaks positionDropdown:
     // an anchored popup (Select, DatePicker, Autocomplete, Tooltip, HoverCard)
     // inside the drawer would land offset by the panel's origin and re-enter
-    // the panel's scrollable overflow. For a right-side drawer that origin is
-    // most of the viewport width, so the popup lands far off its trigger. Same
-    // bug modal.spec had via backdrop-filter.
+    // the panel's scrollable overflow — measured at several hundred pixels off
+    // its trigger for a centred panel. Same bug modal.spec had via
+    // backdrop-filter.
     //
     // Transitioning TO `none` still animates: transitions interpolate through
     // the identity matrix and then settle on the specified value, so the slide
@@ -20,10 +34,7 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
     // interpolated matrix and the containing block survives. Measured.)
     panelTransform: match showing {
       true -> "none",
-      _ -> match side {
-        "right" -> "translateX(100%)",
-        _ -> "translateX(-100%)"
-      }
+      _ -> "translateX(100%)"
     }
   }
 

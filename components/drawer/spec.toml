@@ -1,8 +1,8 @@
 [package]
 name = "drawer"
-version = "0.2.3"
+version = "0.3.0"
 category = "components"
-description = "Slide-out panel anchored to a screen edge for navigation or forms"
+description = "Centred panel that slides in over a scrim, for navigation or forms"
 license = "MIT"
 
 [compatibility]
