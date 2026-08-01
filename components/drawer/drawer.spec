@@ -80,12 +80,21 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
           color: semantic.text-primary
         }
 
-        // Close button
-        block {
+        // Close — a real button, so it is keyboard reachable and announced as
+        // a control. A `block { on click }` renders a <div>: not tabbable, not
+        // in the a11y tree as a control, and invisible to a screen reader. This
+        // is the drawer's ONLY close affordance besides backdrop dismiss, so as
+        // a div it left keyboard users no way out of an open drawer. `border`
+        // and `background` are reset because the button primitive brings the
+        // browser's default chrome. Matches modal.spec's close button.
+        button {
           width: 32px
           height: 32px
           border-radius: 8px
+          border: "none"
+          background: "transparent"
           cursor: "pointer"
+          aria-label: "Close drawer"
           layout: horizontal, align: center, justify: center
           on click: doClose()
           on hover {
@@ -135,12 +144,21 @@ component Drawer(open: boolean = false, title: string = "", side: string = "left
           color: semantic.text-primary
         }
 
-        // Close button
-        block {
+        // Close — a real button, so it is keyboard reachable and announced as
+        // a control. A `block { on click }` renders a <div>: not tabbable, not
+        // in the a11y tree as a control, and invisible to a screen reader. This
+        // is the drawer's ONLY close affordance besides backdrop dismiss, so as
+        // a div it left keyboard users no way out of an open drawer. `border`
+        // and `background` are reset because the button primitive brings the
+        // browser's default chrome. Matches modal.spec's close button.
+        button {
           width: 32px
           height: 32px
           border-radius: 8px
+          border: "none"
+          background: "transparent"
           cursor: "pointer"
+          aria-label: "Close drawer"
           layout: horizontal, align: center, justify: center
           on click: doClose()
           on hover {
