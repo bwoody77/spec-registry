@@ -204,6 +204,15 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
           visibility: showTextSummary
           grow: true
           overflow: hidden
+          // Clickable. Without this only the caret opened the panel, and the
+          // caret is ~12px at the far right: once a selection widened the label
+          // ("Tier: All" -> "Student Member (59)"), a click at the visible
+          // centre of the control landed here and did nothing, which reads as
+          // "the dropdown won't reopen". The chip-bubbling concern that kept
+          // on-click off the control row does not apply — chips live in their
+          // own block gated on display == "chips", and this one only renders in
+          // text mode.
+          on click: toggleOpen()
           text(displayText) {
             style: type.body-md
             color: semantic.text-primary
