@@ -3,7 +3,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
-component MultiSelect(options: array = [], values: array = [], placeholder: string = "Select...", searchable: boolean = true, disabled: boolean = false, label: string = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown") {
+component MultiSelect(options: array = [], values: array = [], placeholder: string = "Select...", searchable: boolean = true, disabled: boolean = false, label: string = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3) {
   @state {
     open: false
     query: ""
@@ -26,6 +26,20 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     safeSelected: selected != null ? selected : []
     filteredOptions: searchable && query != "" ? safeOptions.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : safeOptions
     selectedOptions: safeOptions.filter(o => safeSelected.includes(o.value))
+    // Chips are capped by COUNT, not by rendered rows: the approved design
+    // capped at two rendered rows, which needs post-layout measurement.
+    // Spec has no such primitive; a CSS max-height would slice chips
+    // mid-glyph and make the overflow count uncomputable, and an @extern
+    // measurement is web-only and stubs-only on iOS. A count cap is
+    // deterministic and portable. The remainder rolls into one counter
+    // chip that opens the panel, where every selection stays removable.
+    // Clamp negative maxChips to 0 chips: `slice`'s 2nd arg treats a
+    // negative number as an offset from the END of the array, not as a
+    // cap, so an un-clamped negative maxChips would silently render most
+    // of the chips instead of none. A negative cap means "no chips".
+    visibleChips: selectedOptions.slice(0, maxChips < 0 ? 0 : maxChips)
+    hiddenChipCount: selectedOptions.length - visibleChips.length
+    hasHiddenChips: hiddenChipCount > 0
     hasSelections: safeSelected.length > 0
     hasOptions: filteredOptions.length > 0
     displayPlaceholder: hasSelections == false ? placeholder : ""
@@ -36,13 +50,16 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
     displayText: selectedOptions.map(o => (o.shortLabel != null ? o.shortLabel : o.label)).join(", ")
     isDropdownMode: mode == "dropdown"
     showList: isDropdownMode == false || open == true
-    // The text-summary block (below) also grows when display=='text' and
-    // something is selected. Two grow:true siblings in the same row split
-    // it, shoving the toggle area (and its caret) inward — reads as a
-    // "box within the box" with an off-center caret. The toggle area only
-    // grows when that sibling is absent, so the caret stays pinned to the
-    // far right (two visibility-gated blocks below, not a computed `grow:`
-    // — grow: doesn't take a dynamic value in Spec).
+    // The text-summary block below grows (grow: true) when display=='text'
+    // and something is selected. The chips-display block, the text-summary
+    // block, and the placeholder are independent siblings in the control
+    // row, each individually visibility-gated — there is no shared
+    // toggle-area wrapper. All three claim grow:true, but their visibility
+    // is mutually exclusive (chips when display=='chips' and something is
+    // selected; text-summary when display=='text' and something is
+    // selected; placeholder when nothing is selected), so exactly one
+    // grows at a time and the caret's fixed 16px width is never squeezed —
+    // it stays pinned to the far right.
     showTextSummary: hasSelections && display == "text"
   }
 
@@ -132,10 +149,13 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
       layout: vertical, gap: spacing.1
 
       // Control row — chips/text + placeholder + caret
-      // NOTE: no on-click here — toggleOpen lives on the inner toggle block
-      // so that chip x clicks don't bubble into toggleOpen.
+      // Single click handler lives HERE and bubbles to every inner block
+      // (placeholder, caret, text-summary) — none of them may add their own
+      // on-click, or a click on them fires toggleOpen() twice and cancels
+      // out. The one documented exception is the chip x, which calls
+      // stopPropagation() so removing a tag doesn't also toggle the panel.
       block {
-        layout: horizontal, gap: spacing.1
+        layout: horizontal, gap: spacing.1, wrap
         padding: spacing.2
         min-height: 40px
         background: token.select-bg
@@ -154,6 +174,7 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         tabindex: "0"
         role: "combobox"
         aria-label: "Multi-select"
+        on click: toggleOpen()
         on hover { background: disabled ? token.select-bg : semantic.surface-raised }
         on focus: { focused = true }
         on blur: { focused = false }
@@ -172,10 +193,11 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
 
         // Chips display — outside the toggle-click zone
         block {
-          layout: horizontal, gap: spacing.1, align: center
+          layout: horizontal, gap: spacing.1, align: center, wrap
+          grow: true
           visibility: hasSelections && display == "chips"
 
-          each selectedOptions as opt {
+          each visibleChips as opt {
             block {
               layout: horizontal, gap: spacing.1, align: center
               padding-left: spacing.2
@@ -188,9 +210,32 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
 
               block {
                 cursor: "pointer"
-                on click: removeTag(opt.value)
+                on click(event): { event.stopPropagation() removeTag(opt.value) }
                 text("\u00D7") { style: type.label-sm, color: semantic.text-tertiary }
               }
+            }
+          }
+
+          // "+N more" counter for chips beyond maxChips. No on-click here:
+          // this block sits inside the control row, so a click already
+          // bubbles up to the row's toggleOpen() handler. Adding a
+          // second handler here would fire toggleOpen() twice in one tick
+          // and net to no state change \u2014 the exact defect Task 9 fixed for
+          // the caret and placeholder. cursor stays 'pointer' so it still
+          // reads as clickable.
+          block {
+            visibility: hasHiddenChips
+            layout: horizontal, align: center
+            padding-left: spacing.2
+            padding-right: spacing.2
+            background: token.select-optionSelected
+            border-radius: radius.sm
+            border: borders.default
+            cursor: "pointer"
+
+            text("+" + hiddenChipCount + " more") {
+              style: type.label-sm
+              color: semantic.interactive
             }
           }
         }
@@ -211,8 +256,8 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
           // "the dropdown won't reopen". The chip-bubbling concern that kept
           // on-click off the control row does not apply — chips live in their
           // own block gated on display == "chips", and this one only renders in
-          // text mode.
-          on click: toggleOpen()
+          // text mode. No handler here anymore: the row-level on-click (above)
+          // bubbles to this block, so adding one here would double-fire.
           text(displayText) {
             style: type.body-md
             color: semantic.text-primary
@@ -220,26 +265,22 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
           }
         }
 
-        // Toggle area — clicking here opens/closes dropdown
+        // Placeholder — only when nothing is selected. No on-click: the
+        // row-level handler bubbles down to here.
         block {
-          visibility: showTextSummary == false
+          visibility: hasSelections == false
           grow: true
-          layout: horizontal, align: center, justify: between
-          on click: toggleOpen()
-
-          // Placeholder
-          block {
-            visibility: hasSelections == false
-            text(placeholder) { style: type.body-md, color: semantic.text-tertiary }
-          }
-
-          text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
+          layout: horizontal, align: center
+          text(placeholder) { style: type.body-md, color: semantic.text-tertiary }
         }
-        block {
-          visibility: showTextSummary == true
-          layout: horizontal, align: center, justify: between
-          on click: toggleOpen()
 
+        // Caret — fixed width, never shrinks, always last. Previously this sat
+        // inside a grow:true box (flex: 1 1 0%, min-width: 0), so a few chips
+        // squeezed it to zero and there was nothing left to click. No
+        // on-click here either: the row-level handler bubbles down.
+        block {
+          width: 16px
+          layout: horizontal, justify: center, align: center
           text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
         }
       }
