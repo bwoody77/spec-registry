@@ -12,6 +12,15 @@
 //   iconLeft       icon name rendered before label (Icon component name)
 //   iconRight      icon name rendered after label
 //   iconOnly       icon name; renders square button with label as aria-label
+//   ariaLabel      overrides the accessible name; the visible label is unchanged
+//
+// ariaLabel exists for the case where the visible label is the right length for
+// the layout but too terse for someone who cannot see the surrounding context —
+// most often a button whose meaning is carried by an icon the screen reader
+// ignores. `Button(label: 'Open documents', iconRight: 'external-link',
+// ariaLabel: 'Open documents (opens in a new tab)')` renders the short label and
+// announces the long one. Leave it empty and the accessible name is the visible
+// label, exactly as before.
 //
 // Color tokens:
 //   The Button reads its colors from the app's `semantic.*` palette
@@ -38,13 +47,21 @@ component Button(
   iconLeft:     string  = "",
   iconRight:    string  = "",
   iconOnly:     string  = "",
-  loadingLabel: string  = ""
+  loadingLabel: string  = "",
+  ariaLabel:    string  = ""
 ) {
   @computed {
     isIconOnly: iconOnly != ""
     hasIconLeft: iconLeft != ""
     hasIconRight: iconRight != ""
     effectiveLabel: loading && loadingLabel != "" ? loadingLabel : label
+
+    // Always a non-empty string. `aria-label=""` is not "no override" — the
+    // accname spec tells browsers to ignore an empty one and fall back to
+    // content, so emitting it conditionally would mean two different code
+    // paths for the same outcome. Falling back to the visible label keeps
+    // every existing caller's accessible name byte-identical.
+    accessibleName: ariaLabel != "" ? ariaLabel : effectiveLabel
 
     iconSize: size == "sm" ? 14 : (size == "lg" ? 20 : 16)
 
@@ -88,6 +105,10 @@ component Button(
   // a decorative aria-hidden SVG with no path).
   button {
     disabled: disabled || loading
+    // Dynamic `aria-label:` compiles to a reactive bindAttr (ai-reference.md
+    // rule 31), so this tracks `loading` flipping the label the same way the
+    // visible text does.
+    aria-label: accessibleName
     layout: horizontal, align: center, justify: center, gap: spacing.2
     padding-x: padX
     padding-y: padY
