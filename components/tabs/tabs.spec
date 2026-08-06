@@ -6,7 +6,7 @@
 //     on change(id): setActive(id)
 //   }
 //
-// tabs:     array of { id: string, label: string, icon?: string }
+// tabs:     array of { id: string, label: string, icon?: string, count?: number }
 // variant:  'pill' (filled chip, carded strip) | 'underline' (2px indicator)
 // overflow: 'wrap' (grid auto-fill) | 'scroll' (single row, auto-scroll)
 //           | 'grow' (equal-width columns filling the row)
@@ -152,6 +152,12 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     fg:          active ? semantic.interactive-hover : semantic.text-secondary
     iconFg:      active ? semantic.interactive-hover : semantic.text-tertiary
     labelWeight: active ? 700 : 600
+    // Count badge — tinted with the tab's own state so it reads as part of the
+    // tab rather than a floating chip. toString guards a null (the badge is
+    // hidden then anyway, but the computed still evaluates).
+    countText: tab.count != null ? toString(tab.count) : ''
+    countBg:   active ? semantic.interactive-bg : semantic.surface-hover
+    countFg:   active ? semantic.interactive-hover : semantic.text-tertiary
     // Conditional attribute values must be named computeds, not inline
     // ternaries at the property.
     tabStopOrder: tabStop ? '0' : '-1'
@@ -196,6 +202,28 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
       style: type.body-sm
       weight: labelWeight
       color: fg
+    }
+    // Optional count badge ("Documents 12"). Absent unless a tab supplies
+    // `count`, so every existing caller renders byte-for-byte as before.
+    //
+    // height + line-height are FIXED rather than left to the badge's padding.
+    // A padded badge is taller than the bare label, and this row is
+    // align:center, so a strip mixing counted and uncounted tabs would centre
+    // their labels on two different baselines — the counted ones sitting a few
+    // px higher. Pinning the badge to the label's own line box keeps every
+    // label on one baseline whether or not it has a count.
+    block {
+      visibility: tab.count != null
+      padding-x: 6px
+      height: 18px
+      line-height: 18px
+      border-radius: '9px'
+      background: countBg
+      text(countText) {
+        style: type.label-xs
+        weight: 700
+        color: countFg
+      }
     }
   }
 }
