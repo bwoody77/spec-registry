@@ -206,17 +206,23 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // Optional count badge ("Documents 12"). Absent unless a tab supplies
     // `count`, so every existing caller renders byte-for-byte as before.
     //
-    // height + line-height are FIXED rather than left to the badge's padding.
-    // A padded badge is taller than the bare label, and this row is
-    // align:center, so a strip mixing counted and uncounted tabs would centre
-    // their labels on two different baselines — the counted ones sitting a few
-    // px higher. Pinning the badge to the label's own line box keeps every
-    // label on one baseline whether or not it has a count.
+    // The height is FIXED rather than left to the badge's padding. A padded
+    // badge is taller than the bare label, and this row is align:center, so a
+    // strip mixing counted and uncounted tabs would centre their labels on two
+    // different baselines — the counted ones sitting a few px higher. Pinning
+    // the badge to the label's own line box keeps every label on one baseline
+    // whether or not it has a count.
+    //
+    // The count is centred inside that fixed height with `layout: … align:
+    // center`, NOT a line-height. `line-height` is not a Spec property — it
+    // comes from the `style:` type token — so `line-height: 18px` here was a
+    // parse error, which made resolveSpecComponents drop this whole file and
+    // silently omit Tabs from every consumer's bundle.
     block {
       visibility: tab.count != null
+      layout: horizontal, align: center, justify: center
       padding-x: 6px
       height: 18px
-      line-height: 18px
       border-radius: '9px'
       background: countBg
       text(countText) {
