@@ -40,6 +40,45 @@ fn gridTrackMin(cols: list) -> string {
   return (total + '') + 'px'
 }
 
+// ─── Header groups ──────────────────────────────────────────────────────────
+// A column may declare `group: "<label>"`. CONSECUTIVE columns sharing a label
+// collapse into one spanning segment in a second header row above the ordinary
+// one; a column with no `group` becomes its own unlabelled spacer, so the two
+// rows stay column-aligned.
+//
+// Runs are contiguous by design. A label that reappears after a gap yields two
+// separate spans rather than one — merging them would mean silently reordering
+// the caller's columns.
+fn gridSegmentsOf(cols: list) -> list {
+  return cols |> reduce((acc, c) => {
+    let label = c.group != null ? c.group : ''
+    let n = length(acc)
+    if n > 0 && label != '' && acc[n - 1].label == label {
+      let last = acc[n - 1]
+      return acc.slice(0, n - 1).concat([{ label: label, cols: last.cols.concat([c]) }])
+    }
+    return acc.concat([{ label: label, cols: [c] }])
+  }, [])
+}
+
+// A segment is as wide as the columns it covers. `grow` is resolved at parse
+// time and cannot vary per element, so a segment spanning N columns still takes
+// ONE share of leftover space while its N members take N: alignment is exact
+// only when the grouped columns declare a fixed `width`, and drifts when they
+// are flexible. That is why the docs tell callers to give grouped columns a
+// width — it is a real constraint, not a style preference.
+fn gridSegMin(seg: map) -> string {
+  let total = seg.cols |> reduce((acc, c) => acc + (c.width != null ? c.width : (c.minWidth != null ? c.minWidth : 100)), 0)
+  return (total + '') + 'px'
+}
+
+fn gridSegMax(seg: map) -> string {
+  let flexible = seg.cols |> some(c => c.width == null)
+  if flexible { return '100000px' }
+  let total = seg.cols |> reduce((acc, c) => acc + c.width, 0)
+  return (total + '') + 'px'
+}
+
 // ─── Row kinds ──────────────────────────────────────────────────────────────
 // A row may declare `_kind`: 'group' (a collapsible header for the rows that
 // name it in `_group`) or 'total' (a pinned-looking summary). Anything else is
@@ -163,6 +202,14 @@ component DataGridSpec(
     pinnedColumns: pinFirst ? sizedColumns.slice(0, 1) : []
     scrollColumns: pinFirst ? sizedColumns.slice(1) : sizedColumns
     trackMin: gridTrackMin(visibleColumns)
+    // Header groups. The pinned column renders outside the scrolling loop, so a
+    // segment may never straddle that boundary — with pinFirst the first column
+    // is segmented on its own.
+    hasHeaderGroups: columns.some(c => c.group != null)
+    pinnedSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(0, 1)) : []
+    scrollSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(1)) : gridSegmentsOf(visibleColumns)
+    sizedPinnedSegments: pinnedSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s) })
+    sizedScrollSegments: scrollSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s) })
     pinBg: pinBackground != "" ? pinBackground : semantic.surface
     groupBg: groupBackground != "" ? groupBackground : semantic.surface-raised
     // `height` bounds the grid so its body scrolls internally (sticky header +
@@ -259,6 +306,64 @@ component DataGridSpec(
       // instead of crushing the columns.
       block {
         min-width: trackMin
+
+        // Header-group row — only when a column declares `group`.
+        //
+        // Deliberately NOT sticky: the ordinary header below it is, and two
+        // sticky rows both pinned to top: 0 would overlap (the second one's
+        // offset is its predecessor's rendered height, which is not knowable
+        // here). The group labels scroll away; the column headers stay.
+        //
+        // `data-grid-row: "header-group"` — not "group", which the row-grouping
+        // feature (`_kind: 'group'`) already owns.
+        block {
+          visibility: hasHeaderGroups
+          layout: horizontal
+          background: semantic.surface-raised
+          data-grid-row: "header-group"
+
+          // Matches the header's selection column so the rows stay aligned.
+          block {
+            visibility: selection == "multi"
+            width: 40px
+          }
+
+          each sizedPinnedSegments as seg {
+            block {
+              padding: spacing.2
+              grow: true
+              min-width: seg._min
+              max-width: seg._max
+              position: "sticky"
+              left: 0px
+              z-index: 5
+              background: semantic.surface-raised
+              layout: horizontal, justify: center
+              data-grid-col-group: seg._seg.label
+              text(seg._seg.label) {
+                style: type.label-sm
+                weight: 700
+                color: semantic.text-secondary
+              }
+            }
+          }
+
+          each sizedScrollSegments as seg {
+            block {
+              padding: spacing.2
+              grow: true
+              min-width: seg._min
+              max-width: seg._max
+              layout: horizontal, justify: center
+              data-grid-col-group: seg._seg.label
+              text(seg._seg.label) {
+                style: type.label-sm
+                weight: 700
+                color: semantic.text-secondary
+              }
+            }
+          }
+        }
 
         // Sticky header
         block {
