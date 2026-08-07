@@ -100,6 +100,18 @@ fn gridToggleGroup(openGroups: list, key: string) -> list {
   return openGroups |> concat([key])
 }
 
+// Row-detail expansion. Deliberately a mirror of gridGroupIsOpen /
+// gridToggleGroup rather than a second idiom for the same shape — this file
+// already answers "is this key in that list" one way.
+fn gridRowIsExpanded(expandedSet: list, key: string) -> boolean {
+  return expandedSet |> some(k => k == key)
+}
+
+fn gridToggleExpanded(expandedSet: list, key: string) -> list {
+  if gridRowIsExpanded(expandedSet, key) { return expandedSet |> filter(k => k != key) }
+  return expandedSet |> concat([key])
+}
+
 // Drop rows belonging to a collapsed group. Group headers and totals always show.
 fn gridVisibleRows(rows: list, openGroups: list) -> list {
   return rows |> filter(r => r._group == null || gridGroupIsOpen(openGroups, r._group))
@@ -173,6 +185,14 @@ component DataGridSpec(
   // Backing for group / total rows. Empty = the platform's raised surface;
   // `semantic.surface-sunken` is not a platform token, so it cannot be assumed.
   groupBackground: string = "",
+  // Row detail. `expandable: false` keeps 0.4.0 rendering exactly — no detail
+  // row, no toggle. When true, a full-width `detail` slot renders beneath any
+  // row whose `rowKeyField` value is in the expanded set, and clicking a row
+  // toggles it. The open set is the grid's own state, mirroring `openGroups`:
+  // a caller cannot own it without re-implementing the row loop.
+  expandable: boolean = false,
+  defaultExpanded: array = [],
+  rowKeyField: string = "id",
 ) {
   @state {
     sortState: sort
@@ -184,6 +204,7 @@ component DataGridSpec(
     focusedRow: 0 - 1
     focusedCol: 0 - 1
     openGroups: defaultOpen
+    expandedSet: defaultExpanded
   }
 
   @computed {
@@ -223,6 +244,14 @@ component DataGridSpec(
     toggleGroup(key) {
       openGroups = gridToggleGroup(openGroups, key)
       emit("groupToggle", key)
+    }
+    // No emit(), unlike toggleGroup: nothing consumes an expansion event, and
+    // an unused event is API surface that has to be kept working forever.
+    toggleExpanded(row) {
+      if !expandable { return }
+      let k = row[rowKeyField]
+      if k == null { return }
+      expandedSet = gridToggleExpanded(expandedSet, k)
     }
     toggleSortCol(colKey) {
       sortState = toggleSortState(sortState, colKey)
@@ -477,7 +506,10 @@ component DataGridSpec(
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
             cursor: selection != "none" ? "pointer" : "default"
-            on click: clickRow(row, rowIdx)
+            on click: {
+              clickRow(row, rowIdx)
+              toggleExpanded(row)
+            }
             data-grid-row: gridRowKind(row) == "row" ? "body" : gridRowKind(row)
 
             block {
@@ -593,6 +625,25 @@ component DataGridSpec(
                   }
                 }
               }
+            }
+          }
+
+          // Full-width detail row. Outside the column loop on purpose: it spans
+          // every column, so it must not take a column's width source. Only
+          // ordinary rows expand — a group header or a total has no detail.
+          block {
+            visibility: expandable
+              && gridRowKind(row) == "row"
+              && row[rowKeyField] != null
+              && gridRowIsExpanded(expandedSet, row[rowKeyField])
+            layout: horizontal
+            border-top: borders.subtle
+            background: semantic.surface
+            min-width: trackMin
+            data-grid-row: "detail"
+            block {
+              grow: true
+              @slot("detail", row)
             }
           }
         }
