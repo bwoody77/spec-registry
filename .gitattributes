@@ -1,0 +1,18 @@
+# The registry is a generated artifact that consumers byte-copy: `spec install`
+# uses copyFile, so whatever is in THIS working tree lands verbatim in every
+# consumer's .spec-packages cache.
+#
+# This repo runs core.autocrlf=true, so without this file checkout rewrote every
+# component to CRLF even though the object store holds LF - and the CRLF then
+# propagated outward. In Vector that surfaced as ~25 files reported modified
+# with an EMPTY diff after every `spec install`, unfixable from that end: the
+# published set was a MIX, so declaring either ending there left the other
+# subset mismatched (measured: 25 files one way, 63 the other).
+#
+# Pin the working tree to LF so the bytes on disk match the bytes in the object
+# store, and so a consumer can declare `eol=lf` and have it hold. `text=auto`
+# still lets git detect and skip anything binary.
+#
+# Paired with the publish-side fix in spec's packages/cli/src/lib/reconcile.ts,
+# which normalizes on the spec-to-registry write so CRLF cannot re-enter here.
+* text=auto eol=lf
