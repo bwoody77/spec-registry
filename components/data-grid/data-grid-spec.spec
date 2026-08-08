@@ -189,6 +189,18 @@ component DataGridSpec(
   sort: array = [],
   height: string = "",
   striped: boolean = false,
+  // The tint an odd row takes when `striped`. Defaulted to semantic.surface,
+  // which is what shipped before — but on a surface-coloured container that
+  // resolves to the SAME colour as the unstriped rows, so `striped: true` could
+  // not produce a visible stripe at any setting. A caller on a white card needs
+  // to name a tint a shade off it.
+  stripeBackground: string = "",
+  // Row hover. Empty keeps the previous behaviour: none at all, which on a grid
+  // whose rows are clickable left nothing to say a row was a target.
+  hoverBackground: string = "",
+  // Cell padding, for callers whose design system is denser or looser than
+  // spacing.2. Applies to every cell in every row so the columns cannot drift.
+  cellPadding: string = "",
   // Freeze the first visible column horizontally. It renders outside the column
   // loop because `position` is resolved at parse time and cannot vary per column.
   pinFirst: boolean = false,
@@ -249,6 +261,9 @@ component DataGridSpec(
     sizedScrollSegments: scrollSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s) })
     pinBg: pinBackground != "" ? pinBackground : semantic.surface
     groupBg: groupBackground != "" ? groupBackground : semantic.surface-raised
+    stripeBg: stripeBackground != "" ? stripeBackground : semantic.surface
+    pad: cellPadding != "" ? cellPadding : spacing.2
+    hasHover: hoverBackground != ""
     // `height` bounds the grid so its body scrolls internally (sticky header +
     // always-visible horizontal scrollbar); '' = grow to content, no bound.
     gridMaxH: height != "" ? height : "none"
@@ -385,7 +400,7 @@ component DataGridSpec(
               layout: horizontal
               data-grid-col-group: seg._seg.label
               block {
-                padding: spacing.2
+                padding: pad
                 grow: true
                 layout: horizontal, justify: center
                 text(seg._seg.label) {
@@ -405,7 +420,7 @@ component DataGridSpec(
               layout: horizontal
               data-grid-col-group: seg._seg.label
               block {
-                padding: spacing.2
+                padding: pad
                 grow: true
                 layout: horizontal, justify: center
                 text(seg._seg.label) {
@@ -433,7 +448,7 @@ component DataGridSpec(
             width: 40px
             layout: horizontal
             block {
-              padding: spacing.2
+              padding: pad
               grow: true
               layout: horizontal, align: center, justify: center
               Checkbox(label: "", checked: allSelected) {
@@ -456,7 +471,7 @@ component DataGridSpec(
               layout: horizontal
               on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
               block {
-                padding: spacing.2
+                padding: pad
                 grow: true
                 @slot("header", col._col)
                 block {
@@ -481,7 +496,7 @@ component DataGridSpec(
               layout: horizontal
               on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
               block {
-                padding: spacing.2
+                padding: pad
                 grow: true
                 @slot("header", col._col)
                 block {
@@ -538,10 +553,17 @@ component DataGridSpec(
           block {
             layout: horizontal
             border-top: gridRowKind(row) == "total" ? borders.strong : borders.subtle
-            background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(rowIdx) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? semantic.surface : "transparent"))
+            background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(rowIdx) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent"))
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
             cursor: selection != "none" ? "pointer" : "default"
+            // Hover is opt-in via `hoverBackground` and only ever on ORDINARY
+            // rows — a group header or a total is not a target, and lighting
+            // one up would say it was. `visibility` cannot express this, so it
+            // is a guarded style rather than a wrapper.
+            on hover {
+              background: hasHover && gridRowKind(row) == "row" ? hoverBackground : (gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(rowIdx) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent")))
+            }
             on click: {
               clickRow(row, rowIdx)
               toggleExpanded(row)
@@ -553,7 +575,7 @@ component DataGridSpec(
               width: 40px
               layout: horizontal
               block {
-                padding: spacing.2
+                padding: pad
                 grow: true
                 layout: horizontal, align: center, justify: center
                 Checkbox(label: "", checked: selectedSet.includes(rowIdx)) {
@@ -579,7 +601,7 @@ component DataGridSpec(
                 shadow: gridRowRail(row)
                 layout: horizontal
                 block {
-                padding: spacing.2
+                padding: pad
                 grow: true
                 layout: horizontal, gap: spacing.1, align: center
                 // Group rows carry the expand/collapse control: the open state
@@ -632,7 +654,7 @@ component DataGridSpec(
                 data-grid-col: col._col.key
                 layout: horizontal
                 block {
-                padding: spacing.2
+                padding: pad
                 grow: true
                 layout: horizontal, gap: spacing.1, align: center
                 // Same control for an unpinned grid, where column 0 is here.
