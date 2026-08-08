@@ -22,6 +22,22 @@ fn applySortAndFilter(rows: list, sortState: list, filters: list) -> list {
 // column, and it is what keeps the header, body, group and total rows sharing
 // ONE width source so their columns cannot drift apart.
 
+// ── THE PADDING INVARIANT ───────────────────────────────────────────────────
+// A cell's width-bearing box carries NO padding. Every cell is an outer block
+// holding min-width/max-width/grow and an inner block holding `padding` and the
+// content.
+//
+// Spec blocks are content-box and Spec has no `box-sizing`, so padding declared
+// beside min-width is ADDED to it: a column declaring `width: 90` rendered
+// 106px. Every column drifting equally hid it — until the header-group row,
+// whose cells span several columns. A segment covering N columns took ONE
+// padding while its N members took N, so the group label sat (N-1) x 2 x padding
+// short: 64px adrift over five columns, and every grid 16px-per-column wider
+// than it asked for. cf-market's browse table declared 1130px, demanded 1322px,
+// and pushed its Price column off screen.
+//
+// So: if you add padding to a cell, put it on the inner block. Padding on the
+// box that carries min-width silently re-breaks alignment for every consumer.
 fn gridColMin(col: map) -> string {
   if col.width != null { return (col.width + '') + 'px' }
   if col.minWidth != null { return (col.minWidth + '') + 'px' }
@@ -359,7 +375,6 @@ component DataGridSpec(
 
           each sizedPinnedSegments as seg {
             block {
-              padding: spacing.2
               grow: true
               min-width: seg._min
               max-width: seg._max
@@ -367,28 +382,37 @@ component DataGridSpec(
               left: 0px
               z-index: 5
               background: semantic.surface-raised
-              layout: horizontal, justify: center
+              layout: horizontal
               data-grid-col-group: seg._seg.label
-              text(seg._seg.label) {
-                style: type.label-sm
-                weight: 700
-                color: semantic.text-secondary
+              block {
+                padding: spacing.2
+                grow: true
+                layout: horizontal, justify: center
+                text(seg._seg.label) {
+                  style: type.label-sm
+                  weight: 700
+                  color: semantic.text-secondary
+                }
               }
             }
           }
 
           each sizedScrollSegments as seg {
             block {
-              padding: spacing.2
               grow: true
               min-width: seg._min
               max-width: seg._max
-              layout: horizontal, justify: center
+              layout: horizontal
               data-grid-col-group: seg._seg.label
-              text(seg._seg.label) {
-                style: type.label-sm
-                weight: 700
-                color: semantic.text-secondary
+              block {
+                padding: spacing.2
+                grow: true
+                layout: horizontal, justify: center
+                text(seg._seg.label) {
+                  style: type.label-sm
+                  weight: 700
+                  color: semantic.text-secondary
+                }
               }
             }
           }
@@ -407,16 +431,19 @@ component DataGridSpec(
           block {
             visibility: selection == "multi"
             width: 40px
-            padding: spacing.2
-            layout: horizontal, align: center, justify: center
-            Checkbox(label: "", checked: allSelected) {
-              on change(isChecked): { if isChecked { selectAllRows() } else { clearSelection() } }
+            layout: horizontal
+            block {
+              padding: spacing.2
+              grow: true
+              layout: horizontal, align: center, justify: center
+              Checkbox(label: "", checked: allSelected) {
+                on change(isChecked): { if isChecked { selectAllRows() } else { clearSelection() } }
+              }
             }
           }
 
           each pinnedColumns as col {
             block {
-              padding: spacing.2
               grow: true
               min-width: col._min
               max-width: col._max
@@ -426,14 +453,19 @@ component DataGridSpec(
               background: semantic.surface-raised
               cursor: col._col.sortable ? "pointer" : "default"
               data-grid-col: col._col.key
+              layout: horizontal
               on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
-              @slot("header", col._col)
               block {
-                visibility: !hasSlot("header")
-                layout: horizontal, gap: spacing.1, align: center
-                text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                  style: type.label-sm
-                  weight: 600
+                padding: spacing.2
+                grow: true
+                @slot("header", col._col)
+                block {
+                  visibility: !hasSlot("header")
+                  layout: horizontal, gap: spacing.1, align: center
+                  text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                    style: type.label-sm
+                    weight: 600
+                  }
                 }
               }
             }
@@ -441,24 +473,28 @@ component DataGridSpec(
 
           each scrollColumns as col {
             block {
-              padding: spacing.2
               grow: true
               min-width: col._min
               max-width: col._max
               cursor: col._col.sortable ? "pointer" : "default"
               data-grid-col: col._col.key
+              layout: horizontal
               on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
-              @slot("header", col._col)
               block {
-                visibility: !hasSlot("header")
-                layout: horizontal, gap: spacing.1, align: center
-                text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                  style: type.label-sm
-                  weight: 600
-                }
-                text(sortState.find(s => s.key == col.key) != null ? (sortState.find(s => s.key == col.key).direction == "asc" ? "\u2191" : "\u2193") : "") {
-                  style: type.caption
-                  color: semantic.interactive
+                padding: spacing.2
+                grow: true
+                @slot("header", col._col)
+                block {
+                  visibility: !hasSlot("header")
+                  layout: horizontal, gap: spacing.1, align: center
+                  text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                    style: type.label-sm
+                    weight: 600
+                  }
+                  text(sortState.find(s => s.key == col.key) != null ? (sortState.find(s => s.key == col.key).direction == "asc" ? "\u2191" : "\u2193") : "") {
+                    style: type.caption
+                    color: semantic.interactive
+                  }
                 }
               }
             }
@@ -515,16 +551,19 @@ component DataGridSpec(
             block {
               visibility: selection == "multi"
               width: 40px
-              padding: spacing.2
-              layout: horizontal, align: center, justify: center
-              Checkbox(label: "", checked: selectedSet.includes(rowIdx)) {
-                on change(isChecked): selectRow(rowIdx)
+              layout: horizontal
+              block {
+                padding: spacing.2
+                grow: true
+                layout: horizontal, align: center, justify: center
+                Checkbox(label: "", checked: selectedSet.includes(rowIdx)) {
+                  on change(isChecked): selectRow(rowIdx)
+                }
               }
             }
 
             each pinnedColumns as col {
               block {
-                padding: spacing.2
                 grow: true
                 min-width: col._min
                 max-width: col._max
@@ -538,6 +577,10 @@ component DataGridSpec(
                 // re-draw the rail here, on top of the pin background, or a
                 // provenance accent is invisible whenever the first column is pinned.
                 shadow: gridRowRail(row)
+                layout: horizontal
+                block {
+                padding: spacing.2
+                grow: true
                 layout: horizontal, gap: spacing.1, align: center
                 // Group rows carry the expand/collapse control: the open state
                 // is the grid's, so the caller's cell slot cannot own it.
@@ -576,17 +619,21 @@ component DataGridSpec(
                     }
                   }
                 }
+                }
               }
             }
 
             each scrollColumns as col, colIdx {
               block {
-                padding: spacing.2
                 grow: true
                 min-width: col._min
                 max-width: col._max
                 background: focusedRow == rowIdx && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
                 data-grid-col: col._col.key
+                layout: horizontal
+                block {
+                padding: spacing.2
+                grow: true
                 layout: horizontal, gap: spacing.1, align: center
                 // Same control for an unpinned grid, where column 0 is here.
                 button {
@@ -623,6 +670,7 @@ component DataGridSpec(
                       color: semantic.text-primary
                     }
                   }
+                }
                 }
               }
             }
