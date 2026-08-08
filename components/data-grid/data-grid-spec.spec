@@ -58,9 +58,10 @@ fn gridTrackMin(cols: list) -> string {
 
 // ─── Header groups ──────────────────────────────────────────────────────────
 // A column may declare `group: "<label>"`. CONSECUTIVE columns sharing a label
-// collapse into one spanning segment in a second header row above the ordinary
-// one; a column with no `group` becomes its own unlabelled spacer, so the two
-// rows stay column-aligned.
+// collapse into one spanning segment of the composite header: a vertical stack
+// of [group label] over [member headings]. A column with no `group` is its own
+// unlabelled segment — a single full-height cell — so the header stays
+// column-aligned with the body by construction.
 //
 // Runs are contiguous by design. A label that reappears after a gap yields two
 // separate spans rather than one — merging them would mean silently reordering
@@ -75,6 +76,21 @@ fn gridSegmentsOf(cols: list) -> list {
     }
     return acc.concat([{ label: label, cols: [c] }])
   }, [])
+}
+
+// Each column carries its resolved min/max width plus its position at a group
+// run's EDGE (`_gFirst` / `_gLast`), which is what `groupRules` draws the
+// full-height bracket from: the component already knows where a run starts and
+// ends, so a consumer never re-derives group boundaries in its own cells.
+fn gridSizedCols(cols: list) -> list {
+  let n = length(cols)
+  return cols |> map((c, i) => {
+    _col: c,
+    _min: gridColMin(c),
+    _max: gridColMax(c),
+    _gFirst: c.group != null && (i == 0 || cols[i - 1].group != c.group),
+    _gLast: c.group != null && (i == n - 1 || cols[i + 1].group != c.group)
+  })
 }
 
 // A segment is as wide as the columns it covers. `grow` is resolved at parse
@@ -201,6 +217,16 @@ component DataGridSpec(
   // Cell padding, for callers whose design system is denser or looser than
   // spacing.2. Applies to every cell in every row so the columns cannot drift.
   cellPadding: string = "",
+  // Header-only padding. Empty = cellPadding. A blotter header is denser than
+  // its rows (the mockup precedent: ~half the vertical padding), and with a
+  // grouped run the label strip and the member row EACH pay it, so a header
+  // stuck at cell padding is a third taller than designed.
+  headerPadding: string = "",
+  // Full-height rules bracketing each labelled group run, drawn on the header
+  // segment AND on every body cell at a run's edge — without the body half the
+  // grouping dissolves below the header. Opt-in: existing grouped consumers
+  // keep their rendering.
+  groupRules: boolean = false,
   // Freeze the first visible column horizontally. It renders outside the column
   // loop because `position` is resolved at parse time and cannot vary per column.
   pinFirst: boolean = false,
@@ -245,24 +271,29 @@ component DataGridSpec(
     // plain member access at the use site — which also keeps every row reading
     // the SAME width source. `_col` is the caller's original column def, passed
     // untouched to the slots so caller-defined fields survive.
-    sizedColumns: visibleColumns |> map(c => { _col: c, _min: gridColMin(c), _max: gridColMax(c) })
+    sizedColumns: gridSizedCols(visibleColumns)
     // The pinned column is split out of the loop; both lists still come from
     // `sizedColumns`, so header and body cannot disagree about widths.
     pinnedColumns: pinFirst ? sizedColumns.slice(0, 1) : []
     scrollColumns: pinFirst ? sizedColumns.slice(1) : sizedColumns
     trackMin: gridTrackMin(visibleColumns)
-    // Header groups. The pinned column renders outside the scrolling loop, so a
-    // segment may never straddle that boundary — with pinFirst the first column
-    // is segmented on its own.
-    hasHeaderGroups: columns.some(c => c.group != null)
+    // Header segments. The pinned column renders outside the scrolling loop, so
+    // a segment may never straddle that boundary — with pinFirst the first
+    // column is segmented on its own. `_cols` sizes each segment's members from
+    // the same fns as the body, so the two cannot disagree about widths.
     pinnedSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(0, 1)) : []
     scrollSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(1)) : gridSegmentsOf(visibleColumns)
-    sizedPinnedSegments: pinnedSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s) })
-    sizedScrollSegments: scrollSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s) })
+    sizedPinnedSegments: pinnedSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols) })
+    sizedScrollSegments: scrollSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols) })
     pinBg: pinBackground != "" ? pinBackground : semantic.surface
     groupBg: groupBackground != "" ? groupBackground : semantic.surface-raised
     stripeBg: stripeBackground != "" ? stripeBackground : semantic.surface
     pad: cellPadding != "" ? cellPadding : spacing.2
+    headerPad: headerPadding != "" ? headerPadding : pad
+    // The group bracket, as a ready border string: a `borders.*` token cannot
+    // be picked by a ternary in a style position on every target, but a plain
+    // string can.
+    bracketRule: '1px solid ' + semantic.border
     hasHover: hoverBackground != ""
     // `height` bounds the grid so its body scrolls internally (sticky header +
     // always-visible horizontal scrollbar); '' = grow to content, no bound.
@@ -367,73 +398,21 @@ component DataGridSpec(
       block {
         min-width: trackMin
 
-        // Header-group row — only when a column declares `group`.
+        // ─── Composite header (0.7.0) ───
+        // ONE sticky row of column-GROUPS, replacing the former two sibling
+        // rows (a non-sticky group row over a sticky header row). An ungrouped
+        // column is a single full-height cell whose heading sits on the shared
+        // bottom baseline; a grouped run stacks its label over its members'
+        // headings. Every width still comes from the same gridColMin/Max fns
+        // as the body, so alignment holds by construction — and because the
+        // composite is one sticky element, group labels no longer scroll away
+        // from the columns they describe (the old design's stated limitation).
         //
-        // Deliberately NOT sticky: the ordinary header below it is, and two
-        // sticky rows both pinned to top: 0 would overlap (the second one's
-        // offset is its predecessor's rendered height, which is not knowable
-        // here). The group labels scroll away; the column headers stay.
-        //
-        // `data-grid-row: "header-group"` — not "group", which the row-grouping
-        // feature (`_kind: 'group'`) already owns.
-        block {
-          visibility: hasHeaderGroups
-          layout: horizontal
-          background: semantic.surface-raised
-          data-grid-row: "header-group"
-
-          // Matches the header's selection column so the rows stay aligned.
-          block {
-            visibility: selection == "multi"
-            width: 40px
-          }
-
-          each sizedPinnedSegments as seg {
-            block {
-              grow: true
-              min-width: seg._min
-              max-width: seg._max
-              position: "sticky"
-              left: 0px
-              z-index: 5
-              background: semantic.surface-raised
-              layout: horizontal
-              data-grid-col-group: seg._seg.label
-              block {
-                padding: pad
-                grow: true
-                layout: horizontal, justify: center
-                text(seg._seg.label) {
-                  style: type.label-sm
-                  weight: 700
-                  color: semantic.text-secondary
-                }
-              }
-            }
-          }
-
-          each sizedScrollSegments as seg {
-            block {
-              grow: true
-              min-width: seg._min
-              max-width: seg._max
-              layout: horizontal
-              data-grid-col-group: seg._seg.label
-              block {
-                padding: pad
-                grow: true
-                layout: horizontal, justify: center
-                text(seg._seg.label) {
-                  style: type.label-sm
-                  weight: 700
-                  color: semantic.text-secondary
-                }
-              }
-            }
-          }
-        }
-
-        // Sticky header
+        // Markers: `data-grid-row="header"` is the composite; each labelled
+        // run's label strip is `data-grid-row="header-group"` (still never
+        // "group", which the row-grouping feature owns). An unlabelled
+        // segment's strip renders hidden rather than absent, matching the
+        // filter row's contract for a conditional element.
         block {
           layout: horizontal
           background: semantic.surface-raised
@@ -446,10 +425,9 @@ component DataGridSpec(
           block {
             visibility: selection == "multi"
             width: 40px
-            layout: horizontal
+            layout: vertical, justify: center
             block {
-              padding: pad
-              grow: true
+              padding: headerPad
               layout: horizontal, align: center, justify: center
               Checkbox(label: "", checked: allSelected) {
                 on change(isChecked): { if isChecked { selectAllRows() } else { clearSelection() } }
@@ -457,58 +435,126 @@ component DataGridSpec(
             }
           }
 
-          each pinnedColumns as col {
+          each sizedPinnedSegments as seg {
             block {
               grow: true
-              min-width: col._min
-              max-width: col._max
+              min-width: seg._min
+              max-width: seg._max
               position: "sticky"
               left: 0px
               z-index: 5
               background: semantic.surface-raised
-              cursor: col._col.sortable ? "pointer" : "default"
-              data-grid-col: col._col.key
-              layout: horizontal
-              on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
+              layout: vertical
+              data-grid-col-group: seg._seg.label
+
               block {
-                padding: pad
-                grow: true
-                @slot("header", col._col)
+                visibility: seg._seg.label != ''
+                padding: headerPad
+                layout: horizontal, justify: center
+                data-grid-row: "header-group"
+                @slot("group-header", seg._seg)
                 block {
-                  visibility: !hasSlot("header")
-                  layout: horizontal, gap: spacing.1, align: center
-                  text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                  visibility: !hasSlot("group-header")
+                  text(seg._seg.label) {
                     style: type.label-sm
-                    weight: 600
+                    weight: 700
+                    color: semantic.text-secondary
+                    text-transform: 'uppercase'
+                    letter-spacing: '0.09em'
+                  }
+                }
+              }
+
+              block {
+                layout: horizontal
+                grow: true
+                each seg._cols as col {
+                  block {
+                    grow: true
+                    min-width: col._min
+                    max-width: col._max
+                    cursor: col._col.sortable ? "pointer" : "default"
+                    data-grid-col: col._col.key
+                    layout: vertical, justify: end
+                    on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
+                    block {
+                      padding: headerPad
+                      @slot("header", col._col)
+                      block {
+                        visibility: !hasSlot("header")
+                        layout: horizontal, gap: spacing.1, align: center
+                        text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                          style: type.label-sm
+                          weight: 600
+                        }
+                        text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
+                          style: type.caption
+                          color: semantic.interactive
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
           }
 
-          each scrollColumns as col {
+          each sizedScrollSegments as seg {
             block {
               grow: true
-              min-width: col._min
-              max-width: col._max
-              cursor: col._col.sortable ? "pointer" : "default"
-              data-grid-col: col._col.key
-              layout: horizontal
-              on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
+              min-width: seg._min
+              max-width: seg._max
+              layout: vertical
+              border-left: groupRules && seg._seg.label != '' ? bracketRule : "none"
+              border-right: groupRules && seg._seg.label != '' ? bracketRule : "none"
+              data-grid-col-group: seg._seg.label
+
               block {
-                padding: pad
-                grow: true
-                @slot("header", col._col)
+                visibility: seg._seg.label != ''
+                padding: headerPad
+                layout: horizontal, justify: center
+                data-grid-row: "header-group"
+                @slot("group-header", seg._seg)
                 block {
-                  visibility: !hasSlot("header")
-                  layout: horizontal, gap: spacing.1, align: center
-                  text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                  visibility: !hasSlot("group-header")
+                  text(seg._seg.label) {
                     style: type.label-sm
-                    weight: 600
+                    weight: 700
+                    color: semantic.text-secondary
+                    text-transform: 'uppercase'
+                    letter-spacing: '0.09em'
                   }
-                  text(sortState.find(s => s.key == col.key) != null ? (sortState.find(s => s.key == col.key).direction == "asc" ? "\u2191" : "\u2193") : "") {
-                    style: type.caption
-                    color: semantic.interactive
+                }
+              }
+
+              block {
+                layout: horizontal
+                grow: true
+                each seg._cols as col {
+                  block {
+                    grow: true
+                    min-width: col._min
+                    max-width: col._max
+                    cursor: col._col.sortable ? "pointer" : "default"
+                    data-grid-col: col._col.key
+                    layout: vertical, justify: end
+                    on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
+                    block {
+                      padding: headerPad
+                      @slot("header", col._col)
+                      block {
+                        visibility: !hasSlot("header")
+                        layout: horizontal, gap: spacing.1, align: center
+                        text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                          style: type.label-sm
+                          weight: 600
+                        }
+                        text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
+                          style: type.caption
+                          color: semantic.interactive
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -589,6 +635,8 @@ component DataGridSpec(
                 grow: true
                 min-width: col._min
                 max-width: col._max
+                border-left: groupRules && col._gFirst ? bracketRule : "none"
+                border-right: groupRules && col._gLast ? bracketRule : "none"
                 data-grid-col: col._col.key
                 position: "sticky"
                 left: 0px
@@ -651,6 +699,10 @@ component DataGridSpec(
                 min-width: col._min
                 max-width: col._max
                 background: focusedRow == rowIdx && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
+                // The group bracket's body half: without it the grouping
+                // dissolves below the header (mockup: q-first/q-last on td AND th).
+                border-left: groupRules && col._gFirst ? bracketRule : "none"
+                border-right: groupRules && col._gLast ? bracketRule : "none"
                 data-grid-col: col._col.key
                 layout: horizontal
                 block {
