@@ -88,8 +88,8 @@ fn gridSizedCols(cols: list) -> list {
     _col: c,
     _min: gridColMin(c),
     _max: gridColMax(c),
-    _gFirst: c.group != null && (i == 0 || cols[i - 1].group != c.group),
-    _gLast: c.group != null && (i == n - 1 || cols[i + 1].group != c.group)
+    _gFirst: c.group != null && c.group != '' && (i == 0 || cols[i - 1].group != c.group),
+    _gLast: c.group != null && c.group != '' && (i == n - 1 || cols[i + 1].group != c.group)
   })
 }
 
@@ -271,11 +271,13 @@ component DataGridSpec(
     // plain member access at the use site — which also keeps every row reading
     // the SAME width source. `_col` is the caller's original column def, passed
     // untouched to the slots so caller-defined fields survive.
-    sizedColumns: gridSizedCols(visibleColumns)
-    // The pinned column is split out of the loop; both lists still come from
-    // `sizedColumns`, so header and body cannot disagree about widths.
-    pinnedColumns: pinFirst ? sizedColumns.slice(0, 1) : []
-    scrollColumns: pinFirst ? sizedColumns.slice(1) : sizedColumns
+    // Pinned and scrolling columns are sized (and edge-flagged) over the SAME
+    // pin-split lists the header segments use — gridSegmentsOf never lets a
+    // run straddle the pin boundary, so the body's _gFirst/_gLast must treat
+    // that boundary as a run edge too, or header and body disagree about
+    // where the groupRules bracket falls.
+    pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1)) : []
+    scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1)) : gridSizedCols(visibleColumns)
     trackMin: gridTrackMin(visibleColumns)
     // Header segments. The pinned column renders outside the scrolling loop, so
     // a segment may never straddle that boundary — with pinFirst the first
@@ -445,6 +447,8 @@ component DataGridSpec(
               z-index: 5
               background: semantic.surface-raised
               layout: vertical
+              border-left: groupRules && seg._seg.label != '' ? bracketRule : "none"
+              border-right: groupRules && seg._seg.label != '' ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
 
               block {
