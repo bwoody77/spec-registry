@@ -28,6 +28,15 @@ component Popover(placement: string = "bottom", closeOnContentClick: boolean = f
   block {
     inline: true
 
+    // Escape closes while focus is inside the trigger or panel — the common
+    // keyboard flow (click/Enter the trigger, then Escape). Keydown bubbles
+    // from the focused child to this root block; there is no document-level
+    // listener, so Escape with focus elsewhere on the page is the caller's
+    // responsibility (see Vector's bubble-to-root pattern for pages).
+    on key-down(event): {
+      if event.key == 'Escape' { close() }
+    }
+
     // Trigger — caller-supplied content via @slot("trigger")
     block {
       on click: toggle()
@@ -72,6 +81,12 @@ component Popover(placement: string = "bottom", closeOnContentClick: boolean = f
       right: 0px
       bottom: 0px
       z-index: 190
+      // Without these two, the click handler makes the compiler add
+      // tabindex="0" + Enter/Space activation + cursor:pointer — an invisible
+      // fullscreen tab stop with a pointer cursor. Explicit tabindex/cursor
+      // suppress those defaults (the backdrop must stay unreachable by Tab).
+      tabindex: "-1"
+      cursor: 'default'
       on click: close()
     }
   }
