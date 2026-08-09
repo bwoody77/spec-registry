@@ -73,9 +73,15 @@ component Select(options: array = [], value: string = "", placeholder: string = 
     }
 
     // Trigger button
+    //
+    // THE PADDING INVARIANT — the same one DataGridSpec documents for column
+    // widths. Spec blocks are content-box and Spec has no `box-sizing`, so
+    // padding declared BESIDE `min-height` is added to it rather than absorbed:
+    // this trigger asked for 40px and rendered 58 (40 + 2×spacing.2 + 2×border)
+    // in every app that used it. So the height-bearing box carries no padding;
+    // an inner block holds the padding and the content.
     block {
-      layout: horizontal, justify: between, align: center
-      padding: spacing.2
+      layout: horizontal
       min-height: 40px
       background: token.select-bg
       border: match error {
@@ -112,11 +118,16 @@ component Select(options: array = [], value: string = "", placeholder: string = 
         }
       }
 
-      text(displayText) {
-        style: type.body-md
-        color: selectedOption != null ? semantic.text-primary : semantic.text-tertiary
+      block {
+        grow: true
+        layout: horizontal, justify: between, align: center
+        padding: spacing.2
+        text(displayText) {
+          style: type.body-md
+          color: selectedOption != null ? semantic.text-primary : semantic.text-tertiary
+        }
+        text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
       }
-      text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
     }
 
     // Dropdown panel — fixed-position below the trigger via anchor:'bottom'.
