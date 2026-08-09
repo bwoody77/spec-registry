@@ -66,6 +66,26 @@ fn gridTrackMin(cols: list) -> string {
 // Runs are contiguous by design. A label that reappears after a gap yields two
 // separate spans rather than one — merging them would mean silently reordering
 // the caller's columns.
+//
+// ── SOLO GROUPS ─────────────────────────────────────────────────────────────
+// A run of ONE is a legitimate and useful thing to declare: it is how a caller
+// gets a two-line heading whose first line sits on the group line, level with
+// the real groups beside it. cf-market's Shipment column does this — the label
+// belongs above its month scale, and the scale is that column's sub-heading in
+// the same way Grade/Moist are Quality's.
+//
+// So a solo group renders as A COLUMN WHOSE HEADING SITS ON THE GROUP LINE,
+// not as a group of one:
+//
+//   · no left/right bracket. The bracket says "these N belong together"; at
+//     N=1 it is a box round a single column, asserting nothing.
+//   · the label carries the column's click-to-sort. The handler otherwise
+//     lives only on the member cell, so lifting a heading onto the group line
+//     would quietly cost it the click — a heading that still shows a sort
+//     arrow and no longer responds to one.
+//
+// The bottom rule DOES draw, because that is what puts the label and its
+// sub-headings on the same footing as a real group.
 fn gridSegmentsOf(cols: list) -> list {
   return cols |> reduce((acc, c) => {
     let label = c.group != null ? c.group : ''
@@ -78,18 +98,39 @@ fn gridSegmentsOf(cols: list) -> list {
   }, [])
 }
 
+// How many columns carry a given group label, across the WHOLE table. Solo-ness
+// is a property of the caller's column list, never of a pin-split fragment —
+// see the note on `all` in gridSizedCols.
+fn gridGroupSize(all: list, label: string) -> number {
+  if label == '' { return 0 }
+  return all |> reduce((acc, c) => acc + ((c.group != null && c.group == label) ? 1 : 0), 0)
+}
+
 // Each column carries its resolved min/max width plus its position at a group
 // run's EDGE (`_gFirst` / `_gLast`), which is what `groupRules` draws the
 // full-height bracket from: the component already knows where a run starts and
 // ends, so a consumer never re-derives group boundaries in its own cells.
-fn gridSizedCols(cols: list) -> list {
+//
+// `cols` is the pin-split list this cell belongs to; `all` is every visible
+// column. The two are deliberately different inputs:
+//
+//   · _gFirst / _gLast are SPLIT-local. gridSegmentsOf never lets a run
+//     straddle the pin boundary, so the body must treat that boundary as a run
+//     edge too or header and body disagree about where the bracket falls
+//     (the 0.7.1 fix).
+//   · _gSolo is GLOBAL. A two-column run straddling the pin boundary leaves a
+//     one-column fragment on each side, and judging solo-ness from the fragment
+//     would strip the bracket off a real group — which is exactly what the
+//     0.7.1 pinned-bracket test caught when this was first written split-local.
+fn gridSizedCols(cols: list, all: list) -> list {
   let n = length(cols)
   return cols |> map((c, i) => {
     _col: c,
     _min: gridColMin(c),
     _max: gridColMax(c),
     _gFirst: c.group != null && c.group != '' && (i == 0 || cols[i - 1].group != c.group),
-    _gLast: c.group != null && c.group != '' && (i == n - 1 || cols[i + 1].group != c.group)
+    _gLast: c.group != null && c.group != '' && (i == n - 1 || cols[i + 1].group != c.group),
+    _gSolo: c.group != null && c.group != '' && gridGroupSize(all, c.group) == 1
   })
 }
 
@@ -276,8 +317,8 @@ component DataGridSpec(
     // run straddle the pin boundary, so the body's _gFirst/_gLast must treat
     // that boundary as a run edge too, or header and body disagree about
     // where the groupRules bracket falls.
-    pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1)) : []
-    scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1)) : gridSizedCols(visibleColumns)
+    pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1), visibleColumns) : []
+    scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1), visibleColumns) : gridSizedCols(visibleColumns, visibleColumns)
     trackMin: gridTrackMin(visibleColumns)
     // Header segments. The pinned column renders outside the scrolling loop, so
     // a segment may never straddle that boundary — with pinFirst the first
@@ -285,8 +326,17 @@ component DataGridSpec(
     // the same fns as the body, so the two cannot disagree about widths.
     pinnedSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(0, 1)) : []
     scrollSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(1)) : gridSegmentsOf(visibleColumns)
-    sizedPinnedSegments: pinnedSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols) })
-    sizedScrollSegments: scrollSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols) })
+    // `_solo` and the two `_solo*` fields are precomputed here because a style
+    // binding will not parse a function call — the same reason the widths are
+    // resolved in this block rather than at the use site.
+    sizedPinnedSegments: pinnedSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+      _solo: gridGroupSize(visibleColumns, s.label) == 1,
+      _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
+      _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
+    sizedScrollSegments: scrollSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+      _solo: gridGroupSize(visibleColumns, s.label) == 1,
+      _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
+      _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
     pinBg: pinBackground != "" ? pinBackground : semantic.surface
     groupBg: groupBackground != "" ? groupBackground : semantic.surface-raised
     stripeBg: stripeBackground != "" ? stripeBackground : semantic.surface
@@ -447,8 +497,8 @@ component DataGridSpec(
               z-index: 5
               background: semantic.surface-raised
               layout: vertical
-              border-left: groupRules && seg._seg.label != '' ? bracketRule : "none"
-              border-right: groupRules && seg._seg.label != '' ? bracketRule : "none"
+              border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
+              border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
 
               block {
@@ -461,6 +511,14 @@ component DataGridSpec(
                 // `groupRules` treatment as the left/right edges, so a caller
                 // that has not opted into the bracket is unaffected.
                 border-bottom: groupRules ? bracketRule : "none"
+                // A solo group's label IS its column's heading, so it carries
+                // the column's click target. Without this, giving a column a
+                // group to lift its heading onto the group line silently costs
+                // it click-to-sort: the handler lives on the member cell below,
+                // and the caller is left with a heading that looks sortable and
+                // is not.
+                cursor: seg._soloSortable ? "pointer" : "default"
+                on click: seg._soloSortable ? toggleSortCol(seg._soloKey) : {}
                 data-grid-row: "header-group"
                 @slot("group-header", seg._seg)
                 block {
@@ -515,8 +573,8 @@ component DataGridSpec(
               min-width: seg._min
               max-width: seg._max
               layout: vertical
-              border-left: groupRules && seg._seg.label != '' ? bracketRule : "none"
-              border-right: groupRules && seg._seg.label != '' ? bracketRule : "none"
+              border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
+              border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
 
               block {
@@ -529,6 +587,14 @@ component DataGridSpec(
                 // `groupRules` treatment as the left/right edges, so a caller
                 // that has not opted into the bracket is unaffected.
                 border-bottom: groupRules ? bracketRule : "none"
+                // A solo group's label IS its column's heading, so it carries
+                // the column's click target. Without this, giving a column a
+                // group to lift its heading onto the group line silently costs
+                // it click-to-sort: the handler lives on the member cell below,
+                // and the caller is left with a heading that looks sortable and
+                // is not.
+                cursor: seg._soloSortable ? "pointer" : "default"
+                on click: seg._soloSortable ? toggleSortCol(seg._soloKey) : {}
                 data-grid-row: "header-group"
                 @slot("group-header", seg._seg)
                 block {
@@ -651,8 +717,8 @@ component DataGridSpec(
                 grow: true
                 min-width: col._min
                 max-width: col._max
-                border-left: groupRules && col._gFirst ? bracketRule : "none"
-                border-right: groupRules && col._gLast ? bracketRule : "none"
+                border-left: groupRules && col._gFirst && !col._gSolo ? bracketRule : "none"
+                border-right: groupRules && col._gLast && !col._gSolo ? bracketRule : "none"
                 data-grid-col: col._col.key
                 position: "sticky"
                 left: 0px
@@ -717,8 +783,8 @@ component DataGridSpec(
                 background: focusedRow == rowIdx && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
                 // The group bracket's body half: without it the grouping
                 // dissolves below the header (mockup: q-first/q-last on td AND th).
-                border-left: groupRules && col._gFirst ? bracketRule : "none"
-                border-right: groupRules && col._gLast ? bracketRule : "none"
+                border-left: groupRules && col._gFirst && !col._gSolo ? bracketRule : "none"
+                border-right: groupRules && col._gLast && !col._gSolo ? bracketRule : "none"
                 data-grid-col: col._col.key
                 layout: horizontal
                 block {
