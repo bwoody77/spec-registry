@@ -1,0 +1,13 @@
+[package]
+name = "forms"
+version = "0.2.0"
+category = "components"
+description = "Form validation standard: validateFields engine, FormField with submit-on-Enter, and FormErrorSummary"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "forms.spec"
