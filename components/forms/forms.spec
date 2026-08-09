@@ -1,3 +1,5 @@
+@extern { focusFormField } from "@spec/components/forms-focus.js"
+
 // forms — the shared form standard: one validation engine, one field, one
 // summary panel. Consumed by every Spec app, so it carries no app concepts.
 //
@@ -116,6 +118,60 @@ component FormField(
       text(effMsg) {
         style: type.caption
         color: semantic.destructive
+      }
+    }
+  }
+}
+
+// FormErrorSummary — the "fix these to continue" panel, plus a link that jumps
+// to and focuses the first failing field.
+//
+// Place it next to the submit button; on a long form place a second one at the
+// top of the form as well.
+//
+//   FormErrorSummary(visible: showErrors && !validation.isValid,
+//                    items: validation.items, firstField: validation.firstField)
+//
+// The jump link is a real `button` so it is keyboard reachable — a div here
+// would strand exactly the users who most need it. It hides itself when
+// `firstField` is empty, which is what lets a caller adopt the panel first and
+// the jump affordance later.
+component FormErrorSummary(
+  visible:    boolean = false,
+  title:      string  = 'Fix these to continue:',
+  items:      array   = [],
+  firstField: string  = '',
+  jumpLabel:  string  = 'Go to first problem'
+) {
+  block {
+    visibility: visible && items.length > 0
+    padding: 10px 12px
+    background: semantic.destructive-bg
+    border: borders.danger
+    border-radius: 8px
+    layout: vertical, gap: 4px
+    role: 'alert'
+
+    text(title) { color: semantic.destructive-hover, weight: 700, style: type.body-sm }
+    each items as it, i {
+      text('• ' + it) { color: semantic.destructive-hover, weight: 500, style: type.body-sm }
+    }
+
+    button {
+      visibility: firstField != ''
+      background: 'transparent'
+      border: 'none'
+      padding: 0
+      margin-top: 2px
+      cursor: 'pointer'
+      layout: horizontal, gap: 4px, align: center
+      on click: focusFormField(firstField)
+
+      text(jumpLabel) {
+        color: semantic.destructive-hover
+        weight: 700
+        style: type.body-sm
+        text-decoration: 'underline'
       }
     }
   }
