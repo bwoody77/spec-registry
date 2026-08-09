@@ -86,10 +86,31 @@ component FormField(
       }
     }
 
-    TextInput(value: value, placeholder: placeholder, type: inputType,
-              error: effError, errorMessage: effMsg) {
-      on change(x): emit("input", x)
-      on keydown(e): onKey(e)
+    // `visibility` compiles to display:none, not removal — the built-in input
+    // stays in the DOM when a control is slotted. That is why forms-focus.js
+    // skips non-visible controls: querySelector('input, …') would otherwise
+    // find this hidden input and the jump would focus nothing.
+    block {
+      visibility: !hasSlot("control")
+      TextInput(value: value, placeholder: placeholder, type: inputType,
+                error: effError, errorMessage: effMsg) {
+        on change(x): emit("input", x)
+        on keydown(e): onKey(e)
+      }
+    }
+
+    @slot("control")
+
+    // The built-in TextInput renders its own caption. A slotted control cannot
+    // — slot content is evaluated in the CALLER's scope, so this component's
+    // computed error state is not reachable from inside it. The caller passes
+    // its own `error:` to its own control; the message is rendered here.
+    block {
+      visibility: hasSlot("control") && effMsg != ''
+      text(effMsg) {
+        style: type.caption
+        color: semantic.destructive
+      }
     }
   }
 }
