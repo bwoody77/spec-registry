@@ -10,6 +10,22 @@
 // variant:  'pill' (filled chip, carded strip) | 'underline' (2px indicator)
 // overflow: 'wrap' (grid auto-fill) | 'scroll' (single row, auto-scroll)
 //           | 'grow' (equal-width columns filling the row)
+//
+// Optional slot `tabAdornment`, invoked once per tab with that tab, so a
+// caller can render something (a chip naming what was drilled into, say)
+// immediately after ONE tab instead of at the end of the strip:
+//
+//   Tabs(tabs: myTabs, activeTab: active) {
+//     on change(id): setActive(id)
+//     slot("tabAdornment") { |tab|
+//       block { visibility: tab.id == 'documents' && openDoc != null
+//         Badge(text: openDoc)
+//       }
+//     }
+//   }
+//
+// Providing it wraps each tab in a presentational cell (see below). NOT
+// providing it renders exactly what this component rendered without it.
 // Index of the tab carrying `id`, or 0 when it isn't in the list (an activeTab
 // pointing at a removed tab must not strand the arrow keys).
 fn _tabIndexOfId(items: array, id: string) -> number {
@@ -54,6 +70,17 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // and the selected one otherwise.
     tabStopId: focusedId != '' ? focusedId : activeTab
     tabCount:  tabs.length
+
+    // The `tabAdornment` branch, expressed as two complementary lists rather
+    // than two `visibility:` arms. `visibility:` emits `display: none`, it does
+    // not omit the node — two arms would leave an un-adorned caller with a
+    // wrapper element inside its `role=tablist` forever, and `Tabs` ships to
+    // several apps. Exactly one of these lists is ever non-empty, so the
+    // un-adorned caller runs the original loop below, byte-for-byte unchanged.
+    // (An `each` still creates its own list container, so the unused loop costs
+    // one EMPTY `display: contents` div: no box, no grid item, nothing painted.)
+    unadornedTabs: hasSlot("tabAdornment") ? [] : tabs
+    adornedTabs:   hasSlot("tabAdornment") ? tabs : []
   }
 
   @actions {
@@ -109,7 +136,12 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     border-radius: stripRadius
     padding: stripPad
 
-    each tabs as tab (tab.id) {
+    // No `tabAdornment` slot — EXACTLY what this component rendered before the
+    // slot existed. TabsItem is the grid cell, one per column, and nothing
+    // stands between it and the tablist that did not stand there before.
+    // `tabs-adornment.test.ts` compares this against a frozen copy of the
+    // pre-slot component and fails on any difference.
+    each unadornedTabs as tab (tab.id) {
       TabsItem(
         tab: tab
         active: tab.id == activeTab
@@ -118,6 +150,33 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
         focused: tab.id == focusedId
       ) {
         on change(id): pickTab(id)
+      }
+    }
+
+    // Adorned — one wrapper cell per tab, so the strip still has exactly one
+    // grid item per column. Emitting the adornment as a SIBLING of TabsItem
+    // would put 2N children into the N-column template and wrap them onto
+    // implicit rows.
+    //
+    // role=presentation keeps the wrapper out of the accessibility tree, so
+    // the tab buttons remain the tablist's semantic children even though this
+    // arm nests them one element deeper than the un-adorned arm.
+    each adornedTabs as tab (tab.id) {
+      block {
+        role: 'presentation'
+        layout: horizontal, align: center, gap: 6px
+        TabsItem(
+          tab: tab
+          active: tab.id == activeTab
+          variant: variant
+          tabStop: tab.id == tabStopId
+          focused: tab.id == focusedId
+        ) {
+          on change(id): pickTab(id)
+        }
+        // Invoked once per tab, with that tab — a caller can render for one
+        // tab only: `slot("tabAdornment") { |tab| … }`.
+        @slot("tabAdornment", tab)
       }
     }
   }
