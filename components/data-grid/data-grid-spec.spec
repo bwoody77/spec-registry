@@ -455,6 +455,12 @@ component DataGridSpec(
                 visibility: seg._seg.label != ''
                 padding: headerPad
                 layout: horizontal, justify: center
+                // Closes the bracket along the top. Without it the group label
+                // and its member headings run together as one block of text and
+                // the label stops reading as spanning them. Part of the same
+                // `groupRules` treatment as the left/right edges, so a caller
+                // that has not opted into the bracket is unaffected.
+                border-bottom: groupRules ? bracketRule : "none"
                 data-grid-row: "header-group"
                 @slot("group-header", seg._seg)
                 block {
@@ -517,6 +523,12 @@ component DataGridSpec(
                 visibility: seg._seg.label != ''
                 padding: headerPad
                 layout: horizontal, justify: center
+                // Closes the bracket along the top. Without it the group label
+                // and its member headings run together as one block of text and
+                // the label stops reading as spanning them. Part of the same
+                // `groupRules` treatment as the left/right edges, so a caller
+                // that has not opted into the bracket is unaffected.
+                border-bottom: groupRules ? bracketRule : "none"
                 data-grid-row: "header-group"
                 @slot("group-header", seg._seg)
                 block {
