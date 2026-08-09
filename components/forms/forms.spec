@@ -86,10 +86,16 @@ component FormField(
       }
     }
 
-    // `visibility` compiles to display:none, not removal — the built-in input
-    // stays in the DOM when a control is slotted. That is why forms-focus.js
-    // skips non-visible controls: querySelector('input, …') would otherwise
-    // find this hidden input and the jump would focus nothing.
+    // A `visibility:`-gated block that contains a component instance (here,
+    // TextInput — a SurfaceRef) compiles to a LAZY MOUNT, not a display:none
+    // toggle on a persisted node: ast-to-ir.ts's `hasVisibility && hasSurfaceRef`
+    // branch (ast-to-ir.ts:3738) routes it through lazyMount (ir-to-js.ts:2352-
+    // 2387), which keeps the children unmounted while the condition is false.
+    // So the built-in input is not merely hidden when a control is slotted —
+    // it is never mounted at all. (A visibility-gated block with no component
+    // instance inside it, e.g. the plain `text()` blocks elsewhere in this
+    // file, *does* get the display:none treatment; only the SurfaceRef case
+    // takes the lazy-mount path.)
     block {
       visibility: !hasSlot("control")
       TextInput(value: value, placeholder: placeholder, type: inputType,
