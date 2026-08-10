@@ -1,3 +1,5 @@
+@extern { genGridId, wireColumnDrag } from "@spec/components/data-grid-column-drag.js"
+
 fn toggleSortState(sortState: list, colKey: string) -> list {
   let existing = sortState |> find(s => s.key == colKey)
   if existing != null {
@@ -96,6 +98,21 @@ fn gridSegmentsOf(cols: list) -> list {
     }
     return acc.concat([{ label: label, cols: [c] }])
   }, [])
+}
+
+// Reorder `cols` to match `order`, a list of column keys.
+//
+// Keys in `order` that no longer name a column are ignored, and columns absent
+// from `order` are appended in their declared order. So a saved order that has
+// gone stale — a renamed key, a dropped column, a column added since it was
+// saved — degrades to a sensible layout instead of stranding a column off the
+// grid entirely.
+fn gridApplyColumnOrder(cols: list, order: list) -> list {
+  if length(order) == 0 { return cols }
+  let known = order |> filter(k => cols |> some(c => c.key == k))
+  let ordered = known |> map(k => cols |> find(c => c.key == k))
+  let rest = cols |> filter(c => !(known |> includes(c.key)))
+  return ordered |> concat(rest)
 }
 
 // How many columns carry a given group label, across the WHOLE table. Solo-ness
@@ -318,8 +335,25 @@ component DataGridSpec(
   // Which column hosts the caret. Empty = the first visible column, which is
   // the pinned one when `pinFirst` is set.
   expandColumn: string = "",
+  // Column drag-to-reorder. Off by default: a grid whose caller does not
+  // handle columnOrderChange must not show a grab cursor on a column that
+  // will not move.
+  reorderableColumns: boolean = false,
+  // Caller-owned column order, as a list of column keys. [] = the grid owns
+  // its own order, seeded from `columns`. Mirrors externalSort's position:
+  // the real state lives with the caller, who persists it.
+  columnOrder: array = [],
 ) {
   @state {
+    // Per-instance id, so two grids on one page never share a drag session.
+    // Generated once at mount — @state initialisers do not re-run.
+    _gridId: genGridId()
+    // Live column order. Seeded from the prop; replaced on drop and re-seeded
+    // by the @watch below when the caller supplies a new one.
+    _colOrder: columnOrder
+    // Returns a teardown fn. Declared after _gridId (it reads it) and after
+    // the action it calls back into.
+    _colDragTeardown: wireColumnDrag(_gridId, onColumnDragReorder, reorderableColumns)
     sortState: sort
     selectedSet: selected
     filters: []
@@ -355,10 +389,21 @@ component DataGridSpec(
     processedRows: {
       hoveredRow = 0 - 1
     }
+    // A caller that persists the order and feeds it back re-seeds here.
+    // Without this the seed happens once at mount and never again — the exact
+    // shape of the sort-indicator bug recorded at market-page.spec:601, where
+    // a narrowed prop moved the header while the grid kept ordering by stale
+    // state.
+    columnOrder: {
+      _colOrder = columnOrder
+    }
   }
 
   @computed {
-    visibleColumns: columns.filter(c => c.visible != false)
+    // The single chokepoint: pinnedColumns, scrollColumns, both segment lists
+    // and every width derive from this and nothing else, so applying the order
+    // here reorders the whole grid — header, body, groups and sizing together.
+    visibleColumns: gridApplyColumnOrder(columns.filter(c => c.visible != false), _colOrder)
     // The caret only exists in 'control' mode, and only when there is a detail
     // to open at all. Named once so both cell render sites (pinned and
     // scrolling) test the same thing.
@@ -456,6 +501,14 @@ component DataGridSpec(
       sortState = toggleSortState(sortState, colKey)
       emit("sort", sortState)
     }
+    // Called by wireColumnDrag with the full key order after a completed drag.
+    // The wire has already confined the move to one segment and spliced the
+    // result back into the full order, so this is the caller's new order
+    // verbatim — nothing to merge here.
+    onColumnDragReorder(nextKeys) {
+      _colOrder = nextKeys
+      emit("columnOrderChange", nextKeys)
+    }
     setFilter(colKey, value) {
       let existing = filters.find(f => f.key == colKey)
       if existing != null {
@@ -504,6 +557,7 @@ component DataGridSpec(
     overflow: hidden
     role: "grid"
     tabindex: "0"
+    data-grid-id: _gridId
 
     on key-down(event): {
       match event.key {
@@ -585,6 +639,11 @@ component DataGridSpec(
               border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
+              // Segment identity for column drag. 'p:' = pinned side.
+              // Grouped by VALUE, not by container: gridSegmentsOf gives every
+              // ungrouped column a container of its own, so container identity
+              // would make each one a size-1 segment and nothing would drag.
+              data-grid-col-seg: 'p:' + seg._seg.label
 
               block {
                 visibility: seg._seg.label != ''
@@ -661,6 +720,9 @@ component DataGridSpec(
               border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
+              // Segment identity for column drag. 's:' = scrolling side. See
+              // the pinned loop above for why this is by VALUE, not container.
+              data-grid-col-seg: 's:' + seg._seg.label
 
               block {
                 visibility: seg._seg.label != ''
