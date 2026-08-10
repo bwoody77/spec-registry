@@ -318,6 +318,13 @@ component DataGridSpec(
     focusedCol: 0 - 1
     openGroups: defaultOpen
     expandedSet: defaultExpanded
+    // Which row the pointer is over, for the PINNED column's hover paint. The
+    // row container's own `on hover {}` style cannot reach the pinned cell:
+    // that cell is sticky with an opaque `pinBg` painted OVER the row, so with
+    // `hoverBackground` set the row lit up while its pinned cell stayed
+    // opaque — the one column guaranteed on screen was the one column that
+    // ignored the hover. -1 = none.
+    hoveredRow: 0 - 1
   }
 
   @computed {
@@ -734,6 +741,11 @@ component DataGridSpec(
             on hover {
               background: hasHover && gridRowKind(row) == "row" ? hoverBackground : (gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(rowIdx) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent")))
             }
+            // The pinned cell cannot inherit the `on hover` style above — it
+            // paints its own opaque sticky background over the row — so the
+            // hover is ALSO tracked as state for that cell to read.
+            on mouse-enter: { hoveredRow = rowIdx }
+            on mouse-leave: { hoveredRow = 0 - 1 }
             on click: {
               clickRow(row, rowIdx)
               rowClickToggle(row)
@@ -765,7 +777,11 @@ component DataGridSpec(
                 position: "sticky"
                 left: 0px
                 z-index: 2
-                background: gridRowKind(row) != "row" ? groupBg : pinBg
+                // Hover joins the paint order here because this background is
+                // what the user actually sees on the pinned column — the row's
+                // hover style is underneath it. Same guard as the row: only
+                // ordinary rows, only when hoverBackground is set.
+                background: gridRowKind(row) != "row" ? groupBg : (hasHover && hoveredRow == rowIdx ? hoverBackground : pinBg)
                 // The row's left rail (_accent) is drawn on the row container, but
                 // this sticky pinned column's opaque background paints over it — so
                 // re-draw the rail here, on top of the pin background, or a
