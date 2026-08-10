@@ -1,4 +1,8 @@
-component Pagination(total: number, pageSize: number = 10, page: number = 1, maxButtons: number = 7) {
+// `pageSizes`: when non-empty, a row of size chips renders after the page
+// buttons and a chosen size emits `pageSizeChange`. Chips, not a dropdown —
+// two or three options do not earn a popup, and it keeps this component
+// dependency-free.
+component Pagination(total: number, pageSize: number = 10, page: number = 1, maxButtons: number = 7, pageSizes: array = []) {
   @computed {
     totalPages: total > 0 ? (total % pageSize == 0 ? total / pageSize : (total - total % pageSize) / pageSize + 1) : 1
     currentPage: page < 1 ? 1 : (page > totalPages ? totalPages : page)
@@ -143,6 +147,29 @@ component Pagination(total: number, pageSize: number = 10, page: number = 1, max
         on hover { background: hasNext ? semantic.surface-raised : "transparent" }
         on click: { if hasNext { emit("change", currentPage + 1) } }
         text("\u203A") { style: type.body-md, color: semantic.text-primary }
+      }
+    }
+
+    // Page-size chips.
+    block {
+      visibility: pageSizes != null && pageSizes.length > 0
+      layout: horizontal, gap: spacing.1, align: center
+      text("Rows") { style: type.body-sm, color: semantic.text-tertiary }
+      each pageSizes as s (s) {
+        block {
+          padding: 4px 8px
+          min-height: 28px
+          border-radius: radius.md
+          cursor: "pointer"
+          background: s == pageSize ? semantic.interactive : "transparent"
+          layout: horizontal, align: center, justify: center
+          on hover { background: s == pageSize ? semantic.interactive : semantic.surface-raised }
+          on click: emit("pageSizeChange", s)
+          text("{s}") {
+            style: type.body-sm
+            color: s == pageSize ? "#ffffff" : semantic.text-secondary
+          }
+        }
       }
     }
   }
