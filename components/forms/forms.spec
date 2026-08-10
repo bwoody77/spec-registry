@@ -56,6 +56,8 @@ component FormField(
   errorMessage: string  = '',
   labelWeight:  number  = 700,
   labelSpacing: string  = '0.06em',
+  labelColor:   string  = '',
+  labelStyle:   string  = '',
   fieldGap:     string  = '6px'
 ) {
   @computed {
@@ -66,6 +68,13 @@ component FormField(
     effError:   derives ? (showErrors && failing) : error
     effMsg:     derives ? ((showErrors && failing) ? validation.errors[field] : '') : errorMessage
     isTextarea: inputType == 'textarea'
+    // Empty-string default + computed fallback — the registry's established
+    // shape for a string prop that must default to a token (Spinner's
+    // color/trackColor, DataGridSpec's pinBackground/groupBackground): a
+    // string-typed prop default cannot itself carry a token reference, so the
+    // token lives here and the prop only overrides it when non-empty.
+    effLabelColor: labelColor != '' ? labelColor : semantic.text-tertiary
+    effLabelStyle: labelStyle != '' ? labelStyle : type.label-xs
   }
 
   @actions {
@@ -81,9 +90,9 @@ component FormField(
     block {
       visibility: label != ''
       text(label) {
-        color: semantic.text-tertiary
+        color: effLabelColor
         weight: labelWeight
-        style: type.label-xs
+        style: effLabelStyle
         letter-spacing: labelSpacing
       }
     }
