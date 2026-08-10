@@ -95,7 +95,10 @@ component Autocomplete(
   errorMessage: string = "",
   disabled: boolean = false,
   freeText: boolean = false,
-  openOnFocus: boolean = false
+  openOnFocus: boolean = false,
+  // Supplied by the compiler from the adjacent visible label; forwarded
+  // to the wrapped TextInput, which is the element that needs the name.
+  ariaLabel: string = ""
 ) {
   @state {
     query: ""
@@ -276,7 +279,7 @@ component Autocomplete(
 
       block {
         grow: true
-        TextInput(value: inputValue, placeholder: placeholder, error: error, errorMessage: errorMessage, disabled: disabled) {
+        TextInput(value: inputValue, placeholder: placeholder, error: error, errorMessage: errorMessage, disabled: disabled, ariaLabel: ariaLabel) {
           on change(v): handleInput(v)
           on focus: handleFocus()
         }
@@ -330,6 +333,8 @@ component Autocomplete(
               _ -> "transparent"
             }
             scroll-to: idx == safeIndex
+            // role="option" is the compiler's; which row is current is ours.
+            aria-selected: idx == safeIndex
             on click: pickOption(opt)
             on hover { background: token.select-optionHover }
             text(opt.label) {
