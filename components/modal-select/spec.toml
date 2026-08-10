@@ -1,6 +1,6 @@
 [package]
 name = "modal-select"
-version = "0.1.0"
+version = "0.1.1"
 category = "components"
 description = "Overlay picker that selects one or many rows from a searchable table"
 license = "MIT"

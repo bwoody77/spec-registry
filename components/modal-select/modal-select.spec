@@ -30,8 +30,8 @@
 //               rendered aria-disabled, taken out of the tab order, ignored
 //               on click (see pickRow() below), shown with a muted cursor
 //               and cell text colour, and removed from hit-testing
-//               (pointer-events: none) so it never shows the hover
-//               highlight either — see the row button below.
+//               (pointer-events: none); its hover highlight is suppressed
+//               by a conditional `on hover` — see the row button below.
 //   loading   — shows content-shaped skeleton rows in place of the table
 //   emptyMessage — shown when rows is empty and loading is false; distinct
 //               from the "no matches for your search" state below — different
@@ -289,29 +289,32 @@ component ModalSelect(
               // `aria-disabled`/`tabindex` below and the cell text
               // `color:` below.
               cursor: row.disabled == true ? "default" : "pointer"
-              // Removes a disabled row from hit-testing entirely, so
-              // neither `on hover` below nor the browser's own `:hover`
-              // ever fires for it — belt-and-braces alongside pickRow()'s
-              // own `if r.disabled == true { return }` guard, which still
-              // governs keyboard/programmatic activation.
+              // A disabled row takes no pointer input at all — belt-and-
+              // braces alongside pickRow()'s own `if r.disabled == true {
+              // return }` guard, which still governs keyboard/programmatic
+              // activation, and alongside the conditional hover below. This
+              // is no longer load-bearing for the hover highlight, which the
+              // override now suppresses on its own; it stays because a
+              // disabled control should not respond to a click or a drag
+              // either.
               pointer-events: row.disabled == true ? "none" : "auto"
               border-bottom: borders.subtle
               aria-disabled: row.disabled == true
               aria-pressed: multi && (selected |> includes(row.value))
               tabindex: row.disabled == true ? "-1" : "0"
               on click: pickRow(row)
-              // Unconditional: `on hover { <prop>: <expr> }` overrides do
-              // not support a loop-variable expression in this compiler (a
-              // `row`-referencing value collapses to the same string for
-              // every row, via `resolveOverrideBinding`,
-              // ir/ast-to-ir.ts:4123, which has no branch for one — unlike
-              // the plain style-binding path `cursor:`/`pointer-events:`/
-              // `color:` go through). Left unconditional rather than
-              // worked around here, because `pointer-events:` above already
-              // removes a disabled row from hit-testing, so this handler
-              // never runs for one regardless of what it sets.
+              // Conditional on the row, the same way `cursor:` above is. A
+              // disabled row keeps its resting background on hover, so it
+              // never offers the affordance of a row you can pick.
+              //
+              // This used to be unconditional and lean on `pointer-events:`
+              // to suppress the highlight, because a loop variable in an
+              // `on hover { … }` override collapsed to the same empty string
+              // for every row — `resolveOverrideBinding` had no branch for
+              // one. Fixed 2026-08-10; the override says what it means now,
+              // and unlike hit-testing it is assertable in happy-dom.
               on hover {
-                background: semantic.surface-raised
+                background: row.disabled == true ? "transparent" : semantic.surface-raised
               }
 
               // Selection indicator — sighted feedback for multi mode, to
