@@ -288,6 +288,18 @@ component DataGridSpec(
   expandable: boolean = false,
   defaultExpanded: array = [],
   rowKeyField: string = "id",
+  // Controlled sorting. When true the grid never reorders rows itself: header
+  // clicks still toggle sortState (so the indicator moves) and still emit
+  // `sort`, but the rows render exactly as given — the CALLER sorts. This is
+  // what server-side (or paginated) sorting needs: a grid that sorts its own
+  // page slice reorders ten rows and calls it a sort, while the real order
+  // lives in the full set the caller holds. False preserves today's behaviour
+  // for every existing consumer.
+  externalSort: boolean = false,
+  // The square size of the grid's own row controls (the group-collapse caret
+  // and the row-detail expand caret), px. 22 was hard-coded; at dense blotter
+  // type it read as a speck. The glyph scales with the box.
+  controlSize: number = 22,
   // WHAT opens a row's detail.
   //
   //   'row'     — clicking anywhere on the row toggles it. The 0.9.0 behaviour,
@@ -337,7 +349,10 @@ component DataGridSpec(
     // first VISIBLE column, which is not necessarily `columns[0]`.
     expandColKey: expandColumn != "" ? expandColumn
       : (visibleColumns.length > 0 ? visibleColumns[0].key : "")
-    processedRows: applySortAndFilter(rows, sortState, filters)
+    // externalSort: the caller owns the order; only the filter pass runs here.
+    processedRows: externalSort
+      ? applySortAndFilter(rows, [], filters)
+      : applySortAndFilter(rows, sortState, filters)
     // Rows whose group is collapsed drop out; group headers and totals remain.
     displayRows: gridVisibleRows(processedRows, openGroups)
     // Each column carries its resolved min/max width. `min-width:` will not
@@ -380,6 +395,9 @@ component DataGridSpec(
     // string can.
     bracketRule: '1px solid ' + semantic.border
     hasHover: hoverBackground != ""
+    // The grid's own control buttons (group + expand carets), sized once.
+    ctrlPx: controlSize + 'px'
+    ctrlFont: ((controlSize * 6) / 10) + 'px'
     // `height` bounds the grid so its body scrolls internally (sticky header +
     // always-visible horizontal scrollbar); '' = grow to content, no bound.
     gridMaxH: height != "" ? height : "none"
@@ -799,14 +817,15 @@ component DataGridSpec(
                   background: 'transparent'
                   border: borders.default
                   border-radius: radius.sm
-                  width: 22px
-                  height: 22px
+                  width: ctrlPx
+                  height: ctrlPx
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
                   aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
                   on click: toggleGroup(row._key)
                   text(gridGroupIsOpen(openGroups, row._key) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
+                    font-size: ctrlFont
                     color: semantic.text-secondary
                   }
                 }
@@ -821,8 +840,8 @@ component DataGridSpec(
                   background: 'transparent'
                   border: borders.default
                   border-radius: radius.sm
-                  width: 22px
-                  height: 22px
+                  width: ctrlPx
+                  height: ctrlPx
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
                   aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
@@ -830,6 +849,7 @@ component DataGridSpec(
                   on click(event): caretToggle(event, row)
                   text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
+                    font-size: ctrlFont
                     color: semantic.text-secondary
                   }
                 }
@@ -878,14 +898,15 @@ component DataGridSpec(
                   background: 'transparent'
                   border: borders.default
                   border-radius: radius.sm
-                  width: 22px
-                  height: 22px
+                  width: ctrlPx
+                  height: ctrlPx
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
                   aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
                   on click: toggleGroup(row._key)
                   text(gridGroupIsOpen(openGroups, row._key) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
+                    font-size: ctrlFont
                     color: semantic.text-secondary
                   }
                 }
@@ -903,8 +924,8 @@ component DataGridSpec(
                   background: 'transparent'
                   border: borders.default
                   border-radius: radius.sm
-                  width: 22px
-                  height: 22px
+                  width: ctrlPx
+                  height: ctrlPx
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
                   aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
@@ -912,6 +933,7 @@ component DataGridSpec(
                   on click(event): caretToggle(event, row)
                   text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
+                    font-size: ctrlFont
                     color: semantic.text-secondary
                   }
                 }
