@@ -12,9 +12,24 @@ component TextInput(
   unit: string = "",
   tone: string = "default",
   error: boolean = false,
-  errorMessage: string = ""
+  errorMessage: string = "",
+  // Normally supplied by the compiler from the visible label rendered
+  // beside the field (ast-to-ir inferAccessibleNames), not by hand.
+  ariaLabel: string = ""
 ) {
   @state { focused: false }
+
+  @computed {
+    // The input carried NO accessible name at all: a bare <input> whose only
+    // label was a sibling text node the browser never associates with it.
+    // Prefer the compiler-inferred name, then this component's own rendered
+    // `label`, then the placeholder as a last resort.
+    // null, never "" — bindAttr REMOVES the attribute on null, whereas an
+    // empty aria-label is a real (empty) name and hides whatever the
+    // browser would otherwise have used. Falls through to the placeholder
+    // only because a weak name beats none.
+    inputAriaLabel: ariaLabel != "" ? ariaLabel : (label != "" ? label : (placeholder != "" ? placeholder : null))
+  }
 
   @actions {
     handleFocus() {
@@ -91,6 +106,7 @@ component TextInput(
         grow: true
         textInput(value) {
           placeholder: placeholder
+          aria-label: inputAriaLabel
           type: type
           disabled: disabled
           readonly: readonly
@@ -110,6 +126,7 @@ component TextInput(
         grow: true
         textArea(value) {
           placeholder: placeholder
+          aria-label: inputAriaLabel
           disabled: disabled
           readonly: readonly
           rows: 4
