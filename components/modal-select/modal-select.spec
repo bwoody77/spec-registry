@@ -79,10 +79,16 @@
 // clicks toggle silently and emit nothing.
 //
 // Slots:
-//   cell(col, row) — rendered ABOVE the default `text(row[col.key])` in
-//   every cell, not instead of it — same idiom as table.spec:44-50, which
-//   also renders both. Lets a caller add a badge or icon in one column
-//   without losing the default text.
+//   cell(col, row) — rendered AFTER the default `text(row[col.key])` in
+//   every cell, not instead of it, and the cell wrapper is
+//   `layout: horizontal` so the two sit side by side rather than stacked.
+//   This is the REVERSE of table.spec:44-50, which emits its cell slot
+//   ABOVE the text inside a stacking (non-horizontal) wrapper — table has
+//   no horizontal cell layout, so above/below never mattered there. Here a
+//   trailing annotation ("Origination [On this deal]") is the natural
+//   reading for a badge, and ModalSelect is 0.1.0 with a single consumer,
+//   so the divergence is deliberate and cheap to make now. Lets a caller
+//   add a badge or icon in one column without losing the default text.
 component ModalSelect(
   open: boolean = false,
   title: string = "Select",
@@ -367,7 +373,7 @@ component ModalSelect(
                   padding: spacing.2
                   grow: true
                   min-width: 80px
-                  @slot("cell", col, row)
+                  layout: horizontal, gap: spacing.1, align: center
                   text(toString(row[col.key])) {
                     style: type.body-md
                     // Same idiom as `cursor:` above — a plain style
@@ -377,6 +383,19 @@ component ModalSelect(
                     color: row.disabled == true ? semantic.text-tertiary : semantic.text-primary
                     text-align: "start"
                   }
+                  // Slot renders AFTER the default text, not before —
+                  // deliberately the reverse of table.spec:44-50's
+                  // `@slot("cell", col, row)` above its own `text()`.
+                  // table.spec's cell has no layout of its own (a block
+                  // stacks by default), so above/below never mattered
+                  // there. Here the wrapper is `layout: horizontal` so
+                  // order IS left/right order, and the approved design
+                  // ("Origination [On this deal]") reads the badge as a
+                  // trailing annotation, not a leading one. ModalSelect is
+                  // 0.1.0 with a single consumer, so diverging from
+                  // table's idiom now is cheap — don't "fix" this back to
+                  // match table.spec, the two are intentionally different.
+                  @slot("cell", col, row)
                 }
               }
             }
