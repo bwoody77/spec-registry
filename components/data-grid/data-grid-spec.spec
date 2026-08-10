@@ -339,6 +339,24 @@ component DataGridSpec(
     hoveredRow: 0 - 1
   }
 
+  @watch {
+    // A caller recomputing its group set (paging, filtering) re-seeds the open
+    // state. Without this the seed happened once at mount, so a group that
+    // first APPEARED after mount was absent from openGroups and rendered
+    // permanently collapsed — its members looked like missing data. Static
+    // defaultOpen (every pre-existing consumer) never fires this.
+    defaultOpen: {
+      openGroups = defaultOpen
+    }
+    // hoveredRow is an INDEX; when the rows under a stationary pointer change
+    // (sort toggle, page change, refresh) the index would name a different
+    // row and paint the wrong pinned cell as hovered. mouse-enter re-fires on
+    // real movement, so clearing on data change is always safe.
+    processedRows: {
+      hoveredRow = 0 - 1
+    }
+  }
+
   @computed {
     visibleColumns: columns.filter(c => c.visible != false)
     // The caret only exists in 'control' mode, and only when there is a detail
