@@ -3,7 +3,12 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
-component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "") {
+// `ariaLabel` is normally supplied by the compiler, not by hand: a control
+// rendered under its own `text('ROLE')` gets that label synthesized in as this
+// prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
+// visible label is somewhere the compiler can't see, or when the control needs
+// a longer name than the one on screen.
+component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "") {
   @state {
     open: false
     query: ""
@@ -101,7 +106,12 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       transition: transition.focus
       tabindex: "0"
       role: "combobox"
-      aria-label: "Select"
+      // Was the bare literal "Select", which announced every select in every
+      // app as "Select" and, worse, OVERRODE the visible label sitting beside
+      // it. Prefer the name the compiler inferred from that visible label,
+      // then this component's own rendered `label`, and only fall back to the
+      // generic word when there is genuinely nothing to say.
+      aria-label: ariaLabel != "" ? ariaLabel : (label != "" ? label : "Select")
       on hover { background: disabled ? token.select-bg : semantic.surface-raised }
       on click: toggleOpen()
       on focus: { focused = true }
@@ -206,6 +216,11 @@ component Select(options: array = [], value: string = "", placeholder: string = 
                 }
               }
               scroll-to: idx == highlightIndex
+              // `role="option"` is stamped by the compiler (every listbox row
+              // is an option — ast-to-ir markListboxOptions). Selection is NOT
+              // inferable: only this component knows which row is current, so
+              // it says so here.
+              aria-selected: option.value == value
               on hover { background: token.select-optionHover }
               on click: selectOption(option.value)
 
