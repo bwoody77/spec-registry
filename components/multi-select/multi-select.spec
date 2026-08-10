@@ -3,7 +3,9 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
-component MultiSelect(options: array = [], values: array = [], placeholder: string = "Select...", searchable: boolean = true, disabled: boolean = false, label: string = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3) {
+// `ariaLabel` is normally supplied by the compiler from the visible label
+// rendered beside the control (ast-to-ir inferAccessibleNames), not by hand.
+component MultiSelect(options: array = [], values: array = [], placeholder: string = "Select...", searchable: boolean = true, disabled: boolean = false, label: string = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3, ariaLabel: string = "") {
   @state {
     open: false
     query: ""
@@ -173,7 +175,9 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         transition: transition.focus
         tabindex: "0"
         role: "combobox"
-        aria-label: "Multi-select"
+        // Was the bare literal, which announced every multi-select as
+        // "Multi-select" and overrode the visible label beside it.
+        aria-label: ariaLabel != "" ? ariaLabel : (label != "" ? label : "Multi-select")
         on click: toggleOpen()
         on hover { background: disabled ? token.select-bg : semantic.surface-raised }
         on focus: { focused = true }
@@ -350,6 +354,9 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
                   }
                 }
                 scroll-to: idx == highlightIndex
+                // role="option" comes from the compiler; which rows are
+                // selected only this component knows.
+                aria-selected: safeSelected.includes(option.value)
                 on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
                 on click: toggleOption(option.value)
 
@@ -479,6 +486,7 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
               }
             }
             scroll-to: idx == highlightIndex
+            aria-selected: safeSelected.includes(option.value)
             on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
             on click: toggleOption(option.value)
 
