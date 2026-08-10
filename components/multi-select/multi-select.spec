@@ -157,9 +157,13 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
       // out. The one documented exception is the chip x, which calls
       // stopPropagation() so removing a tag doesn't also toggle the panel.
       block {
-        layout: horizontal, gap: spacing.1, wrap
+        layout: horizontal, gap: spacing.1, wrap, align: center
+        // Select's own lesson (select.spec:84): padding declared BESIDE
+        // `min-height` is ADDED to it (content-box), which rendered this
+        // control ~56px next to Select's 40 in every app that used both.
+        // The height-bearing box budgets for its padding instead.
         padding: spacing.2
-        min-height: 40px
+        min-height: 24px
         background: token.select-bg
         border: match focused {
           true -> token.input-borderWidth + " solid " + token.input-focusBorder,
