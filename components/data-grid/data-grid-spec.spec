@@ -288,6 +288,24 @@ component DataGridSpec(
   expandable: boolean = false,
   defaultExpanded: array = [],
   rowKeyField: string = "id",
+  // WHAT opens a row's detail.
+  //
+  //   'row'     — clicking anywhere on the row toggles it. The 0.9.0 behaviour,
+  //               and the default, so no existing consumer moves.
+  //   'control' — the row click no longer toggles; the grid renders its own
+  //               caret and only that caret toggles.
+  //
+  // 'control' exists because 'row' and a NAVIGATING `rowClick` are mutually
+  // exclusive, silently. The row handler fires `clickRow` (which emits
+  // `rowClick`) and `toggleExpanded` unconditionally, so a consumer that routes
+  // `rowClick` to a page navigation toggles the detail open and then throws it
+  // away in the same gesture — the detail row is unreachable and nothing
+  // errors. cf's market blotter is exactly that consumer: the row opens a
+  // listing, and the caret opens the quality spec in place.
+  expandTrigger: string = "row",
+  // Which column hosts the caret. Empty = the first visible column, which is
+  // the pinned one when `pinFirst` is set.
+  expandColumn: string = "",
 ) {
   @state {
     sortState: sort
@@ -304,6 +322,14 @@ component DataGridSpec(
 
   @computed {
     visibleColumns: columns.filter(c => c.visible != false)
+    // The caret only exists in 'control' mode, and only when there is a detail
+    // to open at all. Named once so both cell render sites (pinned and
+    // scrolling) test the same thing.
+    hasExpandControl: expandable && expandTrigger == "control"
+    // Resolved once rather than per cell: an empty `expandColumn` means the
+    // first VISIBLE column, which is not necessarily `columns[0]`.
+    expandColKey: expandColumn != "" ? expandColumn
+      : (visibleColumns.length > 0 ? visibleColumns[0].key : "")
     processedRows: applySortAndFilter(rows, sortState, filters)
     // Rows whose group is collapsed drop out; group headers and totals remain.
     displayRows: gridVisibleRows(processedRows, openGroups)
@@ -366,6 +392,22 @@ component DataGridSpec(
       let k = row[rowKeyField]
       if k == null { return }
       expandedSet = gridToggleExpanded(expandedSet, k)
+    }
+    // The row's share of the toggle, gated on `expandTrigger`. Split out of the
+    // row handler so 'control' mode can drop it without touching `clickRow` —
+    // `rowClick` must keep firing in BOTH modes, because that is the consumer's
+    // navigation and it is not what this prop is about.
+    rowClickToggle(row) {
+      if expandTrigger != "row" { return }
+      toggleExpanded(row)
+    }
+    // The caret's toggle. `stopPropagation` is the whole reason this is its own
+    // action: without it the click bubbles to the row container and fires
+    // `clickRow`, so opening the quality spec would ALSO navigate away from the
+    // page showing it — which is the exact bug 'control' mode exists to avoid.
+    caretToggle(event, row) {
+      event.stopPropagation()
+      toggleExpanded(row)
     }
     toggleSortCol(colKey) {
       sortState = toggleSortState(sortState, colKey)
@@ -694,7 +736,7 @@ component DataGridSpec(
             }
             on click: {
               clickRow(row, rowIdx)
-              toggleExpanded(row)
+              rowClickToggle(row)
             }
             data-grid-row: gridRowKind(row) == "row" ? "body" : gridRowKind(row)
 
@@ -752,6 +794,29 @@ component DataGridSpec(
                     color: semantic.text-secondary
                   }
                 }
+                // The row-detail caret, for the same reason the group control
+                // above is here: `expandedSet` is the grid's state, so a caller
+                // drawing its own caret in the cell slot would have nothing to
+                // toggle. A real `button`, not a clickable block \u2014 it is an
+                // action, and it has to be keyboard-reachable.
+                button {
+                  visibility: hasExpandControl && gridRowKind(row) == "row" && col._col.key == expandColKey
+                  data-grid-expand: "toggle"
+                  background: 'transparent'
+                  border: borders.default
+                  border-radius: radius.sm
+                  width: 22px
+                  height: 22px
+                  cursor: 'pointer'
+                  layout: horizontal, justify: center, align: center
+                  aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
+                  aria-label: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "Collapse row" : "Expand row"
+                  on click(event): caretToggle(event, row)
+                  text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
+                    style: type.label-xs
+                    color: semantic.text-secondary
+                  }
+                }
                 // The cell's content fills the cell. Without this the slot's own
                 // wrapper is a `flex: 0 1 auto` item in this row and shrink-fits
                 // to its text, so a caller CANNOT align content to the cell's
@@ -804,6 +869,32 @@ component DataGridSpec(
                   aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
                   on click: toggleGroup(row._key)
                   text(gridGroupIsOpen(openGroups, row._key) ? "\u25be" : "\u25b8") {
+                    style: type.label-xs
+                    color: semantic.text-secondary
+                  }
+                }
+                // The row-detail caret again, for the scrolling columns. The
+                // `!pinFirst` guard the group control carries is deliberately
+                // ABSENT: `expandColumn` can name any column, so on a pinned
+                // grid the caret legitimately lands out here whenever the
+                // caller points it at something other than the pinned one.
+                // Matching on the key rather than on colIdx is what makes the
+                // two sites mutually exclusive without needing to agree on
+                // which columns are pinned.
+                button {
+                  visibility: hasExpandControl && gridRowKind(row) == "row" && col._col.key == expandColKey
+                  data-grid-expand: "toggle"
+                  background: 'transparent'
+                  border: borders.default
+                  border-radius: radius.sm
+                  width: 22px
+                  height: 22px
+                  cursor: 'pointer'
+                  layout: horizontal, justify: center, align: center
+                  aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
+                  aria-label: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "Collapse row" : "Expand row"
+                  on click(event): caretToggle(event, row)
+                  text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
                     color: semantic.text-secondary
                   }
