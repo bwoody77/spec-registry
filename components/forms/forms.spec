@@ -44,6 +44,11 @@ fn validateFields(checks: list) -> map {
 //
 // The wrapper always renders `data-field` when `field` is set. That is how
 // FormErrorSummary's jump link finds it (forms-focus.js).
+//
+// Re-toning the label: use `labelTone: 'secondary' | 'primary'`, NOT
+// `labelColor: semantic.text-secondary`. A token passed in through `labelColor`
+// arrives already resolved and stops tracking the theme — see the note on
+// `effLabelColor` below.
 component FormField(
   label:        string  = '',
   value:        string  = '',
@@ -56,6 +61,7 @@ component FormField(
   errorMessage: string  = '',
   labelWeight:  number  = 700,
   labelSpacing: string  = '0.06em',
+  labelTone:    "tertiary" | "secondary" | "primary" = 'tertiary',
   labelColor:   string  = '',
   labelStyle:   string  = '',
   fieldGap:     string  = '6px'
@@ -68,12 +74,28 @@ component FormField(
     effError:   derives ? (showErrors && failing) : error
     effMsg:     derives ? ((showErrors && failing) ? validation.errors[field] : '') : errorMessage
     isTextarea: inputType == 'textarea'
-    // Empty-string default + computed fallback — the registry's established
-    // shape for a string prop that must default to a token (Spinner's
-    // color/trackColor, DataGridSpec's pinBackground/groupBackground): a
-    // string-typed prop default cannot itself carry a token reference, so the
-    // token lives here and the prop only overrides it when non-empty.
-    effLabelColor: labelColor != '' ? labelColor : semantic.text-tertiary
+    // `labelTone` — NOT `labelColor` — is how a caller re-tones the label.
+    //
+    // A theme token has to be resolved INSIDE the component to stay live. Write
+    // `labelColor: semantic.text-secondary` at a call site and the *caller*
+    // compiles it to a one-shot `_tok("text-secondary")()`, so what arrives here
+    // is the string "#3d4a5f" — a colour frozen at mount. Nothing this component
+    // does can thaw it: the freeze happened before the prop was passed. Switch
+    // the app to a dark theme and every such label keeps the light-theme colour
+    // while its plain-`text()` neighbours move. (Confirmed in a browser
+    // 2026-08-10, four labels stuck at rgb(61,74,95) on a dark canvas.)
+    //
+    // Naming the tone instead keeps the token reference in this file, where the
+    // computed below subscribes to it — the emitted computed carries `_ts`/`_tv`
+    // in its dependency list, so a theme change re-runs it.
+    //
+    // `labelColor` still wins when set, and is the escape hatch for a colour
+    // that is not a token at all (a brand hex, a computed rgba). Passing a
+    // token through it is the one thing it cannot do.
+    effLabelColor: labelColor != '' ? labelColor
+                 : (labelTone == 'secondary' ? semantic.text-secondary
+                 : (labelTone == 'primary'   ? semantic.text-primary
+                 : semantic.text-tertiary))
     effLabelStyle: labelStyle != '' ? labelStyle : type.label-xs
   }
 
@@ -116,7 +138,20 @@ component FormField(
       }
     }
 
-    @slot("control")
+    // `@slot` emits its `[data-slot]` container unconditionally — an empty
+    // `display:block` div is still a flex item, so on a field using the
+    // built-in input it cost a full `fieldGap` (6px) of dead space under
+    // every field. Gating the container on the slot being filled makes the
+    // wrapper `display:none`, which is not a flex item and generates no gap.
+    //
+    // The gate is safe here for the reason the comment above explains in
+    // reverse: this block holds a `@slot`, not a SurfaceRef, so it takes the
+    // display:none path rather than the lazy-mount one — the slotted control
+    // is mounted exactly as before when the slot IS filled.
+    block {
+      visibility: hasSlot("control")
+      @slot("control")
+    }
 
     // The built-in TextInput renders its own caption. A slotted control cannot
     // — slot content is evaluated in the CALLER's scope, so this component's
@@ -145,6 +180,10 @@ component FormField(
 // would strand exactly the users who most need it. It hides itself when
 // `firstField` is empty, which is what lets a caller adopt the panel first and
 // the jump affordance later.
+//
+// A summary with nothing to report takes NO space in its parent's layout — it
+// can sit directly in a `layout: horizontal, gap: …` button row without
+// budgeting for it. See the note on the root `visibility:` below.
 component FormErrorSummary(
   visible:    boolean = false,
   title:      string  = 'Fix these to continue:',
@@ -152,6 +191,19 @@ component FormErrorSummary(
   firstField: string  = '',
   jumpLabel:  string  = 'Go to first problem'
 ) {
+  // Top-level `visibility:` binds the COMPONENT ROOT's display, not a child's.
+  // Every component is emitted inside a `_root` div, and that div is a flex
+  // item of whatever laid the component out. With the gate only on the inner
+  // block, the root stayed `display:block` at width 0 — so a form with nothing
+  // wrong still paid a full `gap` after the last button (measured: 12px in cf's
+  // submit row, 2026-08-10). display:none on the root removes it from the
+  // parent's flex layout entirely.
+  //
+  // The inner gate is kept as well: it costs nothing, and it keeps the
+  // `role="alert"` panel aria-hidden on its own terms rather than only by
+  // inheritance from an ancestor.
+  visibility: visible && items.length > 0
+
   block {
     visibility: visible && items.length > 0
     padding: 10px 12px
