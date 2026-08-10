@@ -49,8 +49,14 @@ fn validateFields(checks: list) -> map {
 // `labelColor: semantic.text-secondary`. A token passed in through `labelColor`
 // arrives already resolved and stops tracking the theme — see the note on
 // `effLabelColor` below.
+//
+// Naming: this component renders the visible label ITSELF and mounts TextInput
+// in a different block, so `label` alone named nothing — see `effAriaLabel`.
+// Pass `ariaLabel` only when the accessible name must differ from the visible
+// one, or when there is no visible label at all.
 component FormField(
   label:        string  = '',
+  ariaLabel:    string  = '',
   value:        string  = '',
   placeholder:  string  = '',
   inputType:    string  = 'text',
@@ -74,6 +80,35 @@ component FormField(
     effError:   derives ? (showErrors && failing) : error
     effMsg:     derives ? ((showErrors && failing) ? validation.errors[field] : '') : errorMessage
     isTextarea: inputType == 'textarea'
+    // The accessible name for the built-in input.
+    //
+    // This component renders the visible label in its OWN block and mounts
+    // TextInput in another, which defeats both of the routes that would
+    // otherwise name the input:
+    //
+    //   - the compiler's inferAccessibleNames only reaches a control whose
+    //     label is the immediately-preceding rendering SIBLING of the mount;
+    //   - TextInput's own `label:` prop does name the input — but it also
+    //     RENDERS the label (text-input.spec `block { visibility: label != "" }`),
+    //     so forwarding `label` down that channel would print every field's
+    //     label twice. That is why the migration dropped it, and why the name
+    //     has to travel on `ariaLabel`, which names without rendering.
+    //
+    // Chain: explicit ariaLabel, then the visible label, then '' — which hands
+    // the decision back to TextInput's own fallback (placeholder, else no
+    // attribute at all). Never emit a name this component invented: '' is
+    // passed through, and TextInput turns a fully-empty chain into `null` so
+    // the attribute is REMOVED rather than set to an empty (real, and
+    // silencing) accessible name.
+    //
+    // `ariaLabel` wins over `label` deliberately: the case it exists for is a
+    // terse visible label that needs a fuller spoken one ('Unit price' →
+    // 'Unit price in USD per metric tonne'). Because declaring `ariaLabel`
+    // also opts this component into inferAccessibleNames, a caller's preceding
+    // heading could otherwise out-rank the field's own label — the compiler
+    // now declines to infer for a call that passes its own `label:`
+    // (ast-to-ir inferAccessibleNames), which keeps that ordering safe.
+    effAriaLabel: ariaLabel != '' ? ariaLabel : label
     // `labelTone` — NOT `labelColor` — is how a caller re-tones the label.
     //
     // A theme token has to be resolved INSIDE the component to stay live. Write
@@ -131,7 +166,10 @@ component FormField(
     // takes the lazy-mount path.)
     block {
       visibility: !hasSlot("control")
+      // `ariaLabel:`, never `label:` — see the note on effAriaLabel. `label:`
+      // would render a second visible copy of every field's label.
       TextInput(value: value, placeholder: placeholder, type: inputType,
+                ariaLabel: effAriaLabel,
                 error: effError, errorMessage: effMsg) {
         on change(x): emit("input", x)
         on keydown(e): onKey(e)
