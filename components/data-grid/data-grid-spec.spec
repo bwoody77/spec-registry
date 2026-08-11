@@ -100,6 +100,39 @@ fn gridSegmentsOf(cols: list) -> list {
   }, [])
 }
 
+// ─── Segment run ids (column drag) ──────────────────────────────────────────
+// The drag identity each header segment is stamped with. A segment is NOT the
+// same thing as a `gridSegmentsOf` container, and it is NOT the group label.
+//
+// gridSegmentsOf merges a run into one container only when the label is
+// non-empty, so every UNGROUPED column gets a container of its own. Stamping
+// the LABEL therefore made every ungrouped column in the grid share one value
+// — and ungrouped columns on OPPOSITE SIDES of a group then formed a single
+// NON-CONTIGUOUS "segment", which the drag's snapshot, gap and slot math all
+// assume cannot happen. cf-market's classic view is exactly that shape:
+// dragging `port` right set g=1 and drew the placeholder over `ship`, while
+// `qty` translated left over the Quality columns.
+//
+// So the identity is a RUN id: increment on every label change, EXCEPT between
+// two consecutive empty-label segments. gridSegmentsOf has already merged
+// same-label non-empty runs, so consecutive segments never share a non-empty
+// label — the rule reduces to "increment unless BOTH this segment and the
+// previous one are unlabelled", which is what keeps a run of ungrouped columns
+// in one segment while splitting runs that a group sits between.
+//
+// The pinned and scrolling loops number independently; the distinct 'p:' / 's:'
+// prefixes at the use site keep the two sides apart.
+fn gridSegRunIds(segs: list) -> list {
+  let runs = segs |> reduce((acc, s) => {
+    let n = length(acc)
+    if n == 0 { return [{ label: s.label, run: 0 }] }
+    let prev = acc[n - 1]
+    let same = prev.label == '' && s.label == ''
+    return acc.concat([{ label: s.label, run: same ? prev.run : prev.run + 1 }])
+  }, [])
+  return runs |> map(r => r.run)
+}
+
 // Reorder `cols` to match `order`, a list of column keys.
 //
 // Keys in `order` that no longer name a column are ignored, and columns absent
@@ -107,9 +140,20 @@ fn gridSegmentsOf(cols: list) -> list {
 // gone stale — a renamed key, a dropped column, a column added since it was
 // saved — degrades to a sensible layout instead of stranding a column off the
 // grid entirely.
+//
+// `order` is DE-DUPLICATED first, first occurrence winning. A repeated key
+// otherwise survived into `ordered` twice, so `visibleColumns` came back with
+// N+1 entries and one column rendered TWICE: two header cells and two body
+// cells carrying the same `data-grid-col`, which also breaks every query in
+// the column-drag wire. And because the grid re-emits its order through
+// `columnOrderChange`, a caller that persists it persisted the corruption.
 fn gridApplyColumnOrder(cols: list, order: list) -> list {
   if length(order) == 0 { return cols }
-  let known = order |> filter(k => cols |> some(c => c.key == k))
+  let uniq = order |> reduce((acc, k) => {
+    if (acc |> includes(k)) { return acc }
+    return acc.concat([k])
+  }, [])
+  let known = uniq |> filter(k => cols |> some(c => c.key == k))
   let ordered = known |> map(k => cols |> find(c => c.key == k))
   let rest = cols |> filter(c => !(known |> includes(c.key)))
   return ordered |> concat(rest)
@@ -437,14 +481,22 @@ component DataGridSpec(
     // the same fns as the body, so the two cannot disagree about widths.
     pinnedSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(0, 1)) : []
     scrollSegments: pinFirst ? gridSegmentsOf(visibleColumns.slice(1)) : gridSegmentsOf(visibleColumns)
+    // Column-drag segment identity, per side. See gridSegRunIds: a run id, not
+    // the group label — a label would merge ungrouped columns lying on
+    // opposite sides of a group into one NON-CONTIGUOUS segment.
+    pinnedSegRuns: gridSegRunIds(pinnedSegments)
+    scrollSegRuns: gridSegRunIds(scrollSegments)
     // `_solo` and the two `_solo*` fields are precomputed here because a style
     // binding will not parse a function call — the same reason the widths are
-    // resolved in this block rather than at the use site.
-    sizedPinnedSegments: pinnedSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+    // resolved in this block rather than at the use site. `_segId` is here for
+    // the same reason: it is read by an attribute binding.
+    sizedPinnedSegments: pinnedSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+      _segId: 'p:' + (pinnedSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
       _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
-    sizedScrollSegments: scrollSegments |> map(s => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+    sizedScrollSegments: scrollSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+      _segId: 's:' + (scrollSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
       _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
@@ -558,6 +610,14 @@ component DataGridSpec(
     role: "grid"
     tabindex: "0"
     data-grid-id: _gridId
+    // The column-drag wire's re-arm trigger. It mounts once from a @state
+    // initialiser that never re-runs, so a page that flips reorderableColumns
+    // after mount (a permission or a setting resolving) has no other way to
+    // tell it: a MutationObserver on this attribute is how plain DOM code
+    // learns a Spec signal changed. The wire reads the live prop for the
+    // VALUE, not this attribute — which is also why no @watch is needed here,
+    // the binding itself is the reactive hook.
+    data-grid-reorderable: reorderableColumns ? 'true' : 'false'
 
     on key-down(event): {
       match event.key {
@@ -639,11 +699,13 @@ component DataGridSpec(
               border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
-              // Segment identity for column drag. 'p:' = pinned side.
-              // Grouped by VALUE, not by container: gridSegmentsOf gives every
-              // ungrouped column a container of its own, so container identity
-              // would make each one a size-1 segment and nothing would drag.
-              data-grid-col-seg: 'p:' + seg._seg.label
+              // Segment identity for column drag. 'p:' = pinned side, then the
+              // RUN id (see gridSegRunIds). Grouped by VALUE, not by container:
+              // gridSegmentsOf gives every ungrouped column a container of its
+              // own, so container identity would make each one a size-1 segment
+              // and nothing would drag — while the LABEL would merge ungrouped
+              // columns either side of a group into one non-contiguous segment.
+              data-grid-col-seg: seg._segId
 
               block {
                 visibility: seg._seg.label != ''
@@ -720,9 +782,10 @@ component DataGridSpec(
               border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
-              // Segment identity for column drag. 's:' = scrolling side. See
-              // the pinned loop above for why this is by VALUE, not container.
-              data-grid-col-seg: 's:' + seg._seg.label
+              // Segment identity for column drag. 's:' = scrolling side, then
+              // the RUN id. See the pinned loop above for why this is by VALUE
+              // and why the value is a run id rather than the group label.
+              data-grid-col-seg: seg._segId
 
               block {
                 visibility: seg._seg.label != ''

@@ -42,10 +42,10 @@
  * Segments — a drag never leaves its own segment
  * ───────────────────────────────────────────────────────────────────────
  * A column's segment is the VALUE of its nearest `[data-grid-col-seg]`
- * ancestor — `'p:<label>'` pinned, `'s:<label>'` scrolling. The drag snapshot,
- * the gap math and the drop are all confined to the cells sharing that value,
- * and columns outside it never move; `applySegmentOrder` splices the segment's
- * new internal order back into the full key list before emitting.
+ * ancestor — `'p:<run>'` pinned, `'s:<run>'` scrolling. The drag snapshot, the
+ * gap math and the drop are all confined to the cells sharing that value, and
+ * columns outside it never move; `applySegmentOrder` splices the segment's new
+ * internal order back into the full key list before emitting.
  *
  * By VALUE, never by container identity: `gridSegmentsOf` merges a run into
  * one container only when the group label is non-empty, so every UNGROUPED
@@ -53,6 +53,13 @@
  * segment would make each of them a size-1 segment, and an ungrouped grid —
  * which is most of them — would be completely undraggable while every test
  * still passed.
+ *
+ * The value is a RUN id, not the group label. A label made every ungrouped
+ * column in the grid share `'s:'`, so ungrouped columns on OPPOSITE SIDES of
+ * a group formed one segment that was not CONTIGUOUS — which everything below
+ * assumes cannot happen (the snapshot spans from the segment's first column,
+ * the gap math counts across it, the slot is positioned by walking it). See
+ * `gridSegRunIds` in data-grid-spec.spec for the numbering rule.
  *
  * ───────────────────────────────────────────────────────────────────────
  * Why a region hit-test (not the grid-drag cell hit-test)
@@ -79,16 +86,35 @@ function num(px, fallback) {
     return Number.isFinite(n) ? n : fallback;
 }
 const HEADER_CELLS = '[data-grid-row="header"] [data-grid-col]';
-function headerCellsFor(root, key) {
-    return Array.from(root.querySelectorAll('[data-grid-row="header"] [data-grid-col="' + key + '"]'));
+/**
+ * Bound by DataGridSpec on the grid root to `reorderableColumns`. Its VALUE is
+ * never read — `enabled` is the source of truth. It exists so a MutationObserver
+ * can notice the prop flipping, which is the only way plain DOM code learns
+ * that a Spec signal changed. See the note on `enabled` in `wireColumnDrag`.
+ */
+const ENABLED_ATTR = 'data-grid-reorderable';
+/**
+ * Header cells of a column, in THIS grid only.
+ *
+ * Exported for the test suite: this and `bodyCellsFor` are the DOM-WRITING
+ * queries — `buildColumnGhost` clones what they return into the drag image and
+ * `setSourceHidden` / `translateCol` write inline styles onto it — so the
+ * `ownedBy` filter matters more here than anywhere else, and asserting a
+ * replica of the expression in a test would not have caught its absence.
+ */
+export function headerCellsFor(root, key) {
+    return Array.from(root.querySelectorAll('[data-grid-row="header"] [data-grid-col="' + key + '"]')).filter(ownedBy(root));
 }
 /** Body cells of a column: same attribute, anywhere EXCEPT the header row. */
-function bodyCellsFor(root, key) {
-    return Array.from(root.querySelectorAll('[data-grid-col="' + key + '"]')).filter((el) => el.closest('[data-grid-row="header"]') === null);
+export function bodyCellsFor(root, key) {
+    return Array.from(root.querySelectorAll('[data-grid-col="' + key + '"]'))
+        .filter((el) => el.closest('[data-grid-row="header"]') === null)
+        .filter(ownedBy(root));
 }
 /**
  * A column's segment is the VALUE of the nearest [data-grid-col-seg] ancestor
- * — 'p:<label>' pinned, 's:<label>' scrolling.
+ * — 'p:<run>' pinned, 's:<run>' scrolling, where <run> is a run id and NOT the
+ * group label (see the module header).
  *
  * By VALUE, never by container identity. gridSegmentsOf merges a run into one
  * container only when the group label is non-empty, so every UNGROUPED column
@@ -121,25 +147,66 @@ function segmentCells(root, seg) {
  *
  * @param gridId    unique ID returned by genGridId() (or a getter for it)
  * @param onReorder called with the full new visible key order on drop
- * @param enabled   `reorderableColumns` — when false, skips wiring entirely
- *                  (a dead affordance is worse than no feature)
+ * @param enabled   `reorderableColumns`, as a value OR a getter. RE-READ on
+ *                  every attach pass — see the note below.
  * @returns         destroy/cleanup function (stored in @state)
+ *
+ * ── Why `enabled` is re-read rather than checked once ──────────────────────
+ * This used to `return noop` when `enabled` was false. Two things were wrong
+ * with that, and they cancelled each other out so neither was visible:
+ *
+ *  1. `wireColumnDrag` is called from a @state initialiser, which never
+ *     re-runs. A page flipping `reorderableColumns` false→true once a
+ *     permission or a setting resolved got the noop forever, with no error.
+ *     (`columnOrder` got a @watch re-seed for exactly this staleness class;
+ *     the asymmetry was the tell.)
+ *  2. The early-out never actually fired. The compiler passes a @state
+ *     initialiser's prop references as SIGNALS, not values — the call site
+ *     compiles to `wireColumnDrag(_gridId, onColumnDragReorder,
+ *     reorderableColumns)` where `reorderableColumns` is a function. A
+ *     function is always truthy, so `!enabled` was never true and the drag was
+ *     armed on EVERY grid, including the default `reorderableColumns: false`.
+ *     `gridId` is passed the same way, which is why it already took a getter.
+ *
+ * So the affordance is now gated per attach pass on a live read
+ * (`resolveEnabled`), exactly mirroring `resolveId`, and the wire always
+ * mounts. `attachSources` attaches nothing and sets no cursor while disabled,
+ * and restores every cell it touched when it is switched back off.
+ *
+ * The re-arm TRIGGER is the grid root's `data-grid-reorderable` attribute,
+ * which DataGridSpec binds to the same prop: a MutationObserver is the only
+ * way plain DOM code can learn that a Spec signal changed. The attribute's
+ * VALUE is deliberately not read — `enabled` is the single source of truth —
+ * so a caller wiring this up by hand needs no attribute, only a getter.
  */
 export function wireColumnDrag(gridId, onReorder, enabled) {
-    if (!enabled)
-        return function noop() { };
     let session = null;
     let mutationObserver = null;
     let waitTimer = null;
     let slot = null;
+    /** Set once mounted: detaches every armed source and restores its cursor. */
+    let teardownSources = null;
     function resolveId() {
         return typeof gridId === 'function' ? gridId() : gridId;
+    }
+    /** Live read of `reorderableColumns`. See the note on `enabled` above. */
+    function resolveEnabled() {
+        return typeof enabled === 'function' ? enabled() === true : enabled === true;
     }
     function findRoot() {
         const id = resolveId();
         return id ? document.querySelector('[data-grid-id="' + id + '"]') : null;
     }
     function teardown() {
+        if (teardownSources) {
+            try {
+                teardownSources();
+            }
+            catch {
+                /* noop */
+            }
+            teardownSources = null;
+        }
         if (session) {
             try {
                 session.destroy();
@@ -179,8 +246,18 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
         // into the function declarations below, and `root!` everywhere reads worse.
         const root = found;
         waitTimer = null;
-        const dropSlot = makeSlot();
-        slot = dropSlot;
+        // The drop slot is created on first use, not at mount. The wire now mounts
+        // even when the affordance is off, and a disabled grid must not leave a
+        // stray element in document.body.
+        function ensureSlot() {
+            if (!slot)
+                slot = makeSlot();
+            return slot;
+        }
+        function hideSlot() {
+            if (slot)
+                slot.style.opacity = '0';
+        }
         // ── Per-drag snapshot (original, untransformed geometry) ───────────────
         let snap = null;
         let moved = false;
@@ -275,11 +352,12 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
             let left = base;
             for (let q = 0; q < g && q < packed.length; q++)
                 left += packed[q].width + G;
-            dropSlot.style.left = Math.round(left) + 'px';
-            dropSlot.style.top = Math.round(top) + 'px';
-            dropSlot.style.width = Math.round(W) + 'px';
-            dropSlot.style.height = Math.round(height) + 'px';
-            dropSlot.style.opacity = '1';
+            const el = ensureSlot();
+            el.style.left = Math.round(left) + 'px';
+            el.style.top = Math.round(top) + 'px';
+            el.style.width = Math.round(W) + 'px';
+            el.style.height = Math.round(height) + 'px';
+            el.style.opacity = '1';
         }
         function clearTransforms() {
             for (const el of touched) {
@@ -297,7 +375,7 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
         }
         function resetVisuals(srcKey) {
             clearTransforms();
-            dropSlot.style.opacity = '0';
+            hideSlot();
             if (srcKey)
                 setSourceHidden(srcKey, false);
             curGap = -1;
@@ -355,7 +433,7 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
                     applyGap(cur, target.g);
                 else {
                     clearTransforms();
-                    dropSlot.style.opacity = '0';
+                    hideSlot();
                     curGap = -1;
                 }
             },
@@ -383,9 +461,28 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
             },
         });
         session = s;
+        // Every cell we made a drag source, with the inline cursor it had first.
+        // The grid sets its OWN cursor per column ('pointer' when sortable,
+        // 'default' otherwise), so disarming must restore that value rather than
+        // blank the property — a sortable column would otherwise lose its pointer
+        // until the next re-render.
+        const armed = new Map();
+        function disarmSources() {
+            for (const [cell, prevCursor] of armed) {
+                s.detach(cell);
+                cell.style.cursor = prevCursor;
+            }
+            armed.clear();
+        }
         // Attach every header cell as a drag source; re-attach when the grid
-        // re-renders (column hide/show changes the cell set).
+        // re-renders (column hide/show changes the cell set) and when
+        // `reorderableColumns` flips.
         function attachSources() {
+            // Live read, every pass — the whole point. See the note on `enabled`.
+            if (!resolveEnabled()) {
+                disarmSources();
+                return;
+            }
             const mine = ownedBy(root);
             for (const cell of Array.from(root.querySelectorAll(HEADER_CELLS)).filter(mine)) {
                 // A segment of one has nowhere to drop. Registering it anyway would
@@ -393,13 +490,24 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
                 // than no feature.
                 if (segmentCells(root, segOf(cell) ?? '').length < 2)
                     continue;
+                if (!armed.has(cell))
+                    armed.set(cell, cell.style.cursor);
                 cell.style.cursor = 'grab';
                 s.attach(cell);
             }
         }
         attachSources();
         mutationObserver = new MutationObserver(attachSources);
-        mutationObserver.observe(root, { childList: true, subtree: true });
+        // `attributeFilter` is load-bearing, not an optimisation: attachSources
+        // writes `style` on the cells it arms, so observing attributes UNFILTERED
+        // would make every pass schedule another one forever.
+        mutationObserver.observe(root, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: [ENABLED_ATTR],
+        });
+        teardownSources = disarmSources;
     }
     tryMount();
     return teardown;
