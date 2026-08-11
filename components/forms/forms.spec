@@ -131,7 +131,15 @@ component FormField(
                  : (labelTone == 'secondary' ? semantic.text-secondary
                  : (labelTone == 'primary'   ? semantic.text-primary
                  : semantic.text-tertiary))
-    effLabelStyle: labelStyle != '' ? labelStyle : type.label-xs
+    // label-sm, not label-xs. `label-xs` is floor-clamped at 10px, so an
+    // unstyled field label rendered at or below the CAPTION tier — a field's
+    // name no larger than its own footnote. Two signals, not one opinion:
+    // Vector's LabeledField (the ~95 call sites this component replaces)
+    // hardcodes label-sm, so an `label-xs` default would silently shrink every
+    // label 11.2px → 10px on a pure rename; and cf overrides `labelStyle` at
+    // every labelled call site rather than accept the default. A default every
+    // adopter overrides is the wrong default.
+    effLabelStyle: labelStyle != '' ? labelStyle : type.label-sm
   }
 
   @actions {
