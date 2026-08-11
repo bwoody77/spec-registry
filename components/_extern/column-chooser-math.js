@@ -139,7 +139,9 @@ export function chooserRows(columns, order, hidden, query) {
     const q = (query || '').trim().toLowerCase();
     const labelOf = (k) => {
         const c = columns.find((x) => x.key === k);
-        return c && c.label ? c.label : k;
+        if (!c)
+            return k;
+        return c.label || c.header || k;
     };
     const isHidden = (k) => hidden.includes(k);
     const known = (k) => columns.some((c) => c.key === k);
