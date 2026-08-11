@@ -1,0 +1,16 @@
+[package]
+name = "column-chooser"
+version = "0.1.1"
+category = "components"
+description = "Show, hide, reorder and search a grid's columns; groups move as a block"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "column-chooser.spec"
+
+[extern]
+files = ["../_extern/column-chooser-drag.js"]
