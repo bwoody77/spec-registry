@@ -43,6 +43,57 @@ export function groupsIntact(order, columns) {
     }
     return true;
 }
+/**
+ * The order reconciled against the columns: unknown keys dropped, columns the
+ * order does not mention appended in declared order, repeats removed.
+ *
+ * This is the SAME contract DataGridSpec's `gridApplyColumnOrder` applies, and
+ * the two must agree. They did not: the panel rendered by walking `order`, so
+ * a column a partial saved order failed to mention was not listed AT ALL —
+ * while the grid still rendered it, because the grid appends what the order
+ * omits. The column became unhideable and unmovable with no way back.
+ *
+ * A partial order is not an edge case. The grid is fed only the VISIBLE
+ * columns, so a header drag emits only those keys, and that narrower list is
+ * exactly what a consumer persists and feeds back.
+ */
+export function reconcileOrder(columns, order) {
+    const seen = new Set();
+    const out = [];
+    for (const k of order) {
+        if (seen.has(k))
+            continue;
+        if (!columns.some((c) => c.key === k))
+            continue;
+        seen.add(k);
+        out.push(k);
+    }
+    for (const c of columns) {
+        if (seen.has(c.key))
+            continue;
+        seen.add(c.key);
+        out.push(c.key);
+    }
+    return out;
+}
+/**
+ * Every column pinned by `movable: false` still sits where it did.
+ *
+ * `movable: false` stopping only the LOCKED column from moving is not enough:
+ * DataGridSpec's `pinFirst` pins by POSITION, so a neighbour moved above the
+ * locked first column freezes the neighbour and silently un-pins the locked
+ * one — while the panel goes on drawing it with a lock and a `pinned` tag.
+ * A locked column holds its INDEX against everything, not just itself.
+ */
+function lockedHeld(order, next, columns) {
+    for (const c of columns) {
+        if (c.movable !== false)
+            continue;
+        if (order.indexOf(c.key) !== next.indexOf(c.key))
+            return false;
+    }
+    return true;
+}
 /** `key` lifted out of `order` and re-inserted at packed index `at`. */
 export function orderWith(order, key, at) {
     const packed = order.filter((k) => k !== key);
@@ -64,8 +115,11 @@ function changed(a, b) {
 export function dropAllowed(order, columns, key, at) {
     if (!order.includes(key))
         return false;
+    const col = columns.find((c) => c.key === key);
+    if (col && col.movable === false)
+        return false;
     const next = orderWith(order, key, at);
-    return changed(order, next) && groupsIntact(next, columns);
+    return changed(order, next) && groupsIntact(next, columns) && lockedHeld(order, next, columns);
 }
 /**
  * Move `key` one step in `dir`, sliding on to the next index that keeps every
@@ -106,7 +160,7 @@ export function groupDropAllowed(order, columns, group, at) {
     if (groupKeys(order, columns, group).length === 0)
         return false;
     const next = orderWithGroup(order, columns, group, at);
-    return changed(order, next) && groupsIntact(next, columns);
+    return changed(order, next) && groupsIntact(next, columns) && lockedHeld(order, next, columns);
 }
 /** The up/down control for a whole group. moveKeyBy's rule, one level up. */
 export function moveGroupBy(order, columns, group, dir) {
@@ -144,12 +198,12 @@ export function chooserRows(columns, order, hidden, query) {
         return c.label || c.header || k;
     };
     const isHidden = (k) => hidden.includes(k);
-    const known = (k) => columns.some((c) => c.key === k);
-    const shownCount = order.filter((k) => known(k) && !isHidden(k)).length;
-    // A key naming no column is dropped here rather than rendered as a mystery
-    // row: a saved order outlives a renamed or retired column, and
-    // gridApplyColumnOrder already ignores such keys on the grid's side.
-    const visible = order.filter((k) => known(k) && (q === '' || labelOf(k).toLowerCase().includes(q)));
+    // Reconciled, not raw: an unknown key is dropped and a column the order does
+    // not mention is appended, exactly as the grid does. Walking `order` alone
+    // made a partial saved order hide columns from the panel entirely.
+    const full = reconcileOrder(columns, order);
+    const shownCount = full.filter((k) => !isHidden(k)).length;
+    const visible = full.filter((k) => q === '' || labelOf(k).toLowerCase().includes(q));
     const rows = [];
     visible.forEach((k, i) => {
         const col = columns.find((c) => c.key === k);
@@ -159,7 +213,7 @@ export function chooserRows(columns, order, hidden, query) {
         const first = g !== '' && g !== prevG;
         const last = g !== '' && g !== nextG;
         if (first) {
-            const members = groupKeys(order, columns, g);
+            const members = groupKeys(full, columns, g);
             rows.push({
                 kind: 'group',
                 id: 'group:' + g,
@@ -174,8 +228,8 @@ export function chooserRows(columns, order, hidden, query) {
                 indent: false,
                 groupFirst: false,
                 groupLast: false,
-                canUp: moveGroupBy(order, columns, g, -1) !== null,
-                canDown: moveGroupBy(order, columns, g, 1) !== null,
+                canUp: moveGroupBy(full, columns, g, -1) !== null,
+                canDown: moveGroupBy(full, columns, g, 1) !== null,
                 canHide: true,
             });
         }
@@ -192,8 +246,8 @@ export function chooserRows(columns, order, hidden, query) {
             indent: g !== '',
             groupFirst: first,
             groupLast: last,
-            canUp: !locked && col.movable !== false && moveKeyBy(order, columns, k, -1) !== null,
-            canDown: !locked && col.movable !== false && moveKeyBy(order, columns, k, 1) !== null,
+            canUp: !locked && col.movable !== false && moveKeyBy(full, columns, k, -1) !== null,
+            canDown: !locked && col.movable !== false && moveKeyBy(full, columns, k, 1) !== null,
             // The last visible column cannot be hidden: a grid with no columns has no
             // header and no way back. Showing a hidden one is always allowed.
             canHide: col.hideable !== false && (isHidden(k) || shownCount > 1),
