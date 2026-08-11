@@ -1,4 +1,4 @@
-@extern { genGridId, wireColumnDrag } from "@spec/components/data-grid-column-drag.js"
+@extern { genGridId, wireColumnDrag, wireGroupDrag } from "@spec/components/data-grid-column-drag.js"
 
 fn toggleSortState(sortState: list, colKey: string) -> list {
   let existing = sortState |> find(s => s.key == colKey)
@@ -387,6 +387,14 @@ component DataGridSpec(
   // its own order, seeded from `columns`. Mirrors externalSort's position:
   // the real state lives with the caller, who persists it.
   columnOrder: array = [],
+  // Keys to hide, ANDed with each column's own `visible`. Caller-owned and
+  // persisted exactly like columnOrder, and mirrored locally for the same
+  // reason: a hide must paint before the round-trip returns.
+  hiddenColumns: array = [],
+  // Mount the column chooser in a strip above the header. Off by default — a
+  // grid whose caller does not handle the two events must not offer controls
+  // that appear to do nothing.
+  configurableColumns: boolean = false,
 ) {
   @state {
     // Per-instance id, so two grids on one page never share a drag session.
@@ -395,9 +403,21 @@ component DataGridSpec(
     // Live column order. Seeded from the prop; replaced on drop and re-seeded
     // by the @watch below when the caller supplies a new one.
     _colOrder: columnOrder
+    // Live hidden set, same shape and same reasons as _colOrder.
+    _hidden: hiddenColumns
     // Returns a teardown fn. Declared after _gridId (it reads it) and after
     // the action it calls back into.
-    _colDragTeardown: wireColumnDrag(_gridId, onColumnDragReorder, reorderableColumns)
+    // `allKeysOf` is an ACTION, not the @computed it returns: a @state
+    // initialiser runs before the @computed block exists, so naming
+    // orderedAllKeys here is a temporal-dead-zone error at mount. The action is
+    // called per use, by which time the computed is live — which also keeps the
+    // read fresh rather than captured.
+    _colDragTeardown: wireColumnDrag(_gridId, onColumnDragReorder, reorderableColumns, allKeysOf)
+    // The same drag, one level up: a labelled group's header cell moves the
+    // whole run among its sibling segments. Without it a group is the one
+    // thing on the grid that cannot be moved, because a group IS a segment and
+    // the column wire never crosses one.
+    _groupDragTeardown: wireGroupDrag(_gridId, onColumnDragReorder, reorderableColumns, allKeysOf)
     sortState: sort
     selectedSet: selected
     filters: []
@@ -441,13 +461,34 @@ component DataGridSpec(
     columnOrder: {
       _colOrder = columnOrder
     }
+    // Same seed-once hazard as columnOrder: a caller that persists the hidden
+    // set and feeds it back needs the grid to re-read it.
+    hiddenColumns: {
+      _hidden = hiddenColumns
+    }
   }
 
   @computed {
     // The single chokepoint: pinnedColumns, scrollColumns, both segment lists
     // and every width derive from this and nothing else, so applying the order
     // here reorders the whole grid — header, body, groups and sizing together.
-    visibleColumns: gridApplyColumnOrder(columns.filter(c => c.visible != false), _colOrder)
+    visibleColumns: gridApplyColumnOrder(columns.filter(c => c.visible != false && !(_hidden |> includes(c.key))), _colOrder)
+    // Every key the grid knows about, hidden included, in current order.
+    //
+    // The drag wire reads header CELLS and so sees only what is on screen;
+    // without this a drag performed while a column was hidden emitted an order
+    // that had silently dropped it, and showing the column again appended it at
+    // the end — throwing away wherever the user had put it. cf had to work
+    // around exactly this in market-column-order.js.
+    orderedAllKeys: gridApplyColumnOrder(columns, _colOrder) |> map(c => c.key)
+    // The chooser's view of the columns. NOT `columns` raw: with pinFirst the
+    // first VISIBLE column is pinned by POSITION, so hiding or moving it would
+    // silently re-pin a different one. It renders locked instead — the panel's
+    // echo of the wire's "a segment of size 1 gets no affordance".
+    pinnedKey: pinFirst && visibleColumns.length > 0 ? visibleColumns[0].key : ''
+    chooserColumns: columns |> map(c => c.key == pinnedKey
+      ? { key: c.key, label: c.label, group: c.group, hideable: false, movable: false }
+      : c)
     // The caret only exists in 'control' mode, and only when there is a detail
     // to open at all. Named once so both cell render sites (pinned and
     // scrolling) test the same thing.
@@ -557,9 +598,20 @@ component DataGridSpec(
     // The wire has already confined the move to one segment and spliced the
     // result back into the full order, so this is the caller's new order
     // verbatim — nothing to merge here.
+    // Read back by the drag wire on every drop. See the note at the @state
+    // declaration for why this is an action rather than the computed itself.
+    allKeysOf() { return orderedAllKeys }
     onColumnDragReorder(nextKeys) {
       _colOrder = nextKeys
       emit("columnOrderChange", nextKeys)
+    }
+    // The chooser's visibility change. Local first, then the emit — the same
+    // rule the order takes: making the grid wait for a round-trip to agree
+    // with a gesture the user already completed is how a control comes to feel
+    // like it snapped back.
+    onChooserHidden(keys) {
+      _hidden = keys
+      emit("columnVisibilityChange", keys)
     }
     setFilter(colKey, value) {
       let existing = filters.find(f => f.key == colKey)
@@ -631,6 +683,24 @@ component DataGridSpec(
       if event.key == "a" && event.ctrlKey == true && selection == "multi" {
         event.preventDefault()
         if allSelected { clearSelection() } else { selectAllRows() }
+      }
+    }
+
+    // The column chooser, in a strip of the grid's own chrome. A page that
+    // already has a toolbar should leave this off and mount ColumnChooser
+    // itself — it is a registry component in its own right, and two Columns
+    // buttons on one screen is worse than none.
+    //
+    // The handlers live INSIDE the braces: emit() never reaches an
+    // `on <event>:` written outside them, and the dangling form compiles to a
+    // listener that never fires.
+    block {
+      visibility: configurableColumns
+      layout: horizontal, justify: end
+      padding-x: spacing.2 padding-y: spacing.1
+      ColumnChooser(columns: chooserColumns, hiddenColumns: _hidden, columnOrder: _colOrder) {
+        on columnVisibilityChange(keys): onChooserHidden(keys)
+        on columnOrderChange(keys): onColumnDragReorder(keys)
       }
     }
 
@@ -726,6 +796,12 @@ component DataGridSpec(
                 cursor: seg._soloSortable ? "pointer" : "default"
                 on click: seg._soloSortable ? toggleSortCol(seg._soloKey) : {}
                 data-grid-row: "header-group"
+                // The group drag's anchor: this cell is the handle that moves
+                // the whole run among its sibling segments. NULL when the run
+                // has no label — the ungrouped columns share one segment, and
+                // making that draggable would move all of them at once. ('' is
+                // not null: a binding only REMOVES an attribute for null.)
+                data-grid-seg-label: seg._seg.label != '' ? seg._segId : null
                 @slot("group-header", seg._seg)
                 block {
                   visibility: !hasSlot("group-header")
@@ -806,6 +882,12 @@ component DataGridSpec(
                 cursor: seg._soloSortable ? "pointer" : "default"
                 on click: seg._soloSortable ? toggleSortCol(seg._soloKey) : {}
                 data-grid-row: "header-group"
+                // The group drag's anchor: this cell is the handle that moves
+                // the whole run among its sibling segments. NULL when the run
+                // has no label — the ungrouped columns share one segment, and
+                // making that draggable would move all of them at once. ('' is
+                // not null: a binding only REMOVES an attribute for null.)
+                data-grid-seg-label: seg._seg.label != '' ? seg._segId : null
                 @slot("group-header", seg._seg)
                 block {
                   visibility: !hasSlot("group-header")

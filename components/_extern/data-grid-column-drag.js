@@ -75,8 +75,12 @@
  * slot tracks continuously and the drop commits the gap the slot shows.
  */
 import { createDragSession } from './drag-core/pointer.js';
-import { gapFromX, orderFromGapIndex, applySegmentOrder, } from './column-reorder-math.js';
+import { gapFromX, orderFromGapIndex, applySegmentOrder, mergeHiddenKeys, } from './column-reorder-math.js';
 import { buildColumnGhost, makeSlot } from './column-ghost.js';
+import { HEADER_CELLS, ownedBy, segOf, segmentCells, headerCellsFor, bodyCellsFor, } from './data-grid-dom.js';
+// Re-exported: the test suite imports these from here, and moving the
+// definitions must not move their import path.
+export { headerCellsFor, bodyCellsFor };
 // ─── Tunables ─────────────────────────────────────────────────────────────────
 const SHIFT_EASE = 'transform 200ms cubic-bezier(0.2, 0, 0, 1)';
 const EDGE_MARGIN = 28; // px slack around the grid box
@@ -85,7 +89,6 @@ function num(px, fallback) {
     const n = parseFloat(px);
     return Number.isFinite(n) ? n : fallback;
 }
-const HEADER_CELLS = '[data-grid-row="header"] [data-grid-col]';
 /**
  * Bound by DataGridSpec on the grid root to `reorderableColumns`. Its VALUE is
  * never read — `enabled` is the source of truth. It exists so a MutationObserver
@@ -93,54 +96,6 @@ const HEADER_CELLS = '[data-grid-row="header"] [data-grid-col]';
  * that a Spec signal changed. See the note on `enabled` in `wireColumnDrag`.
  */
 const ENABLED_ATTR = 'data-grid-reorderable';
-/**
- * Header cells of a column, in THIS grid only.
- *
- * Exported for the test suite: this and `bodyCellsFor` are the DOM-WRITING
- * queries — `buildColumnGhost` clones what they return into the drag image and
- * `setSourceHidden` / `translateCol` write inline styles onto it — so the
- * `ownedBy` filter matters more here than anywhere else, and asserting a
- * replica of the expression in a test would not have caught its absence.
- */
-export function headerCellsFor(root, key) {
-    return Array.from(root.querySelectorAll('[data-grid-row="header"] [data-grid-col="' + key + '"]')).filter(ownedBy(root));
-}
-/** Body cells of a column: same attribute, anywhere EXCEPT the header row. */
-export function bodyCellsFor(root, key) {
-    return Array.from(root.querySelectorAll('[data-grid-col="' + key + '"]'))
-        .filter((el) => el.closest('[data-grid-row="header"]') === null)
-        .filter(ownedBy(root));
-}
-/**
- * A column's segment is the VALUE of the nearest [data-grid-col-seg] ancestor
- * — 'p:<run>' pinned, 's:<run>' scrolling, where <run> is a run id and NOT the
- * group label (see the module header).
- *
- * By VALUE, never by container identity. gridSegmentsOf merges a run into one
- * container only when the group label is non-empty, so every UNGROUPED column
- * sits in a container of its own. Treating the container as the segment would
- * make each of them a size-1 segment, and an ungrouped grid — which is most of
- * them — would be completely undraggable while every test still passed.
- */
-function segOf(cell) {
-    const holder = cell.closest('[data-grid-col-seg]');
-    return holder ? holder.getAttribute('data-grid-col-seg') : null;
-}
-/**
- * Only cells belonging to THIS grid. querySelectorAll reaches DOWN into a
- * nested DataGridSpec rendered in a detail slot — whose root sits inside this
- * root — and its header cells would otherwise be counted as this grid's
- * columns, polluting both the key order and segment membership. `closest()`
- * walks up, so the nearest [data-grid-id] ancestor names the owning grid.
- */
-function ownedBy(root) {
-    return (el) => el.closest('[data-grid-id]') === root;
-}
-/** Header cells sharing a segment value, in document (visual) order. */
-function segmentCells(root, seg) {
-    const mine = ownedBy(root);
-    return Array.from(root.querySelectorAll('[data-grid-row="header"] [data-grid-col]')).filter((el) => el.offsetParent !== null && mine(el) && segOf(el) === seg);
-}
 // ─── Main export ──────────────────────────────────────────────────────────────
 /**
  * Wire up per-instance header-cell drag-to-reorder for a DataGridSpec.
@@ -179,7 +134,23 @@ function segmentCells(root, seg) {
  * VALUE is deliberately not read — `enabled` is the single source of truth —
  * so a caller wiring this up by hand needs no attribute, only a getter.
  */
-export function wireColumnDrag(gridId, onReorder, enabled) {
+export function wireColumnDrag(gridId, onReorder, enabled, 
+/**
+ * Every key the grid knows about, HIDDEN INCLUDED, in current order.
+ *
+ * The queries in this file read header CELLS, so they see only what is on
+ * screen. Emitting that as the order silently discards every hidden column,
+ * and showing one again appends it in declared order — throwing away
+ * wherever the user had put it. cf hit this and had to solve it in the
+ * consumer (market-column-order.js:137).
+ *
+ * Omitted, the emitted order is the visible one: the pre-P3 behaviour, so no
+ * existing caller moves.
+ *
+ * A getter like every other parameter — a @state initialiser's prop
+ * references arrive here as signals, never as values.
+ */
+allKeys) {
     let session = null;
     let mutationObserver = null;
     let waitTimer = null;
@@ -192,6 +163,11 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
     /** Live read of `reorderableColumns`. See the note on `enabled` above. */
     function resolveEnabled() {
         return typeof enabled === 'function' ? enabled() === true : enabled === true;
+    }
+    /** Live read of the full key order. See the note on `allKeys` above. */
+    function resolveAllKeys() {
+        const k = typeof allKeys === 'function' ? allKeys() : allKeys;
+        return Array.isArray(k) ? k : [];
     }
     function findRoot() {
         const id = resolveId();
@@ -450,8 +426,13 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
                 // The drag was confined to one segment, but the grid emits the FULL
                 // key order — splice the segment's new order back into the whole list.
                 const nextSeg = orderFromGapIndex(segKeys, srcId, g);
-                if (nextSeg)
-                    onReorder(applySegmentOrder(readKeyOrder(), segKeys, nextSeg));
+                if (nextSeg) {
+                    const visible = applySegmentOrder(readKeyOrder(), segKeys, nextSeg);
+                    // Put the hidden keys back where they were before emitting: the
+                    // caller persists this, and a truncated order loses their positions
+                    // permanently.
+                    onReorder(mergeHiddenKeys(resolveAllKeys(), visible));
+                }
             },
             onCancel: (srcId) => {
                 resetVisuals(srcId);
@@ -513,4 +494,8 @@ export function wireColumnDrag(gridId, onReorder, enabled) {
     return teardown;
 }
 export { genGridId } from './column-reorder-math.js';
+// Re-exported so data-grid-spec.spec keeps exactly ONE `@extern` line, and the
+// group wire reaches the registry as a TRANSITIVE import — the case P0's graph
+// walker exists for.
+export { wireGroupDrag } from './data-grid-group-drag.js';
 //# sourceMappingURL=data-grid-column-drag.js.map

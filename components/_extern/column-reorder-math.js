@@ -66,4 +66,59 @@ export function applySegmentOrder(fullKeys, segmentKeys, newSegmentKeys) {
     let i = 0;
     return fullKeys.map((k) => (inSegment.has(k) ? newSegmentKeys[i++] ?? k : k));
 }
+/**
+ * The order to EMIT after a drag: the keys the wire could see, with every key
+ * of the full order that is NOT on screen retained in place.
+ *
+ * The wire reads header cells, so a drag performed while columns are hidden
+ * emits only the visible ones. Saving that verbatim discards the hidden keys,
+ * and showing them again appends them in declared order — throwing away
+ * wherever the user had put them.
+ *
+ * Retention is ANCHORED, not appended: each missing key is re-inserted directly
+ * after the nearest still-visible key that preceded it in the full order (or at
+ * the front, when nothing preceded it). Anchoring is what makes the POSITION
+ * survive rather than merely the membership.
+ *
+ * `visibleOrder` is de-duplicated first. A repeated key renders two cells
+ * carrying the same `data-grid-col`, which breaks every query in the wire — and
+ * because the grid re-emits its order, a caller that persists would persist the
+ * corruption.
+ *
+ * Ported from cf's market-column-order.js, which had to solve this in the
+ * consumer because the component did not.
+ */
+export function mergeHiddenKeys(fullOrder, visibleOrder) {
+    const seen = new Set();
+    const next = [];
+    for (const k of visibleOrder) {
+        if (k && !seen.has(k)) {
+            seen.add(k);
+            next.push(k);
+        }
+    }
+    if (fullOrder.length === 0)
+        return next;
+    // anchor key -> the missing keys that trailed it. '' is the head of the list.
+    const trailing = new Map();
+    let anchor = '';
+    for (const k of fullOrder) {
+        if (seen.has(k)) {
+            anchor = k;
+            continue;
+        }
+        const bucket = trailing.get(anchor);
+        if (bucket)
+            bucket.push(k);
+        else
+            trailing.set(anchor, [k]);
+    }
+    const out = [...(trailing.get('') ?? [])];
+    for (const k of next) {
+        out.push(k);
+        for (const t of trailing.get(k) ?? [])
+            out.push(t);
+    }
+    return out;
+}
 //# sourceMappingURL=column-reorder-math.js.map
