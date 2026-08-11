@@ -251,9 +251,14 @@ component FormErrorSummary(
     layout: vertical, gap: 4px
     role: 'alert'
 
-    text(title) { color: semantic.destructive-hover, weight: 700, style: type.body-sm }
+    // body-md, not body-sm. This panel is the message that tells someone the
+    // form will not submit; at body-sm it rendered SMALLER than every control
+    // around it (measured in Vector at its 1.125 scale on 2026-08-10: 12.6px
+    // against 15.75px controls, only 1.35px above a per-field caption). The
+    // weights carry the emphasis — the size should not also whisper.
+    text(title) { color: semantic.destructive-hover, weight: 700, style: type.body-md }
     each items as it, i {
-      text('• ' + it) { color: semantic.destructive-hover, weight: 500, style: type.body-sm }
+      text('• ' + it) { color: semantic.destructive-hover, weight: 500, style: type.body-md }
     }
 
     button {
@@ -269,7 +274,7 @@ component FormErrorSummary(
       text(jumpLabel) {
         color: semantic.destructive-hover
         weight: 700
-        style: type.body-sm
+        style: type.body-md
         text-decoration: 'underline'
       }
     }

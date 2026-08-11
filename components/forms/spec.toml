@@ -1,6 +1,6 @@
 [package]
 name = "forms"
-version = "0.6.2"
+version = "0.6.3"
 category = "components"
 description = "Form validation standard: validateFields engine, FormField with submit-on-Enter, and FormErrorSummary"
 license = "MIT"
