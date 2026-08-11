@@ -22,6 +22,17 @@ component Select(options: array = [], value: string = "", placeholder: string = 
     selectedOption: safeOptions.find(o => o.value == value)
     displayText: selectedOption != null ? selectedOption.label : placeholder
     hasOptions: filteredOptions.length > 0
+    // Option groups. An option may carry `group: string`; a non-interactive
+    // header row renders above the FIRST option of each contiguous run of the
+    // same group (DataGrid's `_gFirst` idiom — callers pass options already
+    // ordered by group). This list is 1:1 with filteredOptions — same length,
+    // same order — so highlightIndex, scroll-to and selectHighlighted never
+    // learn that headers exist. Group-less options mark no firsts and render
+    // no headers, keeping every existing caller untouched.
+    groupedOptions: filteredOptions |> map((o, i) => {
+      _opt: o,
+      _gFirst: o.group != null && o.group != '' && (i == 0 || filteredOptions[i - 1].group != o.group)
+    })
     // Index of the currently-selected option (0 when none) so opening the
     // dropdown highlights it — the `scroll-to: idx == highlightIndex` binding
     // below then scrolls the selected value into view instead of the top.
@@ -203,14 +214,31 @@ component Select(options: array = [], value: string = "", placeholder: string = 
           visibility: hasOptions
           layout: vertical
 
-          each filteredOptions as option, idx {
+          each groupedOptions as g, idx {
+            // Group header — present in every iteration, shown only on the
+            // first option of a run (`visibility:` compiles to display:none,
+            // so hidden headers cost nothing visible). The explicit `role:`
+            // opts this row out of markListboxOptions' automatic
+            // `role="option"` stamp — the developer took responsibility.
+            block {
+              visibility: g._gFirst
+              role: "presentation"
+              padding: spacing.2
+              cursor: "default"
+              text(g._gFirst ? g._opt.group : "") {
+                style: type.label-sm
+                color: semantic.text-tertiary
+                weight: 700
+                letter-spacing: '0.06em'
+              }
+            }
             block {
               padding: spacing.2
               border-radius: radius.sm
               cursor: "pointer"
               background: match idx == highlightIndex {
                 true -> token.select-optionHover,
-                _ -> match option.value == value {
+                _ -> match g._opt.value == value {
                   true -> token.select-optionSelected,
                   _ -> "transparent"
                 }
@@ -220,14 +248,14 @@ component Select(options: array = [], value: string = "", placeholder: string = 
               // is an option — ast-to-ir markListboxOptions). Selection is NOT
               // inferable: only this component knows which row is current, so
               // it says so here.
-              aria-selected: option.value == value
+              aria-selected: g._opt.value == value
               on hover { background: token.select-optionHover }
-              on click: selectOption(option.value)
+              on click: selectOption(g._opt.value)
 
-              text(option.label) {
+              text(g._opt.label) {
                 style: type.body-md
-                color: option.value == value ? semantic.interactive : semantic.text-primary
-                weight: option.value == value ? 500 : 400
+                color: g._opt.value == value ? semantic.interactive : semantic.text-primary
+                weight: g._opt.value == value ? 500 : 400
               }
             }
           }
