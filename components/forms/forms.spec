@@ -131,6 +131,16 @@ component FormField(
                  : (labelTone == 'secondary' ? semantic.text-secondary
                  : (labelTone == 'primary'   ? semantic.text-primary
                  : semantic.text-tertiary))
+    // The default comes from the `field-labelStyle` COMPONENT TOKEN, so an app
+    // sets its field-label size once — `@visual-system { field.labelStyle:
+    // 'body-md' }`, or per theme `@theme dense { field-labelStyle: 'label-xs' }`
+    // — instead of passing `labelStyle:` at every call site. The token's value
+    // space is the prop's: a type-scale level name, never a CSS length. The
+    // explicit prop still wins, so a single odd field stays a one-line override.
+    //
+    // The token ships as 'label-sm', which is what this line hardcoded before —
+    // adopting it changes nothing until an app overrides it.
+    //
     // label-sm, not label-xs. `label-xs` is floor-clamped at 10px, so an
     // unstyled field label rendered at or below the CAPTION tier — a field's
     // name no larger than its own footnote. Two signals, not one opinion:
@@ -139,7 +149,7 @@ component FormField(
     // label 11.2px → 10px on a pure rename; and cf overrides `labelStyle` at
     // every labelled call site rather than accept the default. A default every
     // adopter overrides is the wrong default.
-    effLabelStyle: labelStyle != '' ? labelStyle : type.label-sm
+    effLabelStyle: labelStyle != '' ? labelStyle : token.field-labelStyle
   }
 
   @actions {
