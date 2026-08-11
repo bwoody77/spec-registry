@@ -54,7 +54,12 @@
 //
 // Keyboard
 //   ArrowDown / ArrowUp — move highlight (wraps).
-//   Enter               — pick highlighted option (if any).
+//   Enter               — commits when the user has arrow-keyed a highlight,
+//                         when the typed text exactly matches an option label,
+//                         or (strict mode) when typing has narrowed the list to
+//                         a single option. Otherwise it just closes: Enter on an
+//                         untouched field must never commit whichever option
+//                         happens to sit at the default highlight position.
 //   Escape              — close dropdown without picking.
 //   Tab                 — in strict mode, commits the typed text when it
 //                         exactly matches an option label (case-insensitive);
@@ -209,13 +214,14 @@ component Autocomplete(
         if !open { open = true }
       }
     }
-    // Enter handling. We only commit an option when the user has either
-    // (a) actively highlighted it with the arrow keys, or (b) typed a query
-    // that EXACTLY matches an option's label. Pressing Enter on an empty /
-    // partial field where option 0 just happens to sit at the default
-    // highlight position must NOT silently pick it — in freeText mode we
-    // keep the typed value and just close the dropdown; in strict mode we
-    // close without committing a wrong selection.
+    // Enter handling. We commit an option when the user has (a) actively
+    // highlighted it with the arrow keys, (b) typed a query that EXACTLY
+    // matches an option's label, or (c) typed a query that narrowed the list
+    // to a SINGLE option. Pressing Enter on an empty / partial field where
+    // option 0 just happens to sit at the default highlight position must NOT
+    // silently pick it — in freeText mode we keep the typed value and just
+    // close the dropdown; in strict mode we close without committing a wrong
+    // selection.
     selectHighlighted() {
       if open && userHighlighted && matchLen > 0 && safeIndex < matchLen {
         pickOption(filteredOptions[safeIndex])
@@ -227,8 +233,19 @@ component Autocomplete(
         pickOption(exactHit)
         return
       }
-      // No user-chosen highlight and no exact-match query: don't snap to the
-      // default option. freeText keeps the typed value; both modes close.
+      // Sole surviving match — standard combobox behaviour, and not the
+      // ambiguity the default-highlight guard exists for: the user's own
+      // typing is what singled this option out, so Enter commits it rather
+      // than forcing a reach for the mouse. STRICT MODE ONLY: freeText does
+      // no internal filtering (the caller owns `options`), so one option
+      // there is a suggestion, not a match, and must never overwrite the
+      // typed value.
+      if !freeText && open && typing && q != "" && matchLen == 1 {
+        pickOption(filteredOptions[0])
+        return
+      }
+      // No user-chosen highlight, no exact match, no sole match: don't snap to
+      // the default option. freeText keeps the typed value; both modes close.
       closeDropdown()
     }
     closeDropdown() {
