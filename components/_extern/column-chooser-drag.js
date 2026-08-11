@@ -137,6 +137,15 @@ export function wireChooserDrag(chooserId, onReorder, columns, order) {
     }
     function mount(list) {
         listEl = list;
+        // The wire's own attach signal.
+        //
+        // There has to be one, and it cannot be `cursor: grab` the way it is for
+        // the grid's header drag: there the WIRE sets the cursor, here the `.spec`
+        // sets it statically in markup. A test waiting on the cursor is therefore
+        // waiting on something that is true before the wire exists — it passes
+        // against a completely unattached wire, which is exactly how two drag
+        // tests came to race the 80ms poll and fail only on a slower machine.
+        list.setAttribute('data-colchooser-armed', 'true');
         handle = mountGridDrag({
             container: list,
             sources: GRIP,
@@ -278,6 +287,8 @@ export function wireChooserDrag(chooserId, onReorder, columns, order) {
                 handle = null;
             }
             clearDragVisuals();
+            if (listEl)
+                listEl.removeAttribute('data-colchooser-armed');
             listEl = null;
             if (found)
                 mount(found);
@@ -305,6 +316,8 @@ export function wireChooserDrag(chooserId, onReorder, columns, order) {
             handle = null;
         }
         clearDragVisuals();
+        if (listEl)
+            listEl.removeAttribute('data-colchooser-armed');
         listEl = null;
     };
 }
