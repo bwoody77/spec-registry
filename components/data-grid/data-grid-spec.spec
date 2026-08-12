@@ -314,6 +314,24 @@ fn _applyFilters(rows: list, filters: list) -> list {
   })
 }
 
+// ─── Keyboard scope ─────────────────────────────────────────────────────────
+// A key event that started inside a form control belongs to that control, not
+// to the grid.
+//
+// `on key-down` is bound to the grid ROOT, so every keystroke anywhere inside
+// reaches it — and the grid claims SPACE (toggle the focused row) and ctrl-A
+// (select every row), preventDefaulting both. Inside a text field that means a
+// space cannot be typed and ctrl-A cannot select the field's text.
+//
+// This has always applied to the column-filter inputs; the toolbar slot merely
+// made it reachable for a caller's search box, which is what the slot is FOR.
+fn gridKeyFromField(target: map) -> boolean {
+  if target == null { return false }
+  if target.isContentEditable == true { return true }
+  let tag = target.tagName
+  return tag == "INPUT" || tag == "TEXTAREA" || tag == "SELECT"
+}
+
 component DataGrid(
   columns: array,
   rows: array,
@@ -537,6 +555,15 @@ component DataGrid(
     // parity batch. A consumer that never touches `sort` sees nothing.
     sort: {
       sortState = sort
+    }
+    // The same seed-once hazard as sort/columnOrder/hiddenColumns, and the one
+    // prop that got missed. Vector's pilots page does
+    // `if !selectMode { selectedIds = [] }`, so leaving select mode cleared the
+    // PAGE's array while the grid kept its own — and the bulk-actions bar is
+    // gated on the grid's set, so it stayed on screen holding keys nothing on
+    // the page still showed as selected.
+    selected: {
+      selectedSet = selected
     }
   }
 
@@ -814,17 +841,19 @@ component DataGrid(
     data-grid-reorderable: reorderableColumns ? 'true' : 'false'
 
     on key-down(event): {
-      match event.key {
-        "ArrowDown"  -> moveDown(),
-        "ArrowUp"    -> moveUp(),
-        "ArrowRight" -> moveRight(),
-        "ArrowLeft"  -> moveLeft(),
-        " "          -> selectFocused(),
-        _            -> {}
-      }
-      if event.key == "a" && event.ctrlKey == true && selection == "multi" {
-        event.preventDefault()
-        if allSelected { clearSelection() } else { selectAllRows() }
+      if !gridKeyFromField(event.target) {
+        match event.key {
+          "ArrowDown"  -> moveDown(),
+          "ArrowUp"    -> moveUp(),
+          "ArrowRight" -> moveRight(),
+          "ArrowLeft"  -> moveLeft(),
+          " "          -> selectFocused(),
+          _            -> {}
+        }
+        if event.key == "a" && event.ctrlKey == true && selection == "multi" {
+          event.preventDefault()
+          if allSelected { clearSelection() } else { selectAllRows() }
+        }
       }
     }
 
@@ -1496,8 +1525,11 @@ component DataGrid(
     // The count is the grid's, the buttons are the caller's, and an unprovided
     // slot still leaves a usable bar. `selectedSet` holds row KEYS (see
     // selectRow), so a caller can act on them without a lookup.
+    // Gated on `selection` as well as the set: a caller may seed `selected` to
+    // TINT rows without opting into selection UI, and an action bar it never
+    // asked for has no control on screen able to clear it.
     block {
-      visibility: selectedSet.length > 0
+      visibility: selection != "none" && selectedSet.length > 0
       data-grid-row: "bulk"
       padding-y: spacing.2
       padding-x: spacing.3
