@@ -314,7 +314,7 @@ fn _applyFilters(rows: list, filters: list) -> list {
   })
 }
 
-component DataGridSpec(
+component DataGrid(
   columns: array,
   rows: array,
   selection: string = "none",

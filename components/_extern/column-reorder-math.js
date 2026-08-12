@@ -1,5 +1,5 @@
 /**
- * Pure math behind DataGridSpec's column drag-to-reorder.
+ * Pure math behind DataGrid's column drag-to-reorder.
  *
  * No DOM, no @spec imports — every decision that can be made from numbers
  * lives here so it can be unit-tested. The component suite runs in happy-dom,
@@ -7,7 +7,7 @@
  * effectively untested. Keep that boundary.
  *
  * Ported from Vector's data-table-header-drag-helpers.js, with the segment
- * splice added: DataGridSpec constrains a drag to its column's segment but
+ * splice added: DataGrid constrains a drag to its column's segment but
  * emits the FULL key order, so the two have to be reconciled.
  */
 /** Unique per grid INSTANCE, so two grids on one page never share a session. */

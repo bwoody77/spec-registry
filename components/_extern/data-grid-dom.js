@@ -1,5 +1,5 @@
 /**
- * DataGridSpec DOM queries, shared by the two drag wires.
+ * DataGrid DOM queries, shared by the two drag wires.
  *
  * `data-grid-column-drag.ts` moves a COLUMN within its segment;
  * `data-grid-group-drag.ts` moves a whole labelled SEGMENT among its siblings.
@@ -11,7 +11,7 @@
 export const HEADER_CELLS = '[data-grid-row="header"] [data-grid-col]';
 /**
  * Only cells belonging to THIS grid. querySelectorAll reaches DOWN into a
- * nested DataGridSpec rendered in a detail slot — whose root sits inside this
+ * nested DataGrid rendered in a detail slot — whose root sits inside this
  * root — and its header cells would otherwise be counted as this grid's
  * columns, polluting both the key order and segment membership. `closest()`
  * walks up, so the nearest [data-grid-id] ancestor names the owning grid.

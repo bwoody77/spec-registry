@@ -1,8 +1,8 @@
 /**
- * Derived row grouping for DataGridSpec.
+ * Derived row grouping for DataGrid.
  *
  * ── Why this is a pure function and not a second render path ────────────────
- * DataGridSpec already renders `_kind: 'group'` rows: the caret, the collapse,
+ * DataGrid already renders `_kind: 'group'` rows: the caret, the collapse,
  * the group background and the toggle are all shipped code. `DataTable`'s
  * model differs only in WHERE the group headers come from — it derives them
  * from a field instead of making the caller inject them.

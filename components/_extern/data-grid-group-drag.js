@@ -1,5 +1,5 @@
 /**
- * DataGridSpec — drag a labelled GROUP as a block.
+ * DataGrid — drag a labelled GROUP as a block.
  *
  * ── Why this is a second wire, not a flag on the first ──────────────────────
  * `data-grid-column-drag.ts` confines a drag to the source column's SEGMENT.
@@ -15,7 +15,7 @@
  * not header cells) and the commit (concatenate each segment's member keys).
  *
  * ── Only LABELLED runs are draggable ────────────────────────────────────────
- * The source is the `[data-grid-seg-label]` cell, which DataGridSpec stamps
+ * The source is the `[data-grid-seg-label]` cell, which DataGrid stamps
  * only on a run whose group label is non-empty. Every ungrouped column in a
  * run shares one segment, so arming that segment would drag all of them at
  * once — which is not what anyone means by moving a column.
@@ -27,7 +27,7 @@
 import { createDragSession } from './drag-core/pointer.js';
 import { gapFromX, orderFromGapIndex, mergeHiddenKeys, } from './column-reorder-math.js';
 import { HEADER_CELLS, ownedBy, segOf } from './data-grid-dom.js';
-/** Bound by DataGridSpec to `reorderableColumns`; see wireColumnDrag. */
+/** Bound by DataGrid to `reorderableColumns`; see wireColumnDrag. */
 const ENABLED_ATTR = 'data-grid-reorderable';
 const SEG_LABEL = '[data-grid-seg-label]';
 const SEG = '[data-grid-col-seg]';

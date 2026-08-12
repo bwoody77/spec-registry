@@ -1,13 +1,13 @@
 /**
- * DataGridSpec per-instance column-drag wire-up.
+ * DataGrid per-instance column-drag wire-up.
  *
  * Lets the user drag a column HEADER cell left/right to reorder columns.
  * Designed for grids that share a page — no module-level singletons, so two
- * (or more) DataGridSpec instances never clobber each other. Each call to
+ * (or more) DataGrid instances never clobber each other. Each call to
  * `wireColumnDrag` creates its own closure-local session, observer, timer and
  * slot element; there is deliberately NO module-level `let session`.
  *
- * Spec usage (DataGridSpec @state, declared AFTER the @action it references):
+ * Spec usage (DataGrid @state, declared AFTER the @action it references):
  *
  *   _gridId:      genGridId()
  *   _colDragInit: wireColumnDrag(_gridId, onColDragReorder, reorderableColumns)
@@ -90,7 +90,7 @@ function num(px, fallback) {
     return Number.isFinite(n) ? n : fallback;
 }
 /**
- * Bound by DataGridSpec on the grid root to `reorderableColumns`. Its VALUE is
+ * Bound by DataGrid on the grid root to `reorderableColumns`. Its VALUE is
  * never read — `enabled` is the source of truth. It exists so a MutationObserver
  * can notice the prop flipping, which is the only way plain DOM code learns
  * that a Spec signal changed. See the note on `enabled` in `wireColumnDrag`.
@@ -98,7 +98,7 @@ function num(px, fallback) {
 const ENABLED_ATTR = 'data-grid-reorderable';
 // ─── Main export ──────────────────────────────────────────────────────────────
 /**
- * Wire up per-instance header-cell drag-to-reorder for a DataGridSpec.
+ * Wire up per-instance header-cell drag-to-reorder for a DataGrid.
  *
  * @param gridId    unique ID returned by genGridId() (or a getter for it)
  * @param onReorder called with the full new visible key order on drop
@@ -129,7 +129,7 @@ const ENABLED_ATTR = 'data-grid-reorderable';
  * and restores every cell it touched when it is switched back off.
  *
  * The re-arm TRIGGER is the grid root's `data-grid-reorderable` attribute,
- * which DataGridSpec binds to the same prop: a MutationObserver is the only
+ * which DataGrid binds to the same prop: a MutationObserver is the only
  * way plain DOM code can learn that a Spec signal changed. The attribute's
  * VALUE is deliberately not read — `enabled` is the single source of truth —
  * so a caller wiring this up by hand needs no attribute, only a getter.
