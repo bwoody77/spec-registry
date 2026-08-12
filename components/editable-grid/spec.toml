@@ -1,6 +1,6 @@
 [package]
 name = "editable-grid"
-version = "0.3.0"
+version = "1.0.0"
 category = "components"
 description = "Spreadsheet-style grid with inline cell editing and validation"
 license = "MIT"

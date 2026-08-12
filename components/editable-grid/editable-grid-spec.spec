@@ -228,12 +228,12 @@ fn buildChangesetFromEdits(editedValues: list, dirtyCells: list, rows: list, row
   return { modified: modified, added: [], deleted: [] }
 }
 
-component EditableGridSpec(
+component EditableGrid(
   rowIdField: string = "id",
   activation: string = "enter",
   saveMode: string = "batch",
   undoDepth: number = 50
-) extends DataGridSpec {
+) extends DataGrid {
   @state {
     activeRow: 0
     activeCol: 0
