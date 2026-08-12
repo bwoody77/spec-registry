@@ -1007,7 +1007,19 @@ component DataGrid(
                     max-width: col._max
                     cursor: col._col.sortable ? "pointer" : "default"
                     data-grid-col: col._col.key
-                    layout: vertical, justify: end
+                    // Per-column horizontal alignment, header half. This cell is
+                    // a COLUMN flex (it stacks a group label over the heading),
+                    // so the horizontal axis here is `align` — `justify: end`
+                    // below is already spoken for and means BOTTOM. Getting that
+                    // backwards produces a test that passes against unfixed code.
+                    //
+                    // Anything other than end/center resolves to `stretch`, NOT
+                    // `start`: the heading block is a plain child that currently
+                    // fills this cell, and shrink-wrapping it would stop a
+                    // caller's header slot from spanning the column — the exact
+                    // regression the `grow` note on the body cell describes.
+                    // `start` and `stretch` are visually identical for a heading.
+                    layout: vertical, justify: end, align: col._col.align == "end" ? "end" : (col._col.align == "center" ? "center" : "stretch")
                     // NO `on click` on the cell. The control is the button
                     // below; a handler here too would fire a second toggle as
                     // the button's click bubbled, flipping asc->desc->asc so
@@ -1121,7 +1133,19 @@ component DataGrid(
                     max-width: col._max
                     cursor: col._col.sortable ? "pointer" : "default"
                     data-grid-col: col._col.key
-                    layout: vertical, justify: end
+                    // Per-column horizontal alignment, header half. This cell is
+                    // a COLUMN flex (it stacks a group label over the heading),
+                    // so the horizontal axis here is `align` — `justify: end`
+                    // below is already spoken for and means BOTTOM. Getting that
+                    // backwards produces a test that passes against unfixed code.
+                    //
+                    // Anything other than end/center resolves to `stretch`, NOT
+                    // `start`: the heading block is a plain child that currently
+                    // fills this cell, and shrink-wrapping it would stop a
+                    // caller's header slot from spanning the column — the exact
+                    // regression the `grow` note on the body cell describes.
+                    // `start` and `stretch` are visually identical for a heading.
+                    layout: vertical, justify: end, align: col._col.align == "end" ? "end" : (col._col.align == "center" ? "center" : "stretch")
                     // NO `on click` on the cell. The control is the button
                     // below; a handler here too would fire a second toggle as
                     // the button's click bubbled, flipping asc->desc->asc so
@@ -1317,7 +1341,14 @@ component DataGrid(
                 block {
                 padding: pad
                 grow: true
-                layout: horizontal, gap: spacing.1, align: center
+                // Per-column horizontal alignment. This is a ROW flex, so the
+                // horizontal axis is `justify`. It goes HERE and not on the
+                // cell above because `grow: true` makes this box fill the cell
+                // — aligning the cell would move a child that already spans it.
+                // Absent `align` resolves to "start", which is the flex default,
+                // so an undeclared column renders exactly as before.
+                data-grid-cell-content: col._col.key
+                layout: horizontal, gap: spacing.1, align: center, justify: col._col.align != null ? col._col.align : "start"
                 // Group rows carry the expand/collapse control: the open state
                 // is the grid's, so the caller's cell slot cannot own it.
                 button {
@@ -1419,7 +1450,14 @@ component DataGrid(
                 block {
                 padding: pad
                 grow: true
-                layout: horizontal, gap: spacing.1, align: center
+                // Per-column horizontal alignment. This is a ROW flex, so the
+                // horizontal axis is `justify`. It goes HERE and not on the
+                // cell above because `grow: true` makes this box fill the cell
+                // — aligning the cell would move a child that already spans it.
+                // Absent `align` resolves to "start", which is the flex default,
+                // so an undeclared column renders exactly as before.
+                data-grid-cell-content: col._col.key
+                layout: horizontal, gap: spacing.1, align: center, justify: col._col.align != null ? col._col.align : "start"
                 // Same control for an unpinned grid, where column 0 is here.
                 button {
                   visibility: gridRowKind(row) == "group" && colIdx == 0 && !pinFirst
