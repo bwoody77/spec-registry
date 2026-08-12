@@ -1,10 +1,24 @@
 // Toggle — custom toggle/switch with event forwarding
+//
+// Renders a <button role="switch"> carrying aria-checked, so assistive tech
+// announces both the control AND its state. Without it this was a plain
+// <button> whose accessible name was just the label, and whose on/off state
+// existed ONLY as a track colour and a thumb translateX — a screen-reader user
+// was told "Include nav databases, button" with no way to know which way it was
+// set. Checkbox had already been given the same treatment; this component was
+// missed, and the omission reached every call site that adopted it.
+//
+// role="switch" rather than "checkbox": both announce a binary state, but a
+// switch is the on/off control this renders and it has no indeterminate state.
 component Toggle(label: string, checked: boolean = false, disabled: boolean = false) {
   button {
     disabled: disabled
     border: "none"
     background: "transparent"
     padding: 0
+    role: "switch"
+    aria-checked: checked
+    aria-disabled: disabled
     layout: horizontal, gap: 10px, align: center
     cursor: match disabled {
       true -> "default",
