@@ -1,4 +1,5 @@
 @extern { genGridId, wireColumnDrag, wireGroupDrag } from "@spec/components/data-grid-column-drag.js"
+@extern { gridDeriveGroupRows } from "@spec/components/grid-group-derive.js"
 
 fn toggleSortState(sortState: list, colKey: string) -> list {
   let existing = sortState |> find(s => s.key == colKey)
@@ -251,6 +252,20 @@ fn gridVisibleRows(rows: list, openGroups: list) -> list {
   return rows |> filter(r => r._group == null || gridGroupIsOpen(openGroups, r._group))
 }
 
+// The DERIVED model's visibility rule, and the inverse of the one above.
+//
+// Structural grouping lists what is OPEN and defaults to closed; derived
+// grouping lists what is CLOSED and defaults to open. Inverting either would
+// move every existing consumer, so the two rules sit side by side and
+// `groupBy` picks between them.
+fn gridDerivedIsOpen(collapsed: list, key: string) -> boolean {
+  return !(collapsed |> some(k => (k + '') == key))
+}
+
+fn gridVisibleDerivedRows(rows: list, collapsed: list) -> list {
+  return rows |> filter(r => r._kind != null || r._group == null || gridDerivedIsOpen(collapsed, r._group))
+}
+
 fn gridRowRail(row: map) -> string {
   if row._accent != null { return 'inset 3px 0 0 ' + row._accent }
   return 'none'
@@ -395,6 +410,41 @@ component DataGridSpec(
   // grid whose caller does not handle the two events must not offer controls
   // that appear to do nothing.
   configurableColumns: boolean = false,
+
+  // ─── P4: the three states a fetching grid needs ───────────────────────────
+  // Fetching the FIRST page. This also fixes a latent bug: the empty state was
+  // gated on "no rows" and nothing else, so a grid that was still loading
+  // rendered "No rows" at the user while the data was in flight.
+  loading: boolean = false,
+  // More rows exist beyond the ones given. Renders one Load more control; the
+  // grid never fetches, it asks.
+  hasMore: boolean = false,
+  emptyText: string = "No rows",
+
+  // ─── P5: derived row grouping ─────────────────────────────────────────────
+  // Group rows by a FIELD, rather than by the caller injecting `_kind: 'group'`
+  // rows itself. Setting this selects the derived path; leaving it empty is
+  // today's structural behaviour, untouched.
+  //
+  // The two models differ in who owns collapse AND in polarity — structural is
+  // grid-owned and lists what is OPEN, derived is caller-owned and lists what
+  // is CLOSED — so they do not merge. Derived wins when both are present.
+  groupBy: string = "",
+  // Caller-supplied counts per group value, for a paginated grid where the
+  // rows present are a fraction of the group. Falls back to counting the rows
+  // that are here. Keys are matched as strings, so a numeric-keyed map works.
+  groupCounts: object = {},
+  // Group values that are CLOSED. Everything else is open.
+  collapsedGroups: array = [],
+
+  // ─── P6: parity oddments ──────────────────────────────────────────────────
+  // Stamped as data-testid on every body row. "" stamps nothing at all.
+  rowTestId: string = "",
+  // The header pins to the scroll container by default. Vector's DataTable
+  // carries a comment claiming a dynamic `position:` compiles to `static`;
+  // that was fixed (ast-to-ir.ts routes positionExpr through buildExprStyle),
+  // so this really is one binding.
+  stickyHeader: boolean = true,
 ) {
   @state {
     // Per-instance id, so two grids on one page never share a drag session.
@@ -466,6 +516,19 @@ component DataGridSpec(
     hiddenColumns: {
       _hidden = hiddenColumns
     }
+    // P6.1. `sortState` seeded ONCE at mount and never again, so a caller
+    // narrowing or replacing `sort` moved the header arrow while the grid went
+    // on ordering rows by its stale state — a sort indicator naming a column
+    // the rows are not ordered by. Recorded live at market-page.spec:601, and
+    // worked around there by mounting two grids and letting the incoming one
+    // re-seed; that workaround can now go.
+    //
+    // This CHANGES BEHAVIOUR for every existing consumer that mutates `sort`
+    // after mount, which is why it is its own commit rather than part of the
+    // parity batch. A consumer that never touches `sort` sees nothing.
+    sort: {
+      sortState = sort
+    }
   }
 
   @computed {
@@ -501,8 +564,23 @@ component DataGridSpec(
     processedRows: externalSort
       ? applySortAndFilter(rows, [], filters)
       : applySortAndFilter(rows, sortState, filters)
+    // `groupBy` selects the model. The derived path builds the SAME
+    // `_kind: 'group'` rows the structural path renders, so everything
+    // downstream — the caret, the collapse, the group background — is the code
+    // that already ships. One render path, two sources.
+    isGrouped: groupBy != ""
+    groupedRows: isGrouped ? gridDeriveGroupRows(processedRows, groupBy, groupCounts) : processedRows
     // Rows whose group is collapsed drop out; group headers and totals remain.
-    displayRows: gridVisibleRows(processedRows, openGroups)
+    displayRows: isGrouped
+      ? gridVisibleDerivedRows(groupedRows, collapsedGroups)
+      : gridVisibleRows(processedRows, openGroups)
+    // P4 states. The empty text renders only when there is nothing to show AND
+    // nothing on its way — the condition the old empty state was missing.
+    isEmpty: !loading && displayRows.length == 0
+    isFirstLoad: loading && displayRows.length == 0
+    // "" must stamp NO attribute; a binding removes one only for null.
+    rowTestIdAttr: rowTestId != "" ? rowTestId : null
+    headerPosition: stickyHeader ? "sticky" : "static"
     // Each column carries its resolved min/max width. `min-width:` will not
     // parse a function call, so the sizes are computed here, once, and read as
     // plain member access at the use site — which also keeps every row reading
@@ -565,6 +643,30 @@ component DataGridSpec(
     toggleGroup(key) {
       openGroups = gridToggleGroup(openGroups, key)
       emit("groupToggle", key)
+    }
+    // The control on a group row, routed to whichever model is active. In the
+    // derived model the grid owns NOTHING: it emits the raw group value and
+    // the caller decides, because `collapsedGroups` is the caller's state.
+    toggleGroupRow(row) {
+      if isGrouped {
+        emit("groupToggle", row._groupValue)
+      } else {
+        toggleGroup(row._key)
+      }
+    }
+    groupRowIsOpen(row) {
+      if isGrouped { return gridDerivedIsOpen(collapsedGroups, row._group) }
+      return gridGroupIsOpen(openGroups, row._key)
+    }
+    loadMore() {
+      emit("loadMore")
+    }
+    // The active value of a column's filter, "" when none. Named once because
+    // the option list tests it four times per option.
+    filterValueOf(key) {
+      let f = filters.find(x => x.key == key)
+      if f == null { return "" }
+      return f.value
     }
     // No emit(), unlike toggleGroup: nothing consumes an expansion event, and
     // an unused event is API surface that has to be kept working forever.
@@ -738,7 +840,7 @@ component DataGridSpec(
           layout: horizontal
           background: semantic.surface-raised
           border-bottom: borders.strong
-          position: "sticky"
+          position: headerPosition
           top: 0px
           z-index: 4
           data-grid-row: "header"
@@ -953,14 +1055,57 @@ component DataGridSpec(
               grow: true
               min-width: col._min
               max-width: col._max
+              // Free-text filter — the default, and everything that does not
+              // opt into the option list below.
               block {
-                visibility: col.filterable == true
+                visibility: col.filterable == true && col.filter != "select"
                 textInput(filters.find(f => f.key == col.key) != null ? filters.find(f => f.key == col.key).value : "") {
                   placeholder: "Filter..."
                   border: borders.default
                   border-radius: radius.sm
                   width: 100%
                   on input(e): setFilter(col.key, e.target.value)
+                }
+              }
+              // Option-list filter: `filter: "select"` plus `filterOptions`.
+              // Runs through the SAME setFilter / `filter` event as the text
+              // variant — a preset is a filter value, not a second mechanism.
+              block {
+                visibility: col.filterable == true && col.filter == "select"
+                layout: horizontal, gap: spacing.1, align: center, wrap
+                // "All" is the reset, and carries the empty value so the
+                // active-option test is one comparison rather than a special case.
+                button {
+                  data-grid-filter-option: ""
+                  background: filterValueOf(col.key) == "" ? semantic.interactive-bg : 'transparent'
+                  border: 'none'
+                  border-radius: radius.sm
+                  padding-y: 4px
+                  padding-x: 8px
+                  cursor: 'pointer'
+                  on click: setFilter(col.key, "")
+                  text("All") {
+                    style: type.body-sm
+                    weight: filterValueOf(col.key) == "" ? 700 : 400
+                    color: filterValueOf(col.key) == "" ? semantic.interactive-text : semantic.text-primary
+                  }
+                }
+                each col.filterOptions as opt (opt.value) {
+                  button {
+                    data-grid-filter-option: opt.value
+                    background: filterValueOf(col.key) == opt.value ? semantic.interactive-bg : 'transparent'
+                    border: 'none'
+                    border-radius: radius.sm
+                    padding-y: 4px
+                    padding-x: 8px
+                    cursor: 'pointer'
+                    on click: setFilter(col.key, opt.value)
+                    text(opt.label) {
+                      style: type.body-sm
+                      weight: filterValueOf(col.key) == opt.value ? 700 : 400
+                      color: filterValueOf(col.key) == opt.value ? semantic.interactive-text : semantic.text-primary
+                    }
+                  }
                 }
               }
             }
@@ -994,6 +1139,7 @@ component DataGridSpec(
               rowClickToggle(row)
             }
             data-grid-row: gridRowKind(row) == "row" ? "body" : gridRowKind(row)
+            data-testid: gridRowKind(row) == "row" ? rowTestIdAttr : null
 
             block {
               visibility: selection == "multi"
@@ -1047,11 +1193,31 @@ component DataGridSpec(
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
                   aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
-                  on click: toggleGroup(row._key)
-                  text(gridGroupIsOpen(openGroups, row._key) ? "\u25be" : "\u25b8") {
+                  on click: toggleGroupRow(row)
+                  text(groupRowIsOpen(row) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
                     font-size: ctrlFont
                     color: semantic.text-secondary
+                  }
+                }
+                // A DERIVED group row has no caller cell content \u2014 the grid
+                // made it \u2014 so it names itself. A structural group row still
+                // takes its label from the caller's `cell` slot, untouched.
+                block {
+                  visibility: isGrouped && gridRowKind(row) == "group"
+                  layout: horizontal, gap: spacing.1, align: center
+                  text(row._groupLabel != null ? row._groupLabel : "") {
+                    style: type.label-sm
+                    weight: 700
+                    color: semantic.text-secondary
+                  }
+                  // Guarded: a row with no count must render nothing, not the
+                  // string "undefined". The block above is visibility-gated, so
+                  // an unguarded concat is invisible \u2014 and still sits in the
+                  // DOM's textContent for anything that reads it.
+                  text(row._groupCount != null ? ("\u00b7 " + (row._groupCount + "")) : "") {
+                    style: type.label-sm
+                    color: semantic.text-tertiary
                   }
                 }
                 // The row-detail caret, for the same reason the group control
@@ -1128,11 +1294,31 @@ component DataGridSpec(
                   cursor: 'pointer'
                   layout: horizontal, justify: center, align: center
                   aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
-                  on click: toggleGroup(row._key)
-                  text(gridGroupIsOpen(openGroups, row._key) ? "\u25be" : "\u25b8") {
+                  on click: toggleGroupRow(row)
+                  text(groupRowIsOpen(row) ? "\u25be" : "\u25b8") {
                     style: type.label-xs
                     font-size: ctrlFont
                     color: semantic.text-secondary
+                  }
+                }
+                // A DERIVED group row has no caller cell content \u2014 the grid
+                // made it \u2014 so it names itself. A structural group row still
+                // takes its label from the caller's `cell` slot, untouched.
+                block {
+                  visibility: isGrouped && gridRowKind(row) == "group"
+                  layout: horizontal, gap: spacing.1, align: center
+                  text(row._groupLabel != null ? row._groupLabel : "") {
+                    style: type.label-sm
+                    weight: 700
+                    color: semantic.text-secondary
+                  }
+                  // Guarded: a row with no count must render nothing, not the
+                  // string "undefined". The block above is visibility-gated, so
+                  // an unguarded concat is invisible \u2014 and still sits in the
+                  // DOM's textContent for anything that reads it.
+                  text(row._groupCount != null ? ("\u00b7 " + (row._groupCount + "")) : "") {
+                    style: type.label-sm
+                    color: semantic.text-tertiary
                   }
                 }
                 // The row-detail caret again, for the scrolling columns. The
@@ -1207,12 +1393,47 @@ component DataGridSpec(
         }
       }
 
-      // Empty state
+      // Empty state. Gated on `isEmpty`, NOT on "no rows": a grid that is
+      // still fetching used to render this at the user while the data was in
+      // flight, which every consumer papered over with a spinner of its own.
       block {
-        visibility: displayRows.length == 0
+        visibility: isEmpty
         padding: spacing.6
         layout: horizontal, justify: center
-        text("No rows") { style: type.body-md, color: semantic.text-tertiary }
+        text(emptyText) { style: type.body-md, color: semantic.text-tertiary }
+      }
+
+      // First-load skeletons — only when there is nothing to show yet. A
+      // refresh of a populated grid must not blank the rows being read.
+      block {
+        visibility: isFirstLoad
+        padding: spacing.3
+        layout: vertical, gap: spacing.2
+        data-grid-row: "skeleton"
+        // SkeletonRow is the registry component, and the one Vector's DataTable
+        // uses for this exact state — not a hand-rolled shimmer. (There is no
+        // `SkeletonLines`; the file exports SkeletonLine / Block / Circle / Row.)
+        each [1, 2, 3, 4, 5, 6] as n (n) {
+          SkeletonRow()
+        }
+      }
+
+      // Load more. The grid never fetches; it asks.
+      block {
+        visibility: hasMore
+        padding-y: spacing.3
+        layout: horizontal, justify: center
+        data-grid-loadmore: "true"
+        button {
+          background: 'transparent'
+          border: borders.default
+          border-radius: radius.md
+          padding-y: 6px
+          padding-x: 16px
+          cursor: 'pointer'
+          on click: loadMore()
+          text('Load more') { style: type.body-md, weight: 500, color: semantic.text-secondary }
+        }
       }
     }
   }
