@@ -1008,20 +1008,48 @@ component DataGrid(
                     cursor: col._col.sortable ? "pointer" : "default"
                     data-grid-col: col._col.key
                     layout: vertical, justify: end
-                    on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
+                    // NO `on click` on the cell. The control is the button
+                    // below; a handler here too would fire a second toggle as
+                    // the button's click bubbled, flipping asc->desc->asc so
+                    // the rows never moved.
                     block {
                       padding: headerPad
                       @slot("header", col._col)
+                      // Sortable: a REAL button. This was a block carrying an
+                      // `on click` — a div with a click handler — so the one
+                      // interactive thing in the header was unreachable by
+                      // keyboard and unannounced by a screen reader. Vector's
+                      // DataTable rendered a real button, and its e2e asserts
+                      // getByRole('button', { name: 'STUDENT' }).
                       block {
-                        visibility: !hasSlot("header")
+                        visibility: !hasSlot("header") && col._col.sortable
+                        button {
+                          background: "transparent"
+                          border: "none"
+                          padding: 0px
+                          width: 100%
+                          cursor: "pointer"
+                          layout: horizontal, gap: spacing.1, align: center
+                          on click: toggleSortCol(col._col.key)
+                          text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                            style: type.label-sm
+                            weight: 600
+                          }
+                          text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
+                            style: type.caption
+                            color: semantic.interactive
+                          }
+                        }
+                      }
+                      // Not sortable: inert text. Exposing it as a control too
+                      // would be a different a11y bug, not a fix — activating
+                      // it does nothing.
+                      block {
+                        visibility: !hasSlot("header") && !col._col.sortable
                         layout: horizontal, gap: spacing.1, align: center
                         text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
                           style: type.label-sm
                           weight: 600
-                        }
-                        text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
-                          style: type.caption
-                          color: semantic.interactive
                         }
                       }
                     }
@@ -1094,20 +1122,48 @@ component DataGrid(
                     cursor: col._col.sortable ? "pointer" : "default"
                     data-grid-col: col._col.key
                     layout: vertical, justify: end
-                    on click: col._col.sortable ? toggleSortCol(col._col.key) : {}
+                    // NO `on click` on the cell. The control is the button
+                    // below; a handler here too would fire a second toggle as
+                    // the button's click bubbled, flipping asc->desc->asc so
+                    // the rows never moved.
                     block {
                       padding: headerPad
                       @slot("header", col._col)
+                      // Sortable: a REAL button. This was a block carrying an
+                      // `on click` — a div with a click handler — so the one
+                      // interactive thing in the header was unreachable by
+                      // keyboard and unannounced by a screen reader. Vector's
+                      // DataTable rendered a real button, and its e2e asserts
+                      // getByRole('button', { name: 'STUDENT' }).
                       block {
-                        visibility: !hasSlot("header")
+                        visibility: !hasSlot("header") && col._col.sortable
+                        button {
+                          background: "transparent"
+                          border: "none"
+                          padding: 0px
+                          width: 100%
+                          cursor: "pointer"
+                          layout: horizontal, gap: spacing.1, align: center
+                          on click: toggleSortCol(col._col.key)
+                          text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                            style: type.label-sm
+                            weight: 600
+                          }
+                          text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
+                            style: type.caption
+                            color: semantic.interactive
+                          }
+                        }
+                      }
+                      // Not sortable: inert text. Exposing it as a control too
+                      // would be a different a11y bug, not a fix — activating
+                      // it does nothing.
+                      block {
+                        visibility: !hasSlot("header") && !col._col.sortable
                         layout: horizontal, gap: spacing.1, align: center
                         text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
                           style: type.label-sm
                           weight: 600
-                        }
-                        text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
-                          style: type.caption
-                          color: semantic.interactive
                         }
                       }
                     }
