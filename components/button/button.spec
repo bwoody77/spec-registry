@@ -8,11 +8,37 @@
 //   disabled       disables interaction
 //   loading        shows loading state; also disables
 //   loadingLabel   text shown when loading (falls back to label if empty)
-//   pressed        toggle/pressed visual
+//   pressed        the "on" position — visual by default, announced when
+//                  `toggle` or `disclosure` says what it MEANS
+//   toggle         opt in: announce `pressed` as aria-pressed (a toggle button)
+//   disclosure     opt in: announce `pressed` as aria-expanded (show/hide)
 //   iconLeft       icon name rendered before label (Icon component name)
 //   iconRight      icon name rendered after label
 //   iconOnly       icon name; renders square button with label as aria-label
 //   ariaLabel      overrides the accessible name; the visible label is unchanged
+//
+// PRESSED IS A PAINT UNTIL YOU SAY WHAT IT MEANS.
+//   `pressed` darkens the background and insets the shadow. That is all it did:
+//   a screen reader announced the "Night" filter chip identically in both
+//   positions, exactly the way Toggle used to (see toggle.spec's header). The
+//   obvious fix — always emit `aria-pressed: pressed` — is worse than the gap,
+//   because the default is `false` and every ordinary Save/Cancel/Delete button
+//   in the app would then announce itself as an UNPRESSED TOGGLE BUTTON. A
+//   component cannot tell "the caller passed false" from "the caller never
+//   mentioned pressed", so the semantics have to be opted into:
+//
+//     Button(label: 'Night', pressed: isNight, toggle: true)        // aria-pressed
+//     Button(label: 'Config', pressed: cfgOpen, disclosure: true)   // aria-expanded
+//     Button(label: 'Save')                                         // neither attribute
+//
+//   A plain button emits NEITHER attribute — the bindings evaluate to `null`,
+//   which removes the attribute (ai-reference.md §31b; same idiom as
+//   bottom-tab-bar.spec's `aria-current: … ? "page" : null`). Absence is the
+//   correct announcement for a button that is not a toggle; "false" is not.
+//
+//   `disclosure` wins if both are set. A show/hide button is the more specific
+//   claim, and aria-pressed + aria-expanded on one control announces two
+//   different state machines for a single boolean.
 //
 // ariaLabel exists for the case where the visible label is the right length for
 // the layout but too terse for someone who cannot see the surrounding context —
@@ -42,6 +68,8 @@ component Button(
   disabled:     boolean = false,
   loading:      boolean = false,
   pressed:      boolean = false,
+  toggle:       boolean = false,
+  disclosure:   boolean = false,
   size:         string  = "md",
   shape:        string  = "rect",
   iconLeft:     string  = "",
@@ -62,6 +90,13 @@ component Button(
     // paths for the same outcome. Falling back to the visible label keeps
     // every existing caller's accessible name byte-identical.
     accessibleName: ariaLabel != "" ? ariaLabel : effectiveLabel
+
+    // null (not false) is what an ordinary button emits — see the header. The
+    // value is the BOOLEAN, never a string: a binding removes the attribute
+    // only on null, so `false` sets "false", which is what ARIA wants for a
+    // toggle that is currently up (ai-reference.md §31b).
+    ariaPressed: (toggle && !disclosure) ? pressed : null
+    ariaExpanded: disclosure ? pressed : null
 
     iconSize: size == "sm" ? 14 : (size == "lg" ? 20 : 16)
 
@@ -109,6 +144,8 @@ component Button(
     // rule 31), so this tracks `loading` flipping the label the same way the
     // visible text does.
     aria-label: accessibleName
+    aria-pressed: ariaPressed
+    aria-expanded: ariaExpanded
     layout: horizontal, align: center, justify: center, gap: spacing.2
     padding-x: padX
     padding-y: padY
