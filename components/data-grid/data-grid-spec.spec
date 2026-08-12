@@ -1421,7 +1421,23 @@ component DataGrid(
                 // on the caller's root: a component's root styling applies
                 // inside its mount wrapper, never to the wrapper itself.
                 block {
-                  grow: true
+                  // Fills the cell so the caller's content can size to it —
+                  // EXCEPT when the column asks to be aligned, because that fill
+                  // is what makes alignment impossible. This box spans the
+                  // content box, so the content box's `justify` has nothing left
+                  // to push and `align: "end"` sets a style that does nothing.
+                  // Measured in a browser; happy-dom computes no layout, so no
+                  // unit test can see it.
+                  //
+                  // Conditional here rather than making this box a flex row:
+                  // a flex row would turn the caller's mount wrapper into a flex
+                  // item and shrink-wrap it for EVERY column, and cf's
+                  // MktListingCell fills its cell to clamp a counterparty name
+                  // to one line. Gating on `align` is opt-in by construction —
+                  // a column that declares none renders exactly as before, and
+                  // one that declares it gives up the fill, which is what asking
+                  // to be aligned means.
+                  grow: col._col.align == null
                   @slot("cell", col._col, row)
                   block {
                     visibility: !hasSlot("cell")
@@ -1532,7 +1548,23 @@ component DataGrid(
                 // on the caller's root: a component's root styling applies
                 // inside its mount wrapper, never to the wrapper itself.
                 block {
-                  grow: true
+                  // Fills the cell so the caller's content can size to it —
+                  // EXCEPT when the column asks to be aligned, because that fill
+                  // is what makes alignment impossible. This box spans the
+                  // content box, so the content box's `justify` has nothing left
+                  // to push and `align: "end"` sets a style that does nothing.
+                  // Measured in a browser; happy-dom computes no layout, so no
+                  // unit test can see it.
+                  //
+                  // Conditional here rather than making this box a flex row:
+                  // a flex row would turn the caller's mount wrapper into a flex
+                  // item and shrink-wrap it for EVERY column, and cf's
+                  // MktListingCell fills its cell to clamp a counterparty name
+                  // to one line. Gating on `align` is opt-in by construction —
+                  // a column that declares none renders exactly as before, and
+                  // one that declares it gives up the fill, which is what asking
+                  // to be aligned means.
+                  grow: col._col.align == null
                   @slot("cell", col._col, row)
                   block {
                     visibility: !hasSlot("cell")
