@@ -372,6 +372,15 @@ component DataGrid(
   // lives in the full set the caller holds. False preserves today's behaviour
   // for every existing consumer.
   externalSort: boolean = false,
+  // The filter twin of externalSort, and needed for the same reason. The header
+  // still opens its popover, still tracks filter state and still emits
+  // `filter`; the grid just stops applying the predicate.
+  //
+  // A server-paginated caller re-queries its FULL dataset when a filter
+  // changes. A grid that instead filters the page slice it happens to hold
+  // returns a subset of a subset — and does it silently, because rows come
+  // back either way. False preserves today's behaviour for every consumer.
+  externalFilter: boolean = false,
   // The square size of the grid's own row controls (the group-collapse caret
   // and the row-detail expand caret), px. 22 was hard-coded; at dense blotter
   // type it read as a speck. The glyph scales with the box.
@@ -560,10 +569,14 @@ component DataGrid(
     // first VISIBLE column, which is not necessarily `columns[0]`.
     expandColKey: expandColumn != "" ? expandColumn
       : (visibleColumns.length > 0 ? visibleColumns[0].key : "")
-    // externalSort: the caller owns the order; only the filter pass runs here.
-    processedRows: externalSort
-      ? applySortAndFilter(rows, [], filters)
-      : applySortAndFilter(rows, sortState, filters)
+    // Either axis can be delegated to the caller, independently. Passing an
+    // EMPTY list rather than branching to `rows` keeps one call shape, so the
+    // two flags compose instead of multiplying into four branches.
+    processedRows: applySortAndFilter(
+      rows,
+      externalSort ? [] : sortState,
+      externalFilter ? [] : filters
+    )
     // `groupBy` selects the model. The derived path builds the SAME
     // `_kind: 'group'` rows the structural path renders, so everything
     // downstream — the caret, the collapse, the group background — is the code
@@ -636,7 +649,18 @@ component DataGrid(
     // always-visible horizontal scrollbar); '' = grow to content, no bound.
     gridMaxH: height != "" ? height : "none"
     hasFilters: columns.some(c => c.filterable == true)
-    allSelected: selectedSet.length == displayRows.length && displayRows.length > 0
+    // Selection identity is the row KEY, never the index. An index means a
+    // different row the moment the grid re-sorts, filters or takes its next
+    // page — and this grid does all three — so an index-keyed selection goes
+    // wrong silently, with the checkboxes still looking right.
+    //
+    // `displayRows` is also the wrong denominator: it carries group-header
+    // rows, which have no key and can never be selected, so the old
+    // count-comparison could not reach true on ANY grouped grid.
+    selectableKeys: displayRows
+      |> filter(r => gridRowKind(r) == "row")
+      |> map(r => r[rowKeyField])
+    allSelected: selectableKeys.length > 0 && selectableKeys.every(k => selectedSet.includes(k))
   }
 
   @actions {
@@ -692,6 +716,14 @@ component DataGrid(
       event.stopPropagation()
       toggleExpanded(row)
     }
+    // The row checkbox needs the same guard as the caret above, and for longer:
+    // its click bubbled to the row container, so `clickRow` called `selectRow`
+    // a SECOND time and untoggled what the checkbox had just toggled. In multi
+    // mode the two cancelled and the box would not tick at all; in single mode
+    // the second call was idempotent, which is why it looked like it worked.
+    swallowRowClick(event) {
+      event.stopPropagation()
+    }
     toggleSortCol(colKey) {
       sortState = toggleSortState(sortState, colKey)
       emit("sort", sortState)
@@ -725,20 +757,28 @@ component DataGrid(
       }
       emit("filter", filters)
     }
-    selectRow(idx) {
-      if selection == "single" {
-        selectedSet = [idx]
-        emit("selectionChange", [idx])
-      } else {
-        if selection == "multi" {
-          if selectedSet.includes(idx) { selectedSet = selectedSet.filter(i => i != idx) }
-          else { selectedSet = selectedSet.concat([idx]) }
-          emit("selectionChange", selectedSet)
+    // Takes the ROW, not its index. A group-header row has no key, so the null
+    // guard is what stops select-all-by-click sweeping one into the payload.
+    selectRow(row) {
+      let k = row != null ? row[rowKeyField] : null
+      if k != null {
+        if selection == "single" {
+          selectedSet = [k]
+          emit("selectionChange", [k])
+        } else {
+          if selection == "multi" {
+            if selectedSet.includes(k) { selectedSet = selectedSet.filter(x => x != k) }
+            else { selectedSet = selectedSet.concat([k]) }
+            emit("selectionChange", selectedSet)
+          }
         }
       }
     }
+    // `selectableKeys` already excludes group headers, and it reads
+    // `displayRows` — so select-all takes what the user can actually see, not
+    // the rows hidden inside a collapsed group.
     selectAllRows() {
-      selectedSet = processedRows.map((row, i) => i)
+      selectedSet = selectableKeys
       emit("selectionChange", selectedSet)
     }
     clearSelection() {
@@ -746,7 +786,7 @@ component DataGrid(
       emit("selectionChange", [])
     }
     clickRow(row, idx) {
-      selectRow(idx)
+      selectRow(row)
       emit("rowClick", row, idx)
     }
     moveUp()    { if focusedRow > 0 { focusedRow = focusedRow - 1 } }
@@ -754,7 +794,7 @@ component DataGrid(
     moveDown()  { if focusedRow < displayRows.length - 1 { focusedRow = focusedRow + 1  if focusedCol < 0 { focusedCol = 0 } } }
     moveLeft()  { if focusedCol > 0 { focusedCol = focusedCol - 1 } }
     moveRight() { if focusedCol < visibleColumns.length - 1 { focusedCol = focusedCol + 1  if focusedRow < 0 { focusedRow = 0 } } }
-    selectFocused() { if focusedRow >= 0 { selectRow(focusedRow) } }
+    selectFocused() { if focusedRow >= 0 { selectRow(displayRows[focusedRow]) } }
   }
 
   block {
@@ -786,6 +826,17 @@ component DataGrid(
         event.preventDefault()
         if allSelected { clearSelection() } else { selectAllRows() }
       }
+    }
+
+    // Caller-owned toolbar (search box, facet chips, view toggle), above the
+    // grid's own chrome. Always rendered: an unprovided slot mounts nothing, so
+    // this collapses to a zero-height container.
+    //
+    // Deliberately NOT gated on a hasSlot() check — that gate compiles
+    // unreliably for parameterized slots, and a wrong gate here hides a toolbar
+    // the caller did supply, which is a far worse failure than an empty div.
+    block {
+      @slot("toolbar")
     }
 
     // The column chooser, in a strip of the grid's own chrome. A page that
@@ -1118,7 +1169,7 @@ component DataGrid(
           block {
             layout: horizontal
             border-top: gridRowKind(row) == "total" ? borders.strong : borders.subtle
-            background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(rowIdx) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent"))
+            background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent"))
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
             cursor: selection != "none" ? "pointer" : "default"
@@ -1127,7 +1178,7 @@ component DataGrid(
             // one up would say it was. `visibility` cannot express this, so it
             // is a guarded style rather than a wrapper.
             on hover {
-              background: hasHover && gridRowKind(row) == "row" ? hoverBackground : (gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(rowIdx) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent")))
+              background: hasHover && gridRowKind(row) == "row" ? hoverBackground : (gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent")))
             }
             // The pinned cell cannot inherit the `on hover` style above — it
             // paints its own opaque sticky background over the row — so the
@@ -1149,8 +1200,9 @@ component DataGrid(
                 padding: pad
                 grow: true
                 layout: horizontal, align: center, justify: center
-                Checkbox(label: "", checked: selectedSet.includes(rowIdx)) {
-                  on change(isChecked): selectRow(rowIdx)
+                on click(event): swallowRowClick(event)
+                Checkbox(label: "", checked: selectedSet.includes(row[rowKeyField])) {
+                  on change(isChecked): selectRow(row)
                 }
               }
             }
@@ -1435,6 +1487,29 @@ component DataGrid(
           text('Load more') { style: type.body-md, weight: 500, color: semantic.text-secondary }
         }
       }
+    }
+
+    // Bulk-actions bar. A sibling of the scroll container, NOT a child of it —
+    // inside, it would slide out of view with a horizontal scroll, taking the
+    // only route to the actions with it.
+    //
+    // The count is the grid's, the buttons are the caller's, and an unprovided
+    // slot still leaves a usable bar. `selectedSet` holds row KEYS (see
+    // selectRow), so a caller can act on them without a lookup.
+    block {
+      visibility: selectedSet.length > 0
+      data-grid-row: "bulk"
+      padding-y: spacing.2
+      padding-x: spacing.3
+      border-top: borders.default
+      background: groupBg
+      layout: horizontal, gap: spacing.3, align: center
+      text(selectedSet.length + " selected") {
+        weight: 700
+        style: type.label-sm
+        color: semantic.text-secondary
+      }
+      @slot("bulkActions", selectedSet)
     }
   }
 }
