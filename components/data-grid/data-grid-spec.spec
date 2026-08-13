@@ -1,6 +1,6 @@
 @extern { genGridId, wireColumnDrag, wireGroupDrag } from "@spec/components/data-grid-column-drag.js"
 @extern { gridDeriveGroupRows } from "@spec/components/grid-group-derive.js"
-@extern { wireGridWindow, gridDataGeneration, gridScrollRowIntoView } from "@spec/components/grid-window-wire.js"
+@extern { wireGridWindow, gridDataGeneration, gridScrollRowIntoView, releaseGridWindow } from "@spec/components/grid-window-wire.js"
 @extern { retryBlock } from "@spec/components/grid-block-cache.js"
 
 fn toggleSortState(sortState: list, colKey: string) -> list {
@@ -939,7 +939,14 @@ component DataGrid(
     // fetch a hundred rows to feed a cache that nothing on screen reads.
     _windowTeardown: windowed && !guarded
       ? wireGridWindow(_gridId, { rowHeight: rowHeight, overscan: overscan, blockSize: blockSize, rowCount: rowCount }, applyWindow, emitRangeNeeded)
-      : null
+      // NOT `null`. wireGridWindow destroys the previous wire for this id, so
+      // the truthy arm cleans up after itself — but this arm is taken whenever
+      // windowing switches OFF (a filter returning zero rows, a caller
+      // enabling `expandable`), and it used to abandon the live wire with its
+      // scroll listener, its ResizeObserver and its cache still registered.
+      // The reaper cannot help: an unguarded grid keeps its scroll container
+      // in the document, so the wire never looks detached.
+      : releaseGridWindow(_gridId)
 
     // ─── What generation the held blocks describe ───────────────────────────
     // `rowCount` is the only change the wire could see for itself, and it is
@@ -1128,6 +1135,19 @@ component DataGrid(
       emit("blockRetry", b)
     }
     clickRow(row, idx) {
+      // A row that has not arrived is not a row. `winDisplayRows` substitutes
+      // an `{ _unloaded: true }` sentinel, and a consumer navigating on
+      // `rowClick` would open `row.id === undefined` — cf does exactly that.
+      //
+      // Not currently reachable by a user: this handler lives on the block
+      // gated by `visibility: row._unloaded != true`, which compiles to
+      // display:none, and a display:none element receives no pointer events.
+      // Verified in Chrome — in stall mode, elementFromPoint at a skeleton's
+      // centre lands outside any clickable row and a real click there emits
+      // nothing. The guard is here so that safety stops depending on a CSS
+      // side effect: swap `visibility:` for an opacity or a pointer-events
+      // rule, or reach this programmatically, and the sentinel would go out.
+      if row._unloaded == true { return }
       selectRow(row)
       emit("rowClick", row, idx)
     }

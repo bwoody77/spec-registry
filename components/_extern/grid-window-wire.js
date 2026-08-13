@@ -314,6 +314,25 @@ export function setGridGeneration(gridId, key) {
     wires.get(gridId)?.setGeneration(key);
 }
 /**
+ * Release whatever wire is registered under `gridId`.
+ *
+ * `_windowTeardown` destroys the previous wire only INSIDE wireGridWindow, so
+ * the `: null` branch — taken the moment `windowed && !guarded` becomes false,
+ * which any filter returning zero rows does — used to destroy nothing. The
+ * wire kept its scroll listener, its ResizeObserver and its registered cache,
+ * and the reaper could not collect it because an unguarded grid still has its
+ * scroll container in the document, so `isDetached` stays false. Worse, the
+ * orphan's internal `rowCount` was still the old total, so scrolling kept
+ * emitting `rangeNeeded` — making the caller fetch a hundred rows to feed a
+ * cache nothing on screen reads.
+ *
+ * Returns null so it can be the other arm of that `@computed`.
+ */
+export function releaseGridWindow(gridId) {
+    wires.get(gridId)?.destroy();
+    return null;
+}
+/**
  * A windowed grid's whole geometry — spacer heights, which rows the window
  * covers, and therefore what the scrollbar represents — is computed from the
  * DECLARED `rowHeight`. Nothing makes the body row honour it: only the
