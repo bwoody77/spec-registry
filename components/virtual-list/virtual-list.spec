@@ -1,3 +1,5 @@
+@extern { computeWindow } from "@spec/components/grid-window.js"
+
 // VirtualList — virtualized scroll container for very large lists.
 //
 // Renders only the rows currently in the viewport (plus a small overscan
@@ -55,20 +57,19 @@ component VirtualList(
   }
 
   @computed {
-    // Visible window — first row whose top is visible, through last row
-    // whose top is below the viewport bottom. Buffered by `overscan` on
-    // each side so a fast scroll doesn't expose blank cells.
-    rawStart: scrollTop / rowHeight
-    rawEnd: (scrollTop + viewportHeight) / rowHeight
-    visStart: rawStart - overscan < 0 ? 0 : floor(rawStart - overscan)
-    visEnd: rawEnd + overscan > totalCount ? totalCount : ceil(rawEnd + overscan)
-
-    // Spacer heights that compensate for the rows we DON'T render. Together
-    // with the rendered slice they preserve the full scrollable length.
-    topPadPx: visStart * rowHeight
-    botPadPx: (totalCount - visEnd) * rowHeight
-    topPad: topPadPx + 'px'
-    botPad: botPadPx + 'px'
+    // The window calculation now lives in grid-window.js, shared with
+    // DataGrid. Two components computing the same thing is how they drift.
+    win: computeWindow({
+      scrollTop: scrollTop,
+      viewportHeight: viewportHeight,
+      rowHeight: rowHeight,
+      totalCount: totalCount,
+      overscan: overscan
+    })
+    visStart: win.start
+    visEnd: win.end
+    topPad: win.topPad + 'px'
+    botPad: win.botPad + 'px'
     viewportPx: viewportHeight + 'px'
   }
 
