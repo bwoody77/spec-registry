@@ -1,6 +1,6 @@
 [package]
 name = "data-grid"
-version = "1.2.1"
+version = "1.3.0"
 category = "components"
 description = "High-performance grid for large tabular datasets with sorting and filtering"
 license = "MIT"
@@ -13,4 +13,4 @@ origin = "@spec/components"
 file = "data-grid-spec.spec"
 
 [extern]
-files = ["../_extern/data-grid-column-drag.js"]
+files = ["../_extern/data-grid-column-drag.js", "../_extern/grid-window-wire.js"]

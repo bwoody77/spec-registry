@@ -1,5 +1,7 @@
 @extern { genGridId, wireColumnDrag, wireGroupDrag } from "@spec/components/data-grid-column-drag.js"
 @extern { gridDeriveGroupRows } from "@spec/components/grid-group-derive.js"
+@extern { wireGridWindow, gridDataGeneration } from "@spec/components/grid-window-wire.js"
+@extern { retryBlock } from "@spec/components/grid-block-cache.js"
 
 fn toggleSortState(sortState: list, colKey: string) -> list {
   let existing = sortState |> find(s => s.key == colKey)
@@ -221,9 +223,56 @@ fn gridSegMax(seg: map) -> string {
 // A group row may also carry `_toggleLabel` to name its expand/collapse control
 // for screen readers (default: "Toggle group").
 
+// Is this row ticked? In predicate mode the answer is NOT `selectedSet`: the
+// user said "all 1043 matching", the grid holds a handful of keys, and reading
+// the handful rendered every row on screen unticked while the caller was told
+// 1043 were selected. In that mode a row is selected unless it is excluded.
+fn gridRowChecked(allMatching: boolean, excluded: list, chosen: list, key: any) -> boolean {
+  if allMatching { return !excluded.includes(key) }
+  return chosen.includes(key)
+}
+
+// Union, order-preserving: the keys already chosen, plus the ones on screen
+// that are not among them.
+fn gridUnionKeys(chosen: list, adding: list) -> list {
+  return chosen.concat(adding.filter(k => !chosen.includes(k)))
+}
+
 fn gridRowKind(row: map) -> string {
   if row._kind != null { return row._kind }
   return 'row'
+}
+
+// Window-relative loop index → absolute row index. Identity when windowing is
+// off, which is what keeps the 16 existing consumers byte-identical. Task 7
+// threads it through stripe parity, hover, row click and cell focus, all of
+// which read the loop index and every one of which is wrong by `winStart`
+// while a window is scrolled away from the top.
+fn gridAbsIdx(isWindowed: boolean, start: number, idx: number) -> number {
+  if isWindowed { return start + idx }
+  return idx
+}
+
+// Did the block behind this rendered row fail? `winFailed` is a parallel array
+// pushed alongside `winRows`, so this is written to tolerate a SHORT or absent
+// one: unwindowed rendering leaves it empty and every index reads out of range,
+// and a window that has grown is briefly longer than the flags it was pushed
+// with. Out of range means "not failed", never "undefined" leaking into a
+// `visibility:`.
+fn gridBlockFailed(failed: list, idx: number) -> boolean {
+  if idx < 0 { return false }
+  if idx >= length(failed) { return false }
+  return failed[idx] == true
+}
+
+// Which BLOCK a rendered row belongs to — the argument `blockRetry` carries.
+// Three plausible values sit within one expression of each other here (the loop
+// index, the absolute row index, the block index) and only this one can be fed
+// back to retryBlock(). `size <= 0` cannot happen through the prop's default,
+// but a caller passing 0 would divide by zero and emit Infinity.
+fn gridBlockOf(start: number, idx: number, size: number) -> number {
+  if size <= 0 { return 0 }
+  return floor((start + idx) / size)
 }
 
 fn gridGroupIsOpen(openGroups: list, key: string) -> boolean {
@@ -472,6 +521,34 @@ component DataGrid(
   // that was fixed (ast-to-ir.ts routes positionExpr through buildExprStyle),
   // so this really is one binding.
   stickyHeader: boolean = true,
+
+  // ─── Windowed rendering ───────────────────────────────────────────────────
+  // Active iff rowHeight > 0 AND rowCount > 0. Every default below reproduces
+  // the previous behaviour exactly, so no existing consumer changes.
+  //
+  // `rows` is IGNORED while windowing is active: the block cache is the sole
+  // source and block 0 is fetched like any other. A caller passing its first
+  // page through `rows` and the rest through blocks would have two sources
+  // that disagree the moment a filter changed.
+  rowCount: number = 0,
+  rowHeight: number = 0,
+  blockSize: number = 100,
+  overscan: number = 5,
+  // Bumped by the caller to drop the cache — needed because the grid cannot
+  // see a filter control that lives outside it.
+  dataVersion: number = 0,
+
+  // ─── The second step of select-all ────────────────────────────────────────
+  // Selection over a window cannot enumerate keys it has not fetched, so "all"
+  // becomes a PREDICATE: everything matching the current sort/filter, minus
+  // `excludedKeys`. Both live with the caller — only the caller can turn a
+  // predicate into rows — so the grid emits `selectAllMatchingChange` and reads
+  // the answer back through these props.
+  //
+  // `selected` keeps its existing meaning untouched: a list of row KEYS, which
+  // is what all 16 consumers pass and what `selectionChange` still carries.
+  selectAllMatching: boolean = false,
+  excludedKeys: array = [],
 ) {
   @state {
     // Per-instance id, so two grids on one page never share a drag session.
@@ -512,6 +589,16 @@ component DataGrid(
     // opaque — the one column guaranteed on screen was the one column that
     // ignored the hover. -1 = none.
     hoveredRow: 0 - 1
+    // ─── The windowed render state ──────────────────────────────────────────
+    // Pushed WHOLESALE by wireGridWindow through applyWindow. The grid never
+    // reads the block cache itself, so there is no reactivity bridge to get
+    // wrong: what is here is what renders.
+    winRows: []
+    winFailed: []
+    winStart: 0
+    winEnd: 0
+    padTopPx: 0
+    padBotPx: 0
   }
 
   @watch {
@@ -528,6 +615,19 @@ component DataGrid(
     // row and paint the wrong pinned cell as hovered. mouse-enter re-fires on
     // real movement, so clearing on data change is always safe.
     processedRows: {
+      hoveredRow = 0 - 1
+    }
+    // ...and the windowed half of the same rule. `processedRows` derives from
+    // the `rows` prop, which windowed mode IGNORES — so in a windowed grid the
+    // watch above is a constant and never fires, while a block landing swaps
+    // every row in the window under a stationary pointer. That is the ordinary
+    // case during a scroll, not an edge case, and it leaves the highlight on a
+    // row the pointer is no longer over. Invisible to every unwindowed test,
+    // because there the watch above already covers it.
+    //
+    // `winRows` and not `padTopPx`/`winStart`: those change when the window
+    // MOVES, and a block landing under a stationary pointer moves nothing.
+    winRows: {
       hoveredRow = 0 - 1
     }
     // A caller that persists the order and feeds it back re-seeds here.
@@ -616,8 +716,53 @@ component DataGrid(
       : gridVisibleRows(processedRows, openGroups)
     // P4 states. The empty text renders only when there is nothing to show AND
     // nothing on its way — the condition the old empty state was missing.
-    isEmpty: !loading && displayRows.length == 0
-    isFirstLoad: loading && displayRows.length == 0
+    // Declared HERE, above its first consumer, not down with the other window
+    // computeds: @computed evaluates in declaration order and a forward
+    // reference throws at runtime, rendering the whole grid blank. It depends
+    // only on props, so it is free to sit anywhere above its readers.
+    windowed: rowHeight > 0 && rowCount > 0
+
+    // ─── The loud refusal ───────────────────────────────────────────────────
+    // Four prop combinations cannot be windowed, and every one of them fails
+    // SILENTLY if it is merely tolerated: groupBy and expandable give rows no
+    // fixed pitch, so the spacers stand in for a height the rows do not have
+    // and the scrollbar lies; a client sort or filter over a window orders or
+    // matches only the rows the client happens to hold, which is green against
+    // any fully-loaded fixture and wrong against every real one.
+    //
+    // Rendered IN PLACE of the grid, and not dev-only: a developer error that
+    // renders normally in production is one nobody ever sees. Each message
+    // names BOTH props — the offending one and `rowHeight`, which is what
+    // turned windowing on — because the fix is always to drop one of the two.
+    //
+    // Declared here, immediately below `windowed`: @computed evaluates in
+    // DECLARATION ORDER and a forward reference throws at mount, blanking the
+    // whole grid. Everything else read here is a prop.
+    guardMsg: !windowed ? ""
+      : (groupBy != "" ? "DataGrid: rowHeight cannot be combined with groupBy - grouped rows have no fixed pitch, so a window cannot be sized."
+      : (expandable ? "DataGrid: rowHeight cannot be combined with expandable - an open detail panel has no fixed pitch, so a window cannot be sized."
+      : (!externalSort ? "DataGrid: rowHeight (windowed mode) requires externalSort - a client sort would order only the rows currently loaded."
+      : (!externalFilter ? "DataGrid: rowHeight (windowed mode) requires externalFilter - a client filter would match only the rows currently loaded."
+      // Measured in a browser, 2026-08-13: without `height` the scroll
+      // container is unbounded, so clientHeight == scrollHeight, the window
+      // spans every row, and the grid renders all 1,043 of them. Windowing is
+      // silently inert - exactly the freeze this feature exists to prevent.
+      // Wrapping the grid in a fixed-height parent is NOT enough; `height` is
+      // the mechanism, because it is what sets the scroller's max-height.
+      // Invisible to every happy-dom test, where clientHeight is 0 regardless.
+      : (height == "" ? "DataGrid: rowHeight (windowed mode) requires height - an unbounded scroll container renders every row, so windowing does nothing."
+      : "")))))
+    guarded: guardMsg != ""
+
+    // `!windowed` because windowed mode ignores the `rows` prop, leaving
+    // displayRows permanently empty — so without this the empty state and the
+    // first-load skeletons render UNDERNEATH every populated windowed grid.
+    // `windowed` is itself `rowHeight > 0 && rowCount > 0`, so a windowed grid
+    // always has rows by definition; rowCount 0 makes windowed false and falls
+    // through to the check below, which is what still reports a genuinely
+    // empty result.
+    isEmpty: !loading && !windowed && displayRows.length == 0
+    isFirstLoad: loading && !windowed && displayRows.length == 0
     // "" must stamp NO attribute; a binding removes one only for null.
     rowTestIdAttr: rowTestId != "" ? rowTestId : null
     headerPosition: stickyHeader ? "sticky" : "static"
@@ -684,10 +829,107 @@ component DataGrid(
     // `displayRows` is also the wrong denominator: it carries group-header
     // rows, which have no key and can never be selected, so the old
     // count-comparison could not reach true on ANY grouped grid.
-    selectableKeys: displayRows
-      |> filter(r => gridRowKind(r) == "row")
+    //
+    // The definition itself moved BELOW `renderRows` — see the note there.
+
+    // ─── Windowed rendering ─────────────────────────────────────────────────
+    // Windowing is opt-in by ARITHMETIC, not by a flag: a consumer that passes
+    // neither prop keeps every byte of its previous rendering.
+    padTop: padTopPx + 'px'
+    padBot: padBotPx + 'px'
+    // The pitch a placeholder row has to hold. A skeleton or a failed-block row
+    // that sized itself to its content would make the rendered rows a different
+    // height from the ones the spacers are standing in for, and the scrollbar
+    // would then lie by exactly the difference.
+    rowHeightPx: rowHeight + 'px'
+    // The windowed loop's collection. A row the cache has not delivered yet
+    // arrives as null, and a null cannot go through the row template: the
+    // template reads row[rowKeyField], row._kind and row._toggleLabel, and
+    // `visibility:` compiles to bindVisibility on the block WITHOUT deferring
+    // the block's own bindings — only a component mount is deferred. So the
+    // null is replaced by a sentinel here, and the gate reads that sentinel
+    // off the very object the loop is iterating rather than off a parallel
+    // array that could be one recompute behind it.
+    winDisplayRows: winRows |> map(r => r != null ? r : { _unloaded: true })
+    // ONE body renders both modes. winDisplayRows already carries an
+    // `_unloaded` sentinel OBJECT rather than null, so the shared body never
+    // sees a null row. Two bodies would be ~330 duplicated lines inside one
+    // file, free to drift exactly the way CfDealTab drifted from Tabs — and
+    // check-kit-duplication cannot see it, because it compares ACROSS files.
+    renderRows: windowed ? winDisplayRows : displayRows
+
+    // ─── Selection identity ─────────────────────────────────────────────────
+    // Declared HERE rather than up with the other selection computeds because
+    // it reads `renderRows`, and @computed evaluates in DECLARATION ORDER: a
+    // forward reference throws at mount and blanks the whole grid.
+    //
+    // `renderRows`, not `displayRows`. Windowed mode ignores the `rows` prop,
+    // so `displayRows` is permanently empty there — which made the header
+    // checkbox on a windowed grid emit `[]`, never tick, and leave `allSelected`
+    // unable to reach true no matter how many rows were on screen. Measured:
+    // five delivered rows, five ticked-able boxes, zero keys emitted. Unwindowed
+    // `renderRows` IS `displayRows`, so nothing moves for the 16 consumers.
+    //
+    // `_unloaded` rows are excluded for the same reason group headers are: a
+    // sentinel has no `rowKeyField`, so sweeping one in would put an undefined
+    // into `selectionChange`. It is also what keeps `allSelected` honest — a
+    // window half-filled with skeletons is not "all selected".
+    selectableKeys: renderRows
+      |> filter(r => gridRowKind(r) == "row" && r._unloaded != true)
       |> map(r => r[rowKeyField])
     allSelected: selectableKeys.length > 0 && selectableKeys.every(k => selectedSet.includes(k))
+
+    // ─── The two-step select-all ────────────────────────────────────────────
+    // What a bulk action needs to know, and what `selectedSet` alone cannot
+    // say: in predicate mode the grid holds a handful of keys and the caller
+    // means 1041 rows. A consumer reading `sel.length` would report the
+    // handful.
+    selectionSummary: { mode: selectAllMatching ? 'allMatching' : 'some', count: selectAllMatching ? rowCount - excludedKeys.length : selectedSet.length, excludedKeys: excludedKeys }
+    // Offered only once every LOADED row is selected — before that the ordinary
+    // checkbox is still the more likely intent. `!selectAllMatching` because
+    // re-offering a mode already in force is a control that does nothing;
+    // `!guarded` because a refused grid renders its diagnostic and nothing
+    // else, exactly like its four sibling blocks.
+    offerAllMatching: windowed && allSelected && !selectAllMatching && !guarded
+    allMatchingLabel: 'Select all ' + toString(rowCount) + ' matching'
+    // The wire lives HERE and not in @state, even though the other two wires
+    // (wireColumnDrag / wireGroupDrag) are @state initialisers. A @state
+    // initialiser's prop references arrive as SIGNALS rather than values, so
+    // `rowHeight > 0` there compares a function to a number and is false
+    // forever — the documented @state-prop-ref trap. In a @computed the props
+    // arrive as values, which is the only place `windowed` can be read.
+    //
+    // wireGridWindow is called with the DOM not yet built: the compiler emits
+    // every @computed ABOVE the DOM section, and the mount function appends
+    // its root to the container on its LAST line. So the wire cannot find its
+    // scroll container synchronously and defers its own attach — see the note
+    // in grid-window-wire.ts. Nothing here can fix that; a wire that queried
+    // once and gave up would leave windowing silently inert.
+    //
+    // `&& !guarded` is part of the refusal, not decoration. A guarded grid
+    // still stamps its data-grid-id and still contains a (hidden) scroll
+    // container, so the wire attaches happily, measures a display:none element
+    // as zero-height, and asks for block 0 regardless — making the caller
+    // fetch a hundred rows to feed a cache that nothing on screen reads.
+    _windowTeardown: windowed && !guarded
+      ? wireGridWindow(_gridId, { rowHeight: rowHeight, overscan: overscan, blockSize: blockSize, rowCount: rowCount }, applyWindow, emitRangeNeeded)
+      : null
+
+    // ─── What generation the held blocks describe ───────────────────────────
+    // `rowCount` is the only change the wire could see for itself, and it is
+    // not the only change that matters. Sorting is the airtight case: a
+    // windowed grid REQUIRES externalSort, so a header click emits `sort`, the
+    // caller refetches server-side, and the count is unchanged — every block
+    // stayed `held` and the grid rendered the previous order forever. Filters
+    // that happen to return the same count do the same thing, and `dataVersion`
+    // was declared for a caller-side change the grid cannot see at all and was
+    // read by NOTHING.
+    //
+    // Declared AFTER _windowTeardown because it needs the wire that computed
+    // creates; the first key is adopted without invalidating.
+    _windowGeneration: windowed && !guarded
+      ? gridDataGeneration(_gridId, dataVersion, sortState, filters)
+      : null
   }
 
   @actions {
@@ -789,6 +1031,20 @@ component DataGrid(
     selectRow(row) {
       let k = row != null ? row[rowKeyField] : null
       if k != null {
+        // In predicate mode the selection is "everything matching, minus
+        // these", so un-ticking a row EXCLUDES it. Editing `selectedSet` here
+        // instead — which is what used to happen — changed a set the summary
+        // does not read in this mode: the row went blank on screen while the
+        // count stayed at rowCount, so a bulk delete still took the row the
+        // user had just removed.
+        if selectAllMatching {
+          if excludedKeys.includes(k) {
+            emit("excludedKeysChange", excludedKeys.filter(x => x != k))
+          } else {
+            emit("excludedKeysChange", excludedKeys.concat([k]))
+          }
+          return
+        }
         if selection == "single" {
           selectedSet = [k]
           emit("selectionChange", [k])
@@ -801,16 +1057,49 @@ component DataGrid(
         }
       }
     }
-    // `selectableKeys` already excludes group headers, and it reads
-    // `displayRows` — so select-all takes what the user can actually see, not
-    // the rows hidden inside a collapsed group.
+    // `selectableKeys` excludes group headers and reads `renderRows` — so
+    // select-all takes what the user can actually see, not the rows hidden
+    // inside a collapsed group.
+    //
+    // It used to read `displayRows`, which was the WHOLE list, and replacing
+    // `selectedSet` with it was right. Task 6b re-pointed it at `renderRows`;
+    // in windowed mode that is only the ~25 rows on screen, so replacing
+    // became silent data loss — tick the header at the top, scroll, tick
+    // again, and the first window's keys were gone from the payload the caller
+    // acts on. Unwindowed, `renderRows` IS `displayRows`, so the union is
+    // identical to the replacement and the 16 existing consumers do not move.
     selectAllRows() {
-      selectedSet = selectableKeys
+      selectedSet = windowed ? gridUnionKeys(selectedSet, selectableKeys) : selectableKeys
       emit("selectionChange", selectedSet)
+    }
+    // The inverse of the above, and only the inverse: un-ticking the header of
+    // a windowed grid drops the rows on screen, not a selection the user built
+    // up over four other windows.
+    deselectRenderedRows() {
+      selectedSet = selectedSet.filter(k => !selectableKeys.includes(k))
+      emit("selectionChange", selectedSet)
+    }
+    // Leaves predicate mode as well as emptying the set — otherwise "clear"
+    // clears what is on screen and the caller still believes 1043 are chosen.
+    exitAllMatching() {
+      emit("selectAllMatchingChange", false)
+      emit("excludedKeysChange", [])
+      clearSelection()
     }
     clearSelection() {
       selectedSet = []
       emit("selectionChange", [])
+    }
+    // Retry CLEARS THE MARK ITSELF, then tells the caller. Emitting alone left
+    // the block latched failed unless the caller called retryBlock by hand —
+    // an undocumented second step no consumer performed — so the click swapped
+    // an actionable error row for a permanent skeleton. Clearing it here makes
+    // the wire ask again through the ordinary rangeNeeded path, which every
+    // caller already answers; `blockRetry` stays for observability, and is now
+    // a notification rather than a contract the grid depends on.
+    retryFailedBlock(b) {
+      retryBlock(_gridId, b)
+      emit("blockRetry", b)
     }
     clickRow(row, idx) {
       selectRow(row)
@@ -822,6 +1111,21 @@ component DataGrid(
     moveLeft()  { if focusedCol > 0 { focusedCol = focusedCol - 1 } }
     moveRight() { if focusedCol < visibleColumns.length - 1 { focusedCol = focusedCol + 1  if focusedRow < 0 { focusedRow = 0 } } }
     selectFocused() { if focusedRow >= 0 { selectRow(displayRows[focusedRow]) } }
+
+    // Called by wireGridWindow with a COMPLETE render state. Values arrive as
+    // arguments and are never read back out of a @computed here: an action
+    // called from a computed sees other computeds one cascade position stale.
+    applyWindow(s) {
+      winRows = s.rows
+      winFailed = s.failed
+      winStart = s.start
+      winEnd = s.end
+      padTopPx = s.topPad
+      padBotPx = s.botPad
+    }
+    emitRangeNeeded(reqs) {
+      emit("rangeNeeded", reqs)
+    }
   }
 
   block {
@@ -852,7 +1156,7 @@ component DataGrid(
         }
         if event.key == "a" && event.ctrlKey == true && selection == "multi" {
           event.preventDefault()
-          if allSelected { clearSelection() } else { selectAllRows() }
+          if allSelected { if windowed { deselectRenderedRows() } else { clearSelection() } } else { selectAllRows() }
         }
       }
     }
@@ -864,7 +1168,18 @@ component DataGrid(
     // Deliberately NOT gated on a hasSlot() check — that gate compiles
     // unreliably for parameterized slots, and a wrong gate here hides a toolbar
     // the caller did supply, which is a far worse failure than an empty div.
+    //
+    // ─── `!guarded` on this and its three siblings ─────────────────────────
+    // A refused grid is REPLACED by its diagnostic, not annotated with one: a
+    // banner above a grid that is still silently mis-sorting a window teaches
+    // the reader to scroll past the banner. The four direct children of the
+    // root are gated individually rather than wrapped in one `!guarded` block
+    // because a wrapper would put a DOM level between this root and the scroll
+    // container below — whose `height: 100%` resolves against its parent — and
+    // that layout change would land on all 16 existing consumers to buy
+    // nothing. Gated this way, an unguarded grid renders byte-identically.
     block {
+      visibility: !guarded
       @slot("toolbar")
     }
 
@@ -877,7 +1192,7 @@ component DataGrid(
     // `on <event>:` written outside them, and the dangling form compiles to a
     // listener that never fires.
     block {
-      visibility: configurableColumns
+      visibility: configurableColumns && !guarded
       layout: horizontal, justify: end
       padding-x: spacing.2 padding-y: spacing.1
       ColumnChooser(columns: chooserColumns, hiddenColumns: _hidden, columnOrder: _colOrder) {
@@ -886,7 +1201,41 @@ component DataGrid(
       }
     }
 
+    // The SECOND step of select-all. The header checkbox means "the rows that
+    // are loaded"; this is how the user says "everything matching", which the
+    // grid cannot hold and so hands back to the caller as a predicate.
+    //
+    // A sibling of the scroll container, NOT a child of it — the same reason
+    // the bulk-actions bar is one: inside the width track it would slide out of
+    // view on a horizontal scroll, taking the only route to the second step
+    // with it. The plan placed it under the header checkbox, which is a 40px
+    // column; a full-width offer does not fit there and would scroll away.
+    //
+    // Gated individually rather than wrapped, like its four sibling blocks, so
+    // an unguarded grid renders byte-identically. `offerAllMatching` carries
+    // `windowed`, so it is inert for every existing consumer.
     block {
+      visibility: offerAllMatching
+      data-grid-selectall: "true"
+      padding-y: spacing.2
+      padding-x: spacing.3
+      border-bottom: borders.default
+      background: groupBg
+      layout: horizontal, gap: spacing.2, align: center
+      button {
+        background: 'transparent'
+        border: borders.default
+        border-radius: radius.md
+        padding-y: 4px
+        padding-x: 12px
+        cursor: 'pointer'
+        on click: emit("selectAllMatchingChange", true)
+        text(allMatchingLabel) { style: type.label-sm, weight: 700, color: semantic.text-secondary }
+      }
+    }
+
+    block {
+      visibility: !guarded
       overflow: auto
       height: 100%
       max-height: gridMaxH
@@ -933,7 +1282,7 @@ component DataGrid(
               padding: headerPad
               layout: horizontal, align: center, justify: center
               Checkbox(label: "", checked: allSelected) {
-                on change(isChecked): { if isChecked { selectAllRows() } else { clearSelection() } }
+                on change(isChecked): { if isChecked { selectAllRows() } else { if windowed { deselectRenderedRows() } else { clearSelection() } } }
               }
             }
           }
@@ -1272,13 +1621,34 @@ component DataGrid(
           }
         }
 
+        // Windowed rendering: a spacer standing in for the rows above the
+        // window, so the scrollbar reports the full list height.
+        block {
+          visibility: windowed
+          height: padTop
+          data-grid-pad-top: "true"
+        }
+
+        // ONE body for both modes, over `renderRows`. It was split in two
+        // for exactly one commit; two copies of ~330 lines inside a single
+        // file is the CfDealTab-vs-Tabs failure mode, and no duplication
+        // check can see it because they all compare across files.
         // Body rows \u2014 ordinary rows, group headers and totals all render through
         // this one template, so they cannot disagree about column widths.
-        each displayRows as row, rowIdx {
+        each renderRows as row, rowIdx {
           block {
+            // Not arrived yet. `_unloaded` is a sentinel this grid puts in
+            // place of a null so every `row.` access below stays safe —
+            // `visibility:` does NOT defer a plain block's own bindings, it
+            // only defers a component mount, so a literal null here would
+            // throw in the background binding before anything could hide it.
+            // Constant-true when windowing is off: no unwindowed row can carry
+            // the sentinel, so the 16 existing consumers see no change. Task 8
+            // replaces this gate with the skeleton/failed branches.
+            visibility: row._unloaded != true
             layout: horizontal
             border-top: gridRowKind(row) == "total" ? borders.strong : borders.subtle
-            background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent"))
+            background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1 ? stripeBg : "transparent"))
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
             cursor: selection != "none" ? "pointer" : "default"
@@ -1287,15 +1657,15 @@ component DataGrid(
             // one up would say it was. `visibility` cannot express this, so it
             // is a guarded style rather than a wrapper.
             on hover {
-              background: hasHover && gridRowKind(row) == "row" ? hoverBackground : (gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && rowIdx % 2 == 1 ? stripeBg : "transparent")))
+              background: hasHover && gridRowKind(row) == "row" ? hoverBackground : (gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1 ? stripeBg : "transparent")))
             }
             // The pinned cell cannot inherit the `on hover` style above — it
             // paints its own opaque sticky background over the row — so the
             // hover is ALSO tracked as state for that cell to read.
-            on mouse-enter: { hoveredRow = rowIdx }
+            on mouse-enter: { hoveredRow = gridAbsIdx(windowed, winStart, rowIdx) }
             on mouse-leave: { hoveredRow = 0 - 1 }
             on click: {
-              clickRow(row, rowIdx)
+              clickRow(row, gridAbsIdx(windowed, winStart, rowIdx))
               rowClickToggle(row)
             }
             data-grid-row: gridRowKind(row) == "row" ? "body" : gridRowKind(row)
@@ -1310,7 +1680,7 @@ component DataGrid(
                 grow: true
                 layout: horizontal, align: center, justify: center
                 on click(event): swallowRowClick(event)
-                Checkbox(label: "", checked: selectedSet.includes(row[rowKeyField])) {
+                Checkbox(label: "", checked: gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField])) {
                   on change(isChecked): selectRow(row)
                 }
               }
@@ -1331,7 +1701,7 @@ component DataGrid(
                 // what the user actually sees on the pinned column — the row's
                 // hover style is underneath it. Same guard as the row: only
                 // ordinary rows, only when hoverBackground is set.
-                background: gridRowKind(row) != "row" ? groupBg : (hasHover && hoveredRow == rowIdx ? hoverBackground : pinBg)
+                background: gridRowKind(row) != "row" ? groupBg : (hasHover && hoveredRow == gridAbsIdx(windowed, winStart, rowIdx) ? hoverBackground : pinBg)
                 // The row's left rail (_accent) is drawn on the row container, but
                 // this sticky pinned column's opaque background paints over it — so
                 // re-draw the rail here, on top of the pin background, or a
@@ -1456,7 +1826,7 @@ component DataGrid(
                 grow: true
                 min-width: col._min
                 max-width: col._max
-                background: focusedRow == rowIdx && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
+                background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
                 // The group bracket's body half: without it the grouping
                 // dissolves below the header (mockup: q-first/q-last on td AND th).
                 border-left: groupRules && col._gFirst && !col._gSolo ? bracketRule : "none"
@@ -1597,6 +1967,68 @@ component DataGrid(
               @slot("detail", row)
             }
           }
+
+          // ─── The two windowed placeholders ────────────────────────────────
+          // Siblings of the row block above, and mutually exclusive with it and
+          // with each other. The row block's gate is `row._unloaded != true`,
+          // and a failed block is never HELD — the cache clears `failed` on
+          // accept and never sets both — so a failed row is always an unloaded
+          // one and the three gates partition the loop exactly.
+          //
+          // Both are inert when windowing is off: no unwindowed row can carry
+          // the sentinel, and `winFailed` is empty so every index is out of
+          // range. The 16 existing consumers render byte-identically.
+
+          // Not arrived yet. SkeletonRow is what this grid already renders for
+          // its own first load; a second placeholder would only be a second
+          // thing to keep consistent.
+          block {
+            visibility: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx)
+            height: rowHeightPx
+            padding-x: pad
+            layout: horizontal, align: center
+            overflow: hidden
+            border-top: borders.subtle
+            data-grid-row: "unloaded"
+            SkeletonRow()
+          }
+
+          // The block failed. A failed block is NEVER re-requested on its own —
+          // the next scroll event would re-fire and re-fail it, forever, which
+          // is the fetch-trigger-latch shape — so this button is the only way
+          // back. It emits the BLOCK index, which is what retryBlock() takes;
+          // the row index and the absolute row index are both one small
+          // expression away and both wrong.
+          block {
+            visibility: gridBlockFailed(winFailed, rowIdx)
+            height: rowHeightPx
+            padding-x: pad
+            layout: horizontal, gap: spacing.2, align: center
+            overflow: hidden
+            border-top: borders.subtle
+            data-grid-row: "failed"
+            text('Could not load these rows') {
+              style: type.body-sm
+              color: semantic.destructive
+            }
+            button {
+              background: 'transparent'
+              border: borders.default
+              border-radius: radius.sm
+              padding-y: 2px
+              padding-x: 8px
+              cursor: 'pointer'
+              data-grid-block-retry: "true"
+              on click: retryFailedBlock(gridBlockOf(winStart, rowIdx, blockSize))
+              text('Retry') { style: type.label-sm, weight: 500, color: semantic.text-secondary }
+            }
+          }
+        }
+
+        block {
+          visibility: windowed
+          height: padBot
+          data-grid-pad-bot: "true"
         }
       }
 
@@ -1655,19 +2087,68 @@ component DataGrid(
     // TINT rows without opting into selection UI, and an action bar it never
     // asked for has no control on screen able to clear it.
     block {
-      visibility: selection != "none" && selectedSet.length > 0
+      // `selectAllMatching` is its own reason to be here. In predicate mode
+      // `selectedSet` is normally EMPTY — the whole point is that the grid
+      // does not hold the keys — so gating on its length hid the bar entirely
+      // while the caller still believed every matching row was selected,
+      // leaving no control on screen able to say otherwise.
+      visibility: selection != "none" && (selectedSet.length > 0 || selectAllMatching) && !guarded
       data-grid-row: "bulk"
       padding-y: spacing.2
       padding-x: spacing.3
       border-top: borders.default
       background: groupBg
       layout: horizontal, gap: spacing.3, align: center
-      text(selectedSet.length + " selected") {
+      // The SUMMARY's count, not the held keys: in predicate mode those are
+      // two very different numbers and the held one is meaningless.
+      text(toString(selectionSummary.count) + " selected") {
         weight: 700
         style: type.label-sm
         color: semantic.text-secondary
       }
-      @slot("bulkActions", selectedSet)
+      // The way out. Without it, predicate mode was one-way: nothing anywhere
+      // emitted selectAllMatchingChange(false), so once the user opted in
+      // there was no control that could take them back out.
+      block {
+        visibility: selectAllMatching
+        button {
+          // The marker sits on the BUTTON, not the wrapper — the wrapper is
+          // only the visibility gate, and a click on it reaches no handler.
+          data-grid-clear-matching: "true"
+          background: 'transparent'
+          border: borders.default
+          border-radius: radius.sm
+          padding-y: 2px
+          padding-x: 8px
+          cursor: 'pointer'
+          on click: exitAllMatching()
+          text('Clear selection') { style: type.label-sm, weight: 500, color: semantic.text-secondary }
+        }
+      }
+      // TWO arguments since 1.3.0. `selectedSet` is unchanged and stays first,
+      // so a caller destructuring one still binds — a slot callback compiles to
+      // a plain arrow function, and JS drops the extra argument. The second
+      // carries what `selectedSet` cannot say: in predicate mode the grid holds
+      // a handful of keys and the caller means every matching row.
+      @slot("bulkActions", selectedSet, selectionSummary)
+    }
+
+    // The refusal itself — the only thing this grid renders when a windowed
+    // configuration cannot be honoured. It is a sibling of the four blocks
+    // above rather than a replacement for them, and every one of those carries
+    // `!guarded`, so exactly one of the two states is ever on screen.
+    block {
+      visibility: guarded
+      data-grid-guard: "true"
+      role: "alert"
+      padding: spacing.3
+      border: borders.strong
+      background: semantic.destructive-bg
+      text(guardMsg) {
+        style: type.body-sm
+        weight: 500
+        color: semantic.destructive
+      }
     }
   }
 }
