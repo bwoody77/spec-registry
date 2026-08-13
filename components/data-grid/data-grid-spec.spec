@@ -453,6 +453,33 @@ component DataGrid(
   expandable: boolean = false,
   defaultExpanded: array = [],
   rowKeyField: string = "id",
+  // The grid's own frame. True keeps what every consumer renders today: a
+  // 1px border at radius.md around the whole grid.
+  //
+  // A grid mounted inside a card that already draws a frame needs this OFF, or
+  // the two frames stack — same border colour, different radii, 1px apart,
+  // which reads as a rendering fault rather than a design. Measured on cf's
+  // Deals list inside the shell's TableCard: 1px/8px nested in 1px/12px.
+  //
+  // This turns off the BORDER only. `overflow: hidden` stays either way: it is
+  // not chrome, it is what keeps the sticky header and the horizontal scroller
+  // inside the grid, and dropping it would let rows escape their card at
+  // narrow widths.
+  bordered: boolean = true,
+  // Whether an ordinary row is a click target, for the cursor only.
+  //
+  // The row cursor used to key off `selection != "none"`, which misses the
+  // commonest case there is: a master-detail list that navigates on `rowClick`
+  // and enables no selection at all. Every row is a target and every row
+  // renders the default arrow.
+  //
+  // The grid cannot infer this. There is no `hasListener()` in the language —
+  // only `hasSlot()` — so a consumer that binds `on rowClick` is
+  // indistinguishable from one that does not, and it has to say so.
+  //
+  // Ordinary rows only, matching `hoverBackground`: a group header or a total
+  // is not a navigation target, and pointing at one would claim it was.
+  rowsClickable: boolean = false,
   // Controlled sorting. When true the grid never reorders rows itself: header
   // clicks still toggle sortState (so the indicator moves) and still emit
   // `sort`, but the rows render exactly as given — the CALLER sorts. This is
@@ -1202,8 +1229,10 @@ component DataGrid(
   }
 
   block {
-    border: borders.default
-    border-radius: radius.md
+    // See `bordered`. `overflow: hidden` is deliberately NOT conditional —
+    // it is the grid's clip, not its chrome.
+    border: bordered ? borders.default : 'none'
+    border-radius: bordered ? radius.md : '0'
     overflow: hidden
     role: "grid"
     tabindex: "0"
@@ -1759,7 +1788,11 @@ component DataGrid(
             background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1 ? stripeBg : "transparent"))
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
-            cursor: selection != "none" ? "pointer" : "default"
+            // `rowsClickable` is scoped to ordinary rows (see the prop): a
+            // group header or a total is not a navigation target. `selection`
+            // keeps its existing, unscoped meaning so no current consumer's
+            // cursor moves.
+            cursor: selection != "none" || (rowsClickable && gridRowKind(row) == "row") ? "pointer" : "default"
             // Hover is opt-in via `hoverBackground` and only ever on ORDINARY
             // rows — a group header or a total is not a target, and lighting
             // one up would say it was. `visibility` cannot express this, so it
