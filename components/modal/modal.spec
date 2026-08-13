@@ -54,12 +54,21 @@ component Modal(
   }
 
   @actions {
+    // Both guards are load-bearing now that the watch below is IMMEDIATE:
+    // it runs once at construction, so whichever arm matches must be a no-op
+    // when the dialog is already in that state.
     doOpen() {
+      if showing { return }
       showing = true
       lockScroll()
       trapFocus()
     }
     doClose() {
+      // Without this, a dialog constructed CLOSED would run the `_` arm at
+      // mount: one phantom `close` emitted to a caller that wired real work to
+      // it, and — worse — an `unlockScroll()` that releases the lock a
+      // DIFFERENT, genuinely open dialog is holding.
+      if !showing { return }
       showing = false
       unlockScroll()
       releaseFocus()
@@ -67,8 +76,25 @@ component Modal(
     }
   }
 
+  // IMMEDIATE (`open!:`) — it must also run at construction with the value the
+  // caller passed, not only on later changes.
+  //
+  // The natural way to write a dialog is to gate it so it is not built until
+  // it is needed:
+  //
+  //   block { visibility: isOpen   Modal(open: isOpen) { … } }
+  //
+  // A `visibility:`-gated subtree containing a component compiles to a
+  // `lazyMount`, so the Modal is constructed at the exact moment `isOpen` turns
+  // true — born with `open == true`. A plain `@watch` fires on a CHANGE and
+  // never at construction, so `showing` stayed false, the overlay never
+  // rendered, and clicking the trigger did nothing at all. Five dialogs shipped
+  // permanently unopenable that way, with no error anywhere (Vector #646). The
+  // gate was not a failed optimisation, it was the cause — so the fix belongs
+  // here rather than in a rule asking every caller not to write the obvious
+  // thing.
   @watch {
-    open: {
+    open!: {
       match open {
         true -> doOpen()
         _ -> doClose()
