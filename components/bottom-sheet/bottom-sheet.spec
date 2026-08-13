@@ -55,16 +55,23 @@ component BottomSheet(
       },
       _ -> "translateY(100%)"
     }
+    // `dvh`, not `vh`. On a mobile browser `vh` is the LARGE viewport — the
+    // height with the URL bar retracted — so a sheet sized in vh and anchored
+    // to the layout viewport's bottom edge extends ABOVE the visible area
+    // whenever the bar is showing. The sheet's own header goes off-screen and
+    // is unreachable: the content scrolls INSIDE the sheet, so scrolling never
+    // moves the sheet's top edge back down, and a pull-down just rubber-bands
+    // and snaps back. `dvh` tracks the currently-visible viewport instead.
     sheetHeight: match fitContent {
       true -> "auto",
       _ -> match snapIndex {
         0 -> match snapPoints.length > 0 {
-          true -> (snapPoints[0] * 100) + "vh",
-          _ -> "50vh"
+          true -> (snapPoints[0] * 100) + "dvh",
+          _ -> "50dvh"
         },
         _ -> match snapPoints.length > snapIndex {
-          true -> (snapPoints[snapIndex] * 100) + "vh",
-          _ -> "100vh"
+          true -> (snapPoints[snapIndex] * 100) + "dvh",
+          _ -> "100dvh"
         }
       }
     }
@@ -124,7 +131,13 @@ component BottomSheet(
     // Sheet
     block {
       height: sheetHeight
-      max-height: 95vh
+      // The ceiling that made a fitContent sheet unreachable (Vector #636):
+      // at 95vh with the URL bar showing, the sheet overflowed the visible
+      // viewport by (bar height − 5vh) — ~20-40px in practice — and that band
+      // held the close button. A short sheet was fine, because height:auto
+      // never reached the cap; only a sheet tall enough to hit the ceiling
+      // lost its header, which is why the Card tab broke and Bank did not.
+      max-height: 95dvh
       // A sheet is full-bleed on a phone; `maxWidth` caps it on a wider
       // viewport. Without an explicit width the sheet is a row-flex item and
       // would size to its content, which reads as a floating card rather than
