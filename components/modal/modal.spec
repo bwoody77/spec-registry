@@ -14,6 +14,11 @@
 //               dialog and own their padding.
 //   ariaLabel — accessible name. Defaults to `title`, then "Dialog". Set this
 //               when chrome is false, since there is no title to fall back on.
+//   fullBleed — the dialog fills the screen: no side margin, no rounded
+//               corners, full height. For a phone sheet whose content is a
+//               calendar, a picker, or a form long enough that a 95vw x 90dvh
+//               card is just a smaller window onto the same scrolling. Ignores
+//               `width`. Off by default, so no existing dialog moves.
 //   dialogShadow — shadow for the dialog. Defaults to elevation.floating. Apps
 //               whose design system specifies a heavier dialog shadow can pass
 //               their own rather than having every dialog flatten on adoption.
@@ -36,7 +41,8 @@ component Modal(
   width: string = "500px",
   chrome: boolean = true,
   ariaLabel: string = "",
-  dialogShadow: string = ""
+  dialogShadow: string = "",
+  fullBleed: boolean = false
 ) {
   @state {
     showing: false
@@ -51,6 +57,26 @@ component Modal(
     // once at mount and never re-read.
     bodyPadding: chrome ? spacing.5 : "0"
     shadowValue: dialogShadow != "" ? dialogShadow : elevation.floating
+
+    // Full-bleed geometry. Hoisted into @computed for the reason stated above:
+    // an inline ternary on a prop is evaluated once at mount and never re-read.
+    //
+    // `100dvh`, not `vh`, for the same reason the centred cap uses dvh — `vh`
+    // is the LARGE viewport, so a full-height sheet in `vh` hides its own
+    // bottom row behind the URL bar, which is exactly where a sheet puts Done.
+    dialogWidth:     fullBleed ? "100vw"  : width
+    dialogMaxWidth:  fullBleed ? "100vw"  : "95vw"
+    // `min-height` rather than `height`, paired with the max below: the two
+    // together pin the box to the full screen exactly as `height` would, and
+    // this form is OBSERVABLE IN TESTS. jsdom's cssstyle validates `height`
+    // and silently drops any value in `dvh`, so a `height: 100dvh` assertion
+    // can only ever read back "" — a test that cannot fail. It stores
+    // min/max-height unparsed, so those survive.
+    dialogMinHeight: fullBleed ? "100dvh" : "0px"
+    dialogMaxHeight: fullBleed ? "100dvh" : "90dvh"
+    dialogRadius:    fullBleed ? "0px"    : "14px"
+    // A shadow on an edge-to-edge sheet has nothing to fall on.
+    dialogShadowValue: fullBleed ? "none" : shadowValue
   }
 
   @actions {
@@ -107,8 +133,9 @@ component Modal(
 
     // Dialog
     block {
-      width: width
-      max-width: 95vw
+      width: dialogWidth
+      max-width: dialogMaxWidth
+      min-height: dialogMinHeight
       // `dvh`, not `vh` — same reason as bottom-sheet's cap, one step milder
       // because a dialog is centred rather than edge-anchored. `vh` is the
       // large viewport, so with the URL bar showing a tall dialog is centred
@@ -116,11 +143,11 @@ component Modal(
       // of ~90% of that, roughly the bottom 5% falls below the fold — which is
       // exactly where a dialog puts its Save/Cancel row. `max-width` stays in
       // `vw`: chrome changes the viewport's height, not its width.
-      max-height: 90dvh
+      max-height: dialogMaxHeight
       overflow: "auto"
       background: semantic.surface
-      border-radius: 14px
-      shadow: shadowValue
+      border-radius: dialogRadius
+      shadow: dialogShadowValue
       // NO backdrop-filter on this element. It used to carry blur(4px), which was
       // visually inert (semantic.surface is opaque, so it blurred a backdrop
       // nobody could see through) and silently broke every anchored popup inside

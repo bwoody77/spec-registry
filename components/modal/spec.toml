@@ -1,6 +1,6 @@
 [package]
 name = "modal"
-version = "0.4.4"
+version = "0.5.0"
 category = "components"
 description = "Overlay dialog for focused content and actions"
 license = "MIT"
