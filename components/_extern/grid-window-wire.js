@@ -173,18 +173,21 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
      * never mounted stops asking instead of retrying forever — the shape behind
      * this package's known post-teardown unhandled errors.
      */
+    // ~2s at 16ms. The old budget was 32 attempts — and `attempts` was consumed
+    // by TWO chains at once (see below), so the real budget was ~256ms. A mount
+    // delayed past that by a busy main thread or a container appended a frame
+    // late left the grid permanently unscrollable, silently.
+    const ATTACH_ATTEMPTS = 125;
     let attempts = 0;
-    function attach() {
-        if (destroyed || scroller)
-            return;
+    /** One try. Returns whether the scroll container was found and wired. */
+    function tryAttach() {
+        if (destroyed)
+            return false;
+        if (scroller)
+            return true;
         scroller = document.querySelector(`[data-grid-id="${gridId}"] [data-grid-scroll]`);
-        if (!scroller) {
-            if (attempts++ >= 32)
-                return;
-            waitTimer = setTimeout(attach, 16);
-            return;
-        }
-        waitTimer = null;
+        if (!scroller)
+            return false;
         scroller.addEventListener('scroll', onScroll, { passive: true });
         // The grid's height can change without a scroll — a sibling panel opening,
         // the window resizing — and a stale viewportHeight renders too few rows.
@@ -195,14 +198,47 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         // The first measurement anyone can trust: until now viewportHeight was a
         // guess of 0.
         recompute(true);
+        return true;
     }
-    attach();
-    if (!scroller) {
+    /**
+     * THE ONLY thing that re-arms the timer. `attach()` used to schedule itself
+     * on failure while the caller ALSO queued a microtask attempt — and that
+     * microtask's run armed a second timer, overwriting the first id while the
+     * first was still pending. Two live chains: `attempts` consumed twice per
+     * tick, and `destroy()` able to clear only one of the two ids, so the other
+     * kept firing after teardown.
+     */
+    function pollAttach() {
+        waitTimer = null;
+        if (destroyed || tryAttach())
+            return;
+        if (attempts++ >= ATTACH_ATTEMPTS) {
+            // LOUD, and released. Silence here is what made this so hard to see: the
+            // grid renders an overscan-sized window with numerically correct
+            // spacers and simply never responds to a scroll again.
+            console.error(`DataGrid: window wire for grid ${gridId} never found its scroll container ` +
+                `([data-grid-id="${gridId}"] [data-grid-scroll]) after ${ATTACH_ATTEMPTS} attempts; ` +
+                `giving up. The grid will not respond to scrolling.`);
+            // Release rather than linger. `isDetached` reads `scroller != null &&
+            // !scroller.isConnected`, which is false forever when the scroller was
+            // never found — so the reaper could never collect this wire, and it held
+            // its cache, its rows and its registry slot for the life of the page.
+            handle.destroy();
+            return;
+        }
+        waitTimer = setTimeout(pollAttach, 16);
+    }
+    const attached = tryAttach();
+    if (!attached) {
         // Nothing to measure yet. Push a provisional window anyway so the grid
         // renders its spacers and asks for block 0 immediately rather than waiting
-        // a turn; `attach` forces a second push once it has a real clientHeight.
+        // a turn; the poll forces a second push once it has a real clientHeight.
+        //
+        // The microtask is the FIRST attempt of the single chain, not a second
+        // chain beside it — mount is synchronous, so one turn is normally all it
+        // takes and the timer never arms at all.
         recompute(true);
-        queueMicrotask(attach);
+        queueMicrotask(pollAttach);
     }
     const handle = {
         destroy() {
@@ -225,6 +261,10 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
             if (wires.get(gridId) === handle) {
                 wires.delete(gridId);
                 unregisterCache(gridId);
+                // Grid ids are minted per mount, so without this a route carrying a
+                // windowed grid leaks one dead string per visit for the life of the
+                // page.
+                warnedRowHeight.delete(gridId);
             }
         },
         setRowCount(n) { rowCount = n; last = null; recompute(true); },
@@ -272,6 +312,135 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
  */
 export function setGridGeneration(gridId, key) {
     wires.get(gridId)?.setGeneration(key);
+}
+/**
+ * A windowed grid's whole geometry — spacer heights, which rows the window
+ * covers, and therefore what the scrollbar represents — is computed from the
+ * DECLARED `rowHeight`. Nothing makes the body row honour it: only the
+ * skeleton and failed rows set an explicit height, so cell padding decides the
+ * real one. In the reference harness a declared 30 renders at 41.
+ *
+ * The consequence is a scrollbar that lies about the size of the list, by
+ * (actual - declared) x rowCount — roughly 11,000px over 1,043 rows there.
+ * Task 11 measured the symptom and mis-attributed it: it recorded scrollHeight
+ * 31,598 against 31,290 of "bare rows" and put the 308px difference down to
+ * "sticky header + borders", when it was 30 rendered rows each 11px taller
+ * than declared.
+ *
+ * Warned once per grid rather than fixed here: making the row honour
+ * `rowHeight` changes rendering for every windowed consumer and wants its own
+ * change. Silence is worse — the failure is purely geometric, so no test that
+ * cannot lay out will ever see it.
+ */
+const warnedRowHeight = new Set();
+function warnOnRowHeightDrift(gridId, declared, measured) {
+    if (warnedRowHeight.has(gridId))
+        return;
+    // A pixel of border is expected and harmless; 11 is not.
+    if (Math.abs(measured - declared) <= 2)
+        return;
+    warnedRowHeight.add(gridId);
+    console.error(`DataGrid: grid ${gridId} declares rowHeight ${declared} but renders rows at ` +
+        `${Math.round(measured)}px. Windowing computes spacers and the scroll range from the ` +
+        `declared value, so the scrollbar misrepresents the list by about ` +
+        `${Math.round(Math.abs(measured - declared))}px per row. Set rowHeight to the height the ` +
+        `row actually renders at, or reduce cell padding.`);
+}
+/**
+ * Scroll a windowed grid so that absolute row `index` is on screen.
+ *
+ * Keyboard navigation walks the whole grid, not the window, so arrowing off
+ * the edge must move the window — otherwise focus advances into rows that are
+ * not rendered and the highlight simply disappears, which reads as a broken
+ * grid rather than a scrolled one.
+ *
+ * Nudges by the minimum needed (the row's top when going up, its bottom when
+ * going down) rather than centring, so held-down arrow keys travel one row at
+ * a time instead of jumping half a viewport. Already-visible rows are left
+ * alone, so this is safe to call on every keystroke.
+ *
+ * Unknown id, no scroller, or a non-positive rowHeight: no-op. An unwindowed
+ * or guarded grid has no wire, and both reach this through the same action.
+ */
+export function gridScrollRowIntoView(gridId, index, rowHeight) {
+    if (!(rowHeight > 0) || !(index >= 0))
+        return null;
+    const root = document.querySelector(`[data-grid-id="${gridId}"]`);
+    const scroller = root?.querySelector('[data-grid-scroll]');
+    if (!scroller)
+        return null;
+    const viewTop = scroller.scrollTop;
+    const viewBottom = viewTop + scroller.clientHeight;
+    // MEASURED when the row is on screen, computed only when it is not.
+    //
+    // `rowHeight` describes what the caller declared, and the body row does not
+    // enforce it — cell padding makes the rendered row taller, by 11px on 30 in
+    // the reference harness. Scrolling from the declaration alone therefore
+    // lands short by (actual - declared) x index, which is hundreds of pixels a
+    // page down: the row is "scrolled to" and still off screen.
+    //
+    // A row outside the window has no element to measure, so the arithmetic is
+    // the estimate that gets the window close; the caller calls again once it
+    // has rendered, and that pass measures.
+    // Scoped to THIS grid: a DataGrid nested inside a cell stamps the same
+    // attribute, and its rows precede the outer grid's later rows in document
+    // order, so an unscoped query can measure the inner grid's row.
+    const el = Array.from(root.querySelectorAll(`[data-grid-row-index="${index}"]`)).find((n) => n.closest('[data-grid-id]') === root);
+    // A row with NO LAYOUT BOX is not a measurable row. `data-grid-row-index`
+    // sits on the same block as `visibility: row._unloaded != true`, and
+    // `visibility:` compiles to display:none — it hides, it does not omit — so
+    // an undelivered slot is still found here and reports a rect of all zeros.
+    // Measuring that gives `top = 0 - scrollerTop + viewTop`, always less than
+    // viewTop, so the grid scrolls BACKWARDS; the next keypress finds nothing,
+    // takes the estimate, and scrolls forward again. Focus advances while the
+    // viewport oscillates toward 0, on any grid whose fetch is slower than a
+    // held-down arrow key.
+    const rect = el ? el.getBoundingClientRect() : null;
+    const measurable = rect !== null && rect.height > 0;
+    let top;
+    let bottom;
+    if (measurable) {
+        // offsetTop is relative to the offset parent, which is not necessarily the
+        // scroller — go through the rects and add the scroll position back.
+        const r = rect;
+        const s = scroller.getBoundingClientRect();
+        top = r.top - s.top + viewTop;
+        bottom = top + r.height;
+        warnOnRowHeightDrift(gridId, rowHeight, r.height);
+    }
+    else {
+        // ROW 0 IS NOT AT OFFSET 0. The composite header — and the filter strip,
+        // when there is one — live INSIDE `[data-grid-scroll]`, so the virtual
+        // area starts below them. `index * rowHeight` is short by exactly that
+        // much, which put every fallback scroll one header-height too high: the
+        // row was "scrolled to" and sitting just under the fold.
+        //
+        // The top spacer marks where the virtual area begins, and its own height
+        // is already the rows above the window, so its TOP is row 0's conceptual
+        // position. Measuring it covers the filter strip and any future chrome
+        // without naming them.
+        const pad = scroller.querySelector('[data-grid-pad-top]');
+        const virtualTop = pad
+            ? pad.getBoundingClientRect().top - scroller.getBoundingClientRect().top + viewTop
+            : 0;
+        top = virtualTop + index * rowHeight;
+        bottom = top + rowHeight;
+    }
+    // The header scrolls WITH the content and sits above row 0 inside the same
+    // container, so a row aligned to `top` hides underneath a sticky one.
+    const header = scroller.querySelector('[data-grid-row="header"]');
+    const headerH = header ? header.getBoundingClientRect().height : 0;
+    if (top - headerH < viewTop)
+        scroller.scrollTop = Math.max(0, top - headerH);
+    else if (bottom > viewBottom)
+        scroller.scrollTop = bottom - scroller.clientHeight;
+    else
+        return null;
+    // The scroll listener fires asynchronously; the window the caller is about
+    // to render from must reflect the new position NOW, or the keypress renders
+    // one frame behind its own scroll.
+    wires.get(gridId)?.refresh();
+    return null;
 }
 /**
  * Key-order-stable stringify. `filters` is a map built by user interaction, so

@@ -1,6 +1,6 @@
 @extern { genGridId, wireColumnDrag, wireGroupDrag } from "@spec/components/data-grid-column-drag.js"
 @extern { gridDeriveGroupRows } from "@spec/components/grid-group-derive.js"
-@extern { wireGridWindow, gridDataGeneration } from "@spec/components/grid-window-wire.js"
+@extern { wireGridWindow, gridDataGeneration, gridScrollRowIntoView } from "@spec/components/grid-window-wire.js"
 @extern { retryBlock } from "@spec/components/grid-block-cache.js"
 
 fn toggleSortState(sortState: list, colKey: string) -> list {
@@ -236,6 +236,28 @@ fn gridRowChecked(allMatching: boolean, excluded: list, chosen: list, key: any) 
 // that are not among them.
 fn gridUnionKeys(chosen: list, adding: list) -> list {
   return chosen.concat(adding.filter(k => !chosen.includes(k)))
+}
+
+// The row `focusedRow` names. `focusedRow` is an ABSOLUTE index — the render
+// has compared it against gridAbsIdx() since Task 7 — so windowed mode has to
+// subtract the window start to reach the rendered row. Returns null when the
+// focused row is outside the window (its block has not been fetched, or focus
+// has moved ahead of a scroll); selectRow already null-guards, so a keypress
+// on an unloaded row does nothing rather than selecting `undefined`.
+// Where focus lands from "nothing focused yet". Row 0 is wrong for a windowed
+// grid the user has already scrolled: the first arrow key would haul the list
+// back to the top. The top of the CURRENT window is what they are looking at.
+fn gridFirstFocus(isWindowed: boolean, start: number) -> number {
+  if isWindowed { return start }
+  return 0
+}
+
+fn gridFocusedRow(isWindowed: boolean, rendered: list, shown: list, start: number, idx: number) -> any {
+  if !isWindowed { return shown[idx] }
+  let rel = idx - start
+  if rel < 0 { return null }
+  if rel >= rendered.length { return null }
+  return rendered[rel]
 }
 
 fn gridRowKind(row: map) -> string {
@@ -879,6 +901,10 @@ component DataGrid(
       |> map(r => r[rowKeyField])
     allSelected: selectableKeys.length > 0 && selectableKeys.every(k => selectedSet.includes(k))
 
+    // What keyboard navigation walks. Windowed, that is every row in the grid
+    // — `displayRows` is empty there, which is what made arrow keys inert.
+    navRowCount: windowed ? rowCount : displayRows.length
+
     // ─── The two-step select-all ────────────────────────────────────────────
     // What a bulk action needs to know, and what `selectedSet` alone cannot
     // say: in predicate mode the grid holds a handful of keys and the caller
@@ -1105,12 +1131,39 @@ component DataGrid(
       selectRow(row)
       emit("rowClick", row, idx)
     }
-    moveUp()    { if focusedRow > 0 { focusedRow = focusedRow - 1 } }
+    // ─── Keyboard navigation spans the WHOLE grid, not the window ───────────
+    // `focusedRow` is an absolute index (the render has compared it against
+    // gridAbsIdx since Task 7), but the movement was still bounded by
+    // `displayRows.length` — which windowed mode leaves EMPTY, so `moveDown`
+    // evaluated `-1 < -1`, false, and focus never moved at all. The grid
+    // supplies role="grid", tabindex="0" and this handler itself, so every
+    // windowed consumer inherited a focusable grid whose arrow keys were dead.
+    //
+    // `navRowCount` is the length of the thing being navigated: every row in
+    // windowed mode, only what is displayed otherwise.
+    moveUp()    { if focusedRow > 0 { focusedRow = focusedRow - 1  revealFocusedRow() } }
     // From "nothing focused", the first Down/Right press lands on the first cell.
-    moveDown()  { if focusedRow < displayRows.length - 1 { focusedRow = focusedRow + 1  if focusedCol < 0 { focusedCol = 0 } } }
+    moveDown()  { if focusedRow < 0 { focusedRow = gridFirstFocus(windowed, winStart)  if focusedCol < 0 { focusedCol = 0 }  revealFocusedRow() } else { if focusedRow < navRowCount - 1 { focusedRow = focusedRow + 1  if focusedCol < 0 { focusedCol = 0 }  revealFocusedRow() } } }
     moveLeft()  { if focusedCol > 0 { focusedCol = focusedCol - 1 } }
-    moveRight() { if focusedCol < visibleColumns.length - 1 { focusedCol = focusedCol + 1  if focusedRow < 0 { focusedRow = 0 } } }
-    selectFocused() { if focusedRow >= 0 { selectRow(displayRows[focusedRow]) } }
+    // Both entry points from "nothing focused" seed from the TOP OF THE
+    // WINDOW, not row 0. After a mouse scroll to row 500, seeding 0 made the
+    // first ArrowDown yank the list back to the very top; and moveRight seeded
+    // 0 without revealing at all, putting focus on an off-screen row with no
+    // scroll — the vanishing highlight this task set out to remove, in a
+    // different key.
+    moveRight() { if focusedCol < visibleColumns.length - 1 { focusedCol = focusedCol + 1  if focusedRow < 0 { focusedRow = gridFirstFocus(windowed, winStart)  revealFocusedRow() } } }
+    // Arrowing off the edge of the window has to move the WINDOW. Without
+    // this, focus walks into rows that are not rendered and the highlight
+    // simply vanishes — the grid looks broken rather than scrolled.
+    // No-op when unwindowed, and when the row is already on screen.
+    revealFocusedRow() {
+      if windowed { gridScrollRowIntoView(_gridId, focusedRow, rowHeight) }
+    }
+    selectFocused() {
+      if focusedRow >= 0 {
+        selectRow(gridFocusedRow(windowed, renderRows, displayRows, winStart, focusedRow))
+      }
+    }
 
     // Called by wireGridWindow with a COMPLETE render state. Values arrive as
     // arguments and are never read back out of a @computed here: an action
@@ -1647,6 +1700,41 @@ component DataGrid(
             // replaces this gate with the skeleton/failed branches.
             visibility: row._unloaded != true
             layout: horizontal
+            // ─── A WINDOWED ROW HONOURS THE HEIGHT IT DECLARED ──────────────
+            // Every windowed geometry — the spacers, which rows the window
+            // covers, what the scrollbar represents — is computed from
+            // `rowHeight`, and nothing used to make the row obey it. Cell
+            // padding decided the real height instead: a declared 30 rendered
+            // at 41 in the reference harness.
+            //
+            // The grid was inconsistent with ITSELF, not merely with the
+            // declaration — the skeleton and failed rows have always set
+            // `height: rowHeightPx`, so a window of unloaded rows was 30px a
+            // row and the same window loaded was 41. Rows therefore moved
+            // under the user as blocks arrived, the scrollbar misreported the
+            // list by (actual - declared) x rowCount, and scrolling a row to
+            // an absolute offset could not land: the mapping changed every
+            // time the window did.
+            //
+            // Only when windowed. `auto` is what every unwindowed row has
+            // always had, so the 16 existing consumers are untouched — and
+            // windowing already refuses the variable-height modes (expandable,
+            // groupBy), so uniform rows are a contract it states, not a new
+            // restriction.
+            // `max-height` and NOT `overflow: hidden`. The pinned cell is a
+            // direct child of this block with `position: sticky; left: 0`, and
+            // an ancestor with `overflow: hidden` becomes that sticky
+            // element's scroll container — an ancestor which never scrolls, so
+            // the pin stops pinning. Measured in Chrome on this grid's own
+            // structure: at scrollLeft 300 an ordinary row's pinned cell sat
+            // at offset 0 from the scroller, and an `overflow:hidden` row's
+            // sat at -300, fully scrolled away. The composite header did not
+            // get the clip, so a windowed pinFirst grid would have frozen its
+            // header's first column while every body row's slid out from
+            // under it. `pinFirst` is not among the refused configurations,
+            // so that combination is supported and must work.
+            height: windowed ? rowHeightPx : 'auto'
+            max-height: windowed ? rowHeightPx : 'none'
             border-top: gridRowKind(row) == "total" ? borders.strong : borders.subtle
             background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1 ? stripeBg : "transparent"))
             shadow: gridRowRail(row)
@@ -1668,7 +1756,26 @@ component DataGrid(
               clickRow(row, gridAbsIdx(windowed, winStart, rowIdx))
               rowClickToggle(row)
             }
-            data-grid-row: gridRowKind(row) == "row" ? "body" : gridRowKind(row)
+            // `_unloaded` FIRST. `visibility:` hides rather than omits, so this
+            // block stays in the DOM for a row that has not arrived — and an
+            // `_unloaded` sentinel carries no `_kind`, so it read as an
+            // ordinary row and stamped "body". Consumers count
+            // `[data-grid-row="body"]` without filtering for display (cf and
+            // Vector both do), so every undelivered slot inflated their count
+            // by one, varying with fetch timing. The skeleton beside it still
+            // stamps "unloaded"; this one is inert scaffolding and says so.
+            data-grid-row: row._unloaded == true ? "placeholder" : (gridRowKind(row) == "row" ? "body" : gridRowKind(row))
+            // The ABSOLUTE index, so the wire can find a specific row in the
+            // DOM and measure it. Scrolling a row into view from `rowHeight`
+            // alone lands wrong whenever the rendered height differs from the
+            // declared one — which it does here by 11px a row — so the wire
+            // measures the real element when it has one.
+            // WINDOWED ONLY. Stamped unconditionally this reached all 16
+            // existing consumers, and gave every unwindowed row's attribute
+            // binding a dependency on the `winStart` signal it never had —
+            // their path has to stay byte-identical. `null` omits the
+            // attribute, as the `data-testid` line below already relies on.
+            data-grid-row-index: windowed ? gridAbsIdx(windowed, winStart, rowIdx) + '' : null
             data-testid: gridRowKind(row) == "row" ? rowTestIdAttr : null
 
             block {
@@ -1989,7 +2096,11 @@ component DataGrid(
             layout: horizontal, align: center
             overflow: hidden
             border-top: borders.subtle
-            data-grid-row: "unloaded"
+            // Mirrors the gate above, for the same reason the body row does:
+            // `visibility:` leaves this block in the DOM once the rows arrive,
+            // and a consumer counting `[data-grid-row="unloaded"]` raw would
+            // read the whole window as still loading, forever.
+            data-grid-row: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) ? "unloaded" : "placeholder"
             SkeletonRow()
           }
 
@@ -2006,7 +2117,7 @@ component DataGrid(
             layout: horizontal, gap: spacing.2, align: center
             overflow: hidden
             border-top: borders.subtle
-            data-grid-row: "failed"
+            data-grid-row: gridBlockFailed(winFailed, rowIdx) ? "failed" : "placeholder"
             text('Could not load these rows') {
               style: type.body-sm
               color: semantic.destructive
