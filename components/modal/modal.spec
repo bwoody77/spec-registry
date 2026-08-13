@@ -109,7 +109,14 @@ component Modal(
     block {
       width: width
       max-width: 95vw
-      max-height: 90vh
+      // `dvh`, not `vh` — same reason as bottom-sheet's cap, one step milder
+      // because a dialog is centred rather than edge-anchored. `vh` is the
+      // large viewport, so with the URL bar showing a tall dialog is centred
+      // inside a box taller than the screen: at 90vh against a visible height
+      // of ~90% of that, roughly the bottom 5% falls below the fold — which is
+      // exactly where a dialog puts its Save/Cancel row. `max-width` stays in
+      // `vw`: chrome changes the viewport's height, not its width.
+      max-height: 90dvh
       overflow: "auto"
       background: semantic.surface
       border-radius: 14px
