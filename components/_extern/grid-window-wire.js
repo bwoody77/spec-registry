@@ -113,11 +113,46 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
             inRecompute = false;
         }
     }
+    /**
+     * ── A DECLARATION CAN BE WRONG; A MEASUREMENT CANNOT ──────────────────────
+     * `rowHeight` is what the caller declares, and the component forces it onto
+     * the row — but `box-sizing` is content-box and Spec cannot set it (the
+     * property appears nowhere in the compiler), so a 1px row border makes the
+     * real row `rowHeight + 1`. Everything here is computed from the
+     * declaration, so every row compounds a pixel of error.
+     *
+     * Measured in cf on a 783-row curve: rows rendered 41px against a declared
+     * 40, the scroll range under-reported by ~780px, and arrowing down put the
+     * focused row 18px BELOW the fold — 17px of drift by row 25. The drift
+     * warning never fired, because 1px is inside its 2px tolerance.
+     *
+     * So: measure a real row the first time one exists, and use that from then
+     * on. Re-measured only while uncalibrated, so this costs one layout read in
+     * the life of the wire, not one per scroll.
+     */
+    let measuredRowHeight = 0;
+    function calibrate() {
+        if (measuredRowHeight > 0)
+            return measuredRowHeight;
+        if (!scroller)
+            return opts.rowHeight;
+        const row = scroller.querySelector('[data-grid-row-index]');
+        if (!row)
+            return opts.rowHeight;
+        // A `visibility:`-hidden placeholder is display:none and reports a zero
+        // box. Calibrating on that would set the row height to 0 and divide the
+        // whole window by nothing.
+        const h = row.getBoundingClientRect().height;
+        if (!(h > 0))
+            return opts.rowHeight;
+        measuredRowHeight = h;
+        return h;
+    }
     function recomputeInner(force) {
         const w = computeWindow({
             scrollTop: scroller ? scroller.scrollTop : 0,
             viewportHeight: scroller ? scroller.clientHeight : 0,
-            rowHeight: opts.rowHeight,
+            rowHeight: calibrate(),
             totalCount: rowCount,
             overscan: opts.overscan,
         });
@@ -272,6 +307,7 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         refresh() { recompute(true); },
         // The FIRST key is adopted silently. There is nothing held to drop yet,
         // and invalidating here would burn a token before the opening request.
+        effectiveRowHeight() { return calibrate(); },
         setGeneration(key) {
             if (generation === null) {
                 generation = key;
@@ -384,6 +420,12 @@ function warnOnRowHeightDrift(gridId, declared, measured) {
 export function gridScrollRowIntoView(gridId, index, rowHeight) {
     if (!(rowHeight > 0) || !(index >= 0))
         return null;
+    // The CALIBRATED height for the estimate below, not the declared one. This
+    // path is taken precisely when the target row is not rendered — which is
+    // every keypress that walks past the edge of the window — so a declaration
+    // that is 1px out lands the row a row-per-25 below the fold. Measured in cf
+    // before this: 17px of drift by row 25, and the focused row off screen.
+    rowHeight = wires.get(gridId)?.effectiveRowHeight() ?? rowHeight;
     const root = document.querySelector(`[data-grid-id="${gridId}"]`);
     const scroller = root?.querySelector('[data-grid-scroll]');
     if (!scroller)
