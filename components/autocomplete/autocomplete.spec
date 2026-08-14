@@ -19,6 +19,10 @@
 //     list. This is the "dropdown that also accepts typing" UX — the
 //     right choice for short bounded lists (aircraft, instructors,
 //     time slots) where users often want to browse without typing.
+//     This mode also paints Select's "▾" caret at the right edge, so the
+//     field advertises the menu it drops; clicking the caret opens it.
+//     Typing-driven mode (the default) deliberately has no caret — there
+//     is no menu to promise until the user has typed.
 //
 // Two value modes (toggled by `freeText`):
 //
@@ -315,6 +319,39 @@ component Autocomplete(
         on click: clearSelection()
         on hover { background: semantic.surface-raised }
         text("Clear") { style: type.label-sm, color: semantic.text-secondary, weight: 600 }
+      }
+
+      // Dropdown caret — the same "▾" glyph, size and tone Select paints,
+      // so a browse-style Autocomplete reads as a sibling of the Selects beside
+      // it rather than as a plain text field that mysteriously drops a menu.
+      //
+      // Only in openOnFocus mode. Without it there IS no menu to promise until
+      // the user has typed something, and a permanent caret on a typing-driven
+      // search field would advertise a dropdown that clicking cannot produce.
+      //
+      // Clickable on purpose: a caret that looks like a control but ignores
+      // clicks is a dead zone, and this glyph sits OUTSIDE the TextInput, so a
+      // click on it would otherwise land on nothing. It opens rather than
+      // toggles — popup.js already closes the panel on any outside click, and
+      // this element is outside the panel, so a toggle would race that handler
+      // and read as "the caret does nothing". Escape and click-away still
+      // close. Being a block (not a button) it takes no focus, so the caret
+      // press leaves the caret in the input where the user can keep typing.
+      block {
+        visibility: openOnFocus && !disabled
+        padding-x: spacing.1
+        cursor: "pointer"
+        on click: handleFocus()
+        // Decorative: the combobox semantics live on the wrapped TextInput, and
+        // "▾" announces as "black down-pointing small triangle". aria-hidden
+        // sits on this INNER block because `visibility:` on the outer one drives
+        // its own aria-hidden reactively (bindVisibility clears the attribute
+        // whenever the block is shown), which would wipe a static value set on
+        // that same element — the modal-select.spec check-glyph gotcha.
+        block {
+          aria-hidden: "true"
+          text("▾") { style: type.caption, color: semantic.text-tertiary }
+        }
       }
     }
 
