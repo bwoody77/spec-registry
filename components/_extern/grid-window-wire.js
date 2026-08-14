@@ -136,17 +136,24 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
             return measuredRowHeight;
         if (!scroller)
             return opts.rowHeight;
-        const row = scroller.querySelector('[data-grid-row-index]');
-        if (!row)
-            return opts.rowHeight;
-        // A `visibility:`-hidden placeholder is display:none and reports a zero
-        // box. Calibrating on that would set the row height to 0 and divide the
-        // whole window by nothing.
-        const h = row.getBoundingClientRect().height;
-        if (!(h > 0))
-            return opts.rowHeight;
-        measuredRowHeight = h;
-        return h;
+        // EVERY row, not the first. `data-grid-row-index` sits on the same block
+        // as `visibility: row._unloaded != true`, so an undelivered slot carries
+        // the attribute and reports a ZERO box — and in a real grid the first
+        // match is very often exactly that. 1.5.1 used querySelector here and so
+        // never calibrated at all in cf, where a window opens on placeholders
+        // while its first block is in flight.
+        //
+        // Hidden and rendered rows are indistinguishable by selector; only the box
+        // tells them apart. This is the second measurement in this file that the
+        // zero-box placeholder has broken.
+        for (const row of scroller.querySelectorAll('[data-grid-row-index]')) {
+            const h = row.getBoundingClientRect().height;
+            if (h > 0) {
+                measuredRowHeight = h;
+                return h;
+            }
+        }
+        return opts.rowHeight;
     }
     function recomputeInner(force) {
         const w = computeWindow({
