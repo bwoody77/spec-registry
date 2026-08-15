@@ -322,14 +322,14 @@ fn gridBlockOf(start: number, idx: number, size: number) -> number {
 // screen. The block comparison is what separates two ADJACENT failed blocks —
 // two distinct things to retry, one message each.
 //
-// `over` rows sit above the viewport whenever the window is not clamped at the
-// top: computeWindow uses `max(0, floor(rawStart - overscan))`, so the count is
-// exactly `overscan` unless `start` hit that floor. When it did, the true count
-// is smaller and this puts the message up to `over - 1` rows high — only ever
-// within the first screen of the list, where scrolling up costs nothing.
-fn gridBlockMsgSlot(failed: list, start: number, idx: number, size: number, over: number) -> boolean {
+// `firstVisible` is measured and pushed by the wire (see WindowState) rather
+// than derived here. Deriving it as `start > 0 ? overscan : 0` is wrong twice:
+// it is off by the clamp at the top of the list, and — the one that actually
+// hides the message — it ignores the composite header, which is `position:
+// sticky` INSIDE the scroll container, so the row aligned to `scrollTop` sits
+// UNDER it. The wire already measures that header for gridScrollRowIntoView.
+fn gridBlockMsgSlot(failed: list, start: number, idx: number, size: number, firstVisible: number) -> boolean {
   if !gridBlockFailed(failed, idx) { return false }
-  let firstVisible = start > 0 ? over : 0
   if idx < firstVisible { return false }
   if idx == firstVisible { return true }
   return gridBlockOf(start, idx, size) != gridBlockOf(start, idx - 1, size)
@@ -709,6 +709,10 @@ component DataGrid(
     winFailed: []
     winStart: 0
     winEnd: 0
+    // The first ON-SCREEN slot of the window, measured by the wire. See
+    // WindowState.firstVisible — it is neither 0 nor `overscan`, because the
+    // sticky header covers the row aligned to scrollTop.
+    winFirstVisible: 0
     padTopPx: 0
     padBotPx: 0
   }
@@ -1291,6 +1295,7 @@ component DataGrid(
       winFailed = s.failed
       winStart = s.start
       winEnd = s.end
+      winFirstVisible = s.firstVisible
       padTopPx = s.topPad
       padBotPx = s.botPad
     }
@@ -2217,8 +2222,20 @@ component DataGrid(
           // Not arrived yet. SkeletonRow is what this grid already renders for
           // its own first load; a second placeholder would only be a second
           // thing to keep consistent.
+          //
+          // ── WHY THIS IS TWO WHOLE ROWS AND NOT ONE ROW WITH TWO INSIDES ───
+          // The compiler only mounts a block's contents LAZILY when the block
+          // carries a `visibility:` AND a component invocation as a DIRECT
+          // child (ast-to-ir.ts, `hasVisibility && hasSurfaceRef`). Nesting the
+          // two shapes one level down to save a node cost the outer gate its
+          // laziness and left each inner gate on the STATIC `skeletonVariant`,
+          // so every row of every grid — windowed or not, loaded or not —
+          // eagerly mounted a whole SkeletonRow tree. Measured before this was
+          // put right: +19 DOM nodes and one SkeletonRow mount PER ROW on a
+          // fully-loaded grid, on a component that does not virtualise.
+          // Duplicating the row's chrome is the cheaper of the two.
           block {
-            visibility: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx)
+            visibility: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant != "bar"
             height: rowHeightPx
             padding-x: pad
             layout: horizontal, align: center
@@ -2227,25 +2244,25 @@ component DataGrid(
             // Mirrors the gate above, for the same reason the body row does:
             // `visibility:` leaves this block in the DOM once the rows arrive,
             // and a consumer counting `[data-grid-row="unloaded"]` raw would
-            // read the whole window as still loading, forever.
-            data-grid-row: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) ? "unloaded" : "placeholder"
-            // Two shapes, one slot. `visibility:` rather than a branch because
-            // Spec has no conditional element — the unchosen one is display:none
-            // and costs a node, which is why this is two blocks and not two
-            // whole row bodies.
-            block {
-              visibility: skeletonVariant != "bar"
-              grow: true
-              SkeletonRow()
-            }
-            // The dense-table shape: one shimmer line, no avatar, no pill.
-            // SkeletonLine is the registry primitive SkeletonRow itself is built
-            // from — not a hand-rolled bar.
-            block {
-              visibility: skeletonVariant == "bar"
-              grow: true
-              SkeletonLine(width: "60%", height: "10px")
-            }
+            // read the whole window as still loading, forever. It mirrors the
+            // WHOLE gate, variant included — with two of these rows per slot, a
+            // stamp on the shared half would count every unloaded row twice.
+            data-grid-row: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant != "bar" ? "unloaded" : "placeholder"
+            SkeletonRow()
+          }
+
+          // The dense-table shape: one shimmer line, no avatar, no pill.
+          // SkeletonLine is the registry primitive SkeletonRow itself is built
+          // from — not a hand-rolled bar.
+          block {
+            visibility: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant == "bar"
+            height: rowHeightPx
+            padding-x: pad
+            layout: horizontal, align: center
+            overflow: hidden
+            border-top: borders.subtle
+            data-grid-row: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant == "bar" ? "unloaded" : "placeholder"
+            SkeletonLine(width: "60%", height: "10px")
           }
 
           // The block failed. A failed block is NEVER re-requested on its own —
@@ -2262,13 +2279,22 @@ component DataGrid(
           // stamped `failed`, because the block really is dead for its whole
           // height; only the message and the affordance collapse.
           block {
-            visibility: gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, overscan)
+            visibility: gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, winFirstVisible)
             height: rowHeightPx
             padding-x: pad
             layout: horizontal, gap: spacing.2, align: center
             overflow: hidden
             border-top: borders.subtle
-            data-grid-row: gridBlockFailed(winFailed, rowIdx) ? "failed" : "placeholder"
+            // Mirrors THIS block's gate, not the block-level one. Both this row
+            // and the filler below stamp `failed`, and only one of them is ever
+            // shown — stamping both on the shared `gridBlockFailed` doubled a
+            // raw `[data-grid-row="failed"]` count (5 rows read as 10). The
+            // tests could not see it because they filter through `isShown`.
+            data-grid-row: gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, winFirstVisible) ? "failed" : "placeholder"
+            // The block states itself ONCE to a screen reader too. Without this
+            // the collapse traded a message on every row for a message on none
+            // of them, for anyone whose cursor is below the one visible row.
+            role: "status"
             text('Could not load these rows') {
               style: type.body-sm
               color: semantic.destructive
@@ -2294,13 +2320,17 @@ component DataGrid(
           // rows must still see the whole block, and the row loop's three gates
           // have to keep partitioning it (unloaded / failed / body).
           block {
-            visibility: gridBlockFailed(winFailed, rowIdx) && !gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, overscan)
+            visibility: gridBlockFailed(winFailed, rowIdx) && !gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, winFirstVisible)
             height: rowHeightPx
             padding-x: pad
             layout: horizontal, align: center
             overflow: hidden
             border-top: borders.subtle
-            data-grid-row: gridBlockFailed(winFailed, rowIdx) ? "failed" : "placeholder"
+            data-grid-row: gridBlockFailed(winFailed, rowIdx) && !gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, winFirstVisible) ? "failed" : "placeholder"
+            // Nothing to say: the one message row above says it for the whole
+            // block. Silent empty rows in the a11y tree are worse than absent
+            // ones — they read as rows that simply have no content.
+            aria-hidden: "true"
           }
         }
 

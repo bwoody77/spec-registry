@@ -59,6 +59,8 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
     registerCache(gridId, cache);
     let rowCount = opts.rowCount;
     let last = null;
+    // Compared alongside `last` — see the note at its use in recomputeInner.
+    let lastFirstVisible = -1;
     let scroller = null;
     let ro;
     let waitTimer = null;
@@ -69,14 +71,33 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
     // rebuilds both, and a generation remembered across that would compare the
     // new cache's first key against a dead one's.
     let generation = null;
-    function project(w) {
+    /**
+     * See WindowState.firstVisible. A row is clear of the header once its top
+     * edge is at or below `scrollTop + headerH`, hence the ceil.
+     */
+    function firstVisibleSlot(w, rowH) {
+        const rendered = w.end - w.start;
+        if (rendered <= 0)
+            return 0;
+        if (!scroller || rowH <= 0)
+            return 0;
+        const header = scroller.querySelector('[data-grid-row="header"]');
+        const headerH = header ? header.getBoundingClientRect().height : 0;
+        const abs = Math.ceil((scroller.scrollTop + headerH) / rowH);
+        const slot = abs - w.start;
+        return Math.min(Math.max(slot, 0), rendered - 1);
+    }
+    function project(w, rowH) {
         const rows = [];
         const failed = [];
         for (let i = w.start; i < w.end; i++) {
             rows.push(cache.rowAt(i));
             failed.push(cache.isFailedAt(i));
         }
-        return { rows, failed, start: w.start, end: w.end, topPad: w.topPad, botPad: w.botPad };
+        return {
+            rows, failed, start: w.start, end: w.end, topPad: w.topPad, botPad: w.botPad,
+            firstVisible: firstVisibleSlot(w, rowH),
+        };
     }
     // Guards the synchronous cycle deliver → notify → recompute → request →
     // deliver. It terminates on its own (an accepted block is `held`, a failed
@@ -156,22 +177,30 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         return opts.rowHeight;
     }
     function recomputeInner(force) {
+        const rowH = calibrate();
         const w = computeWindow({
             scrollTop: scroller ? scroller.scrollTop : 0,
             viewportHeight: scroller ? scroller.clientHeight : 0,
-            rowHeight: calibrate(),
+            rowHeight: rowH,
             totalCount: rowCount,
             overscan: opts.overscan,
         });
         // Push only when the window actually moved. Without this the grid
         // re-renders on every scroll pixel, remounting every cell component 30
         // times per row of travel.
-        const moved = !last || last.start !== w.start || last.end !== w.end;
+        // `firstVisible` is in the comparison because it can move while the window
+        // does not: at the top of the list `start` is clamped at 0 while the first
+        // on-screen row keeps climbing, and a stale value would leave the failed
+        // block's only message behind the sticky header.
+        const fv = firstVisibleSlot(w, rowH);
+        const moved = !last || last.start !== w.start || last.end !== w.end
+            || lastFirstVisible !== fv;
         if (!moved && !force)
             return;
         last = w;
+        lastFirstVisible = fv;
         const reqs = cache.requestBlocksFor(w.start, w.end);
-        onWindow(project(w));
+        onWindow(project(w, rowH));
         // Stamped with the grid id, because deliverBlock(gridId, …) needs one and
         // the request is the only thing the caller receives. Without it a caller
         // can only scrape [data-grid-id] out of the DOM, and a page with two
