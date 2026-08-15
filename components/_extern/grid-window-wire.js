@@ -81,7 +81,7 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         const rendered = w.end - w.start;
         if (!scroller)
             return 0;
-        const header = opts.stickyHeader
+        const header = opts.stickyHeader !== false
             ? scroller.querySelector('[data-grid-row="header"]')
             : null;
         const headerH = header ? header.getBoundingClientRect().height : 0;
@@ -392,6 +392,7 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         isDetached: () => scroller != null && !scroller.isConnected,
         destroy: () => handle.destroy(),
     };
+    handle.stickyHeader = opts.stickyHeader !== false;
     wires.set(gridId, handle);
     watchForDetach(reapable);
     return handle;
@@ -554,7 +555,15 @@ export function gridScrollRowIntoView(gridId, index, rowHeight) {
     }
     // The header scrolls WITH the content and sits above row 0 inside the same
     // container, so a row aligned to `top` hides underneath a sticky one.
-    const header = scroller.querySelector('[data-grid-row="header"]');
+    //
+    // ...and only underneath a STICKY one. With `stickyHeader: false` the header
+    // scrolls away like any other content and occludes nothing, so subtracting it
+    // over-scrolls by a full header on every keypress that reaches the top edge.
+    // Same fact, same fix as measureFirstVisible above.
+    const sticky = wires.get(gridId)?.stickyHeader !== false;
+    const header = sticky
+        ? scroller.querySelector('[data-grid-row="header"]')
+        : null;
     const headerH = header ? header.getBoundingClientRect().height : 0;
     if (top - headerH < viewTop)
         scroller.scrollTop = Math.max(0, top - headerH);

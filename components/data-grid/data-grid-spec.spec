@@ -328,6 +328,14 @@ fn gridBlockOf(start: number, idx: number, size: number) -> number {
 // hides the message — it ignores the composite header, which is `position:
 // sticky` INSIDE the scroll container, so the row aligned to `scrollTop` sits
 // UNDER it. The wire already measures that header for gridScrollRowIntoView.
+// SkeletonRow's rendered height: a 38px SkeletonCircle is its tallest child and
+// it adds no padding. The bar variant of the first-load placeholder matches it
+// so the two variants stand in for the same box — a fallback that guessed
+// differently would make `skeletonVariant` change the panel's height.
+fn SKELETON_ROW_HEIGHT() -> string {
+  return '38px'
+}
+
 // Is any slot of the current window a failed one? Drives the single live
 // region — see its use site. A per-ROW live region cannot do this job: the
 // message row moves from slot to slot as the user scrolls, so it announces
@@ -979,7 +987,16 @@ component DataGrid(
     // the first-load placeholder ever renders. The avatar branch is unaffected
     // (SkeletonRow brings its own height); a bare SkeletonLine collapses, and
     // six of them overlap inside a gap'd column. 38px matches SkeletonRow.
-    skelRowPx: rowHeight > 0 ? rowHeight + 'px' : '38px'
+    // The first-load placeholder's height. NOT `rowHeightPx`: `isFirstLoad`
+    // requires `!windowed`, and an unwindowed grid's loaded rows are
+    // `height: auto`, so a declared rowHeight describes nothing that will
+    // actually render — including the legal `rowHeight: 30, rowCount: 0`, which
+    // is unwindowed WITH a pitch. SkeletonRow's own height is the honest
+    // stand-in for both branches, since the avatar branch is literally that.
+    skelRowPx: SKELETON_ROW_HEIGHT()
+    // The live region's whole content. Empty when nothing is failed, so the
+    // change from '' to a sentence is the mutation a reader announces on.
+    failureAnnouncement: gridAnyFailed(winFailed) ? 'Some rows could not be loaded. Use the Retry button in the grid to try again.' : ''
     // The windowed loop's collection. A row the cache has not delivered yet
     // arrives as null, and a null cannot go through the row template: the
     // template reads row[rowKeyField], row._kind and row._toggleLabel, and
@@ -1376,6 +1393,35 @@ component DataGrid(
     block {
       visibility: !guarded
       @slot("toolbar")
+    }
+
+    // ── THE FAILURE, ANNOUNCED ────────────────────────────────────────────
+    // OUTSIDE `[data-grid-scroll]`, and permanently mounted. Three things went
+    // wrong the first time it was written, all of them worth stating:
+    //
+    //  - Inside the scroller it was a sibling of the bottom spacer, so its text
+    //    painted after ~30,000px of virtual padding — visible only by scrolling
+    //    to the very end of the list, and lengthening scrollHeight while it was
+    //    shown.
+    //  - Gated with `visibility:` it announced by being UN-HIDDEN. Readers
+    //    announce a content MUTATION inside a region that is already rendered;
+    //    revealing a region whose text was always there typically says nothing.
+    //    So the region is always present and its TEXT is what changes.
+    //  - It must not be visible chrome: this grid's failure is already stated
+    //    on screen by the message row. This is the same fact for a reader that
+    //    cannot see it, hence the 1px clip rather than a second banner.
+    //
+    // Window-scoped on purpose: it says "there are unloadable rows in view",
+    // so scrolling a failed block back into view saying so again is correct.
+    block {
+      position: "absolute"
+      width: 1px
+      height: 1px
+      overflow: hidden
+      role: "status"
+      aria-live: "polite"
+      data-grid-failed-announce: "true"
+      text(failureAnnouncement)
     }
 
     // The column chooser, in a strip of the grid's own chrome. A page that
@@ -2358,29 +2404,6 @@ component DataGrid(
           visibility: windowed
           height: padBot
           data-grid-pad-bot: "true"
-        }
-      }
-
-      // ── THE FAILURE, ANNOUNCED ONCE ──────────────────────────────────────
-      // Outside the row loop deliberately. The visible message rides one slot
-      // of each failed block and moves as the user scrolls; a live region there
-      // announces either never or on every row of travel. This one exists once
-      // per grid, flips with "is anything in the window failed", and is the only
-      // thing that makes the collapse from a message-per-row safe for a screen
-      // reader — every other row of a failed block is aria-hidden.
-      //
-      // `visibility:` compiles to display:none, which keeps it out of the
-      // accessibility tree until it matters and gives the live region a real
-      // content change to announce.
-      block {
-        visibility: gridAnyFailed(winFailed)
-        role: "status"
-        aria-live: "polite"
-        padding-x: pad
-        padding-y: spacing.1
-        text('Some rows could not be loaded. Use the Retry button in the grid to try again.') {
-          style: type.body-sm
-          color: semantic.destructive
         }
       }
 
