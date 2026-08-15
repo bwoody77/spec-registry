@@ -433,6 +433,19 @@ component DataGrid(
   // grouping dissolves below the header. Opt-in: existing grouped consumers
   // keep their rendering.
   groupRules: boolean = false,
+  // A rule between EVERY pair of columns, not just at a group's edges — the
+  // blotter treatment, where a dense table of figures reads as a grid rather
+  // than as rows of floating numbers.
+  //
+  // Opt-in, and deliberately separate from `groupRules`: this draws the same
+  // 1px `bracketRule`, so with both on the group's own right edge would sit
+  // adjacent to the next column's left edge and paint 2px. When columnRules is
+  // on it therefore SUPPRESSES the group's right rule — the left rules already
+  // delineate every run, and the spanning label is what names it.
+  //
+  // The leftmost visible column gets no left rule: it would land on the card's
+  // own edge.
+  columnRules: boolean = false,
   // Freeze the first visible column horizontally. It renders outside the column
   // loop because `position` is resolved at parse time and cannot vary per column.
   pinFirst: boolean = false,
@@ -862,6 +875,11 @@ component DataGrid(
     // be picked by a ternary in a style position on every target, but a plain
     // string can.
     bracketRule: '1px solid ' + semantic.border
+    // Which column is leftmost ON SCREEN, by key. columnRules skips it, and a
+    // key is the only handle available in all four cell sites — the two header
+    // loops run inside a segment (`each seg._cols`) where the column's global
+    // position is not in scope.
+    firstColKey: visibleColumns.length > 0 ? visibleColumns[0].key : ''
     hasHover: hoverBackground != ""
     // The grid's own control buttons (group + expand carets), sized once.
     ctrlPx: controlSize + 'px'
@@ -1457,6 +1475,7 @@ component DataGrid(
                     min-width: col._min
                     max-width: col._max
                     cursor: col._col.sortable ? "pointer" : "default"
+                    border-left: columnRules && col._col.key != firstColKey ? bracketRule : "none"
                     data-grid-col: col._col.key
                     // Per-column horizontal alignment, header half. This cell is
                     // a COLUMN flex (it stacks a group label over the heading),
@@ -1583,6 +1602,7 @@ component DataGrid(
                     min-width: col._min
                     max-width: col._max
                     cursor: col._col.sortable ? "pointer" : "default"
+                    border-left: columnRules && col._col.key != firstColKey ? bracketRule : "none"
                     data-grid-col: col._col.key
                     // Per-column horizontal alignment, header half. This cell is
                     // a COLUMN flex (it stacks a group label over the heading),
@@ -1851,8 +1871,9 @@ component DataGrid(
                 grow: true
                 min-width: col._min
                 max-width: col._max
-                border-left: groupRules && col._gFirst && !col._gSolo ? bracketRule : "none"
-                border-right: groupRules && col._gLast && !col._gSolo ? bracketRule : "none"
+                border-left: columnRules && col._col.key != firstColKey ? bracketRule
+                  : (groupRules && col._gFirst && !col._gSolo ? bracketRule : "none")
+                border-right: !columnRules && groupRules && col._gLast && !col._gSolo ? bracketRule : "none"
                 data-grid-col: col._col.key
                 position: "sticky"
                 left: 0px
@@ -1989,8 +2010,9 @@ component DataGrid(
                 background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
                 // The group bracket's body half: without it the grouping
                 // dissolves below the header (mockup: q-first/q-last on td AND th).
-                border-left: groupRules && col._gFirst && !col._gSolo ? bracketRule : "none"
-                border-right: groupRules && col._gLast && !col._gSolo ? bracketRule : "none"
+                border-left: columnRules && col._col.key != firstColKey ? bracketRule
+                  : (groupRules && col._gFirst && !col._gSolo ? bracketRule : "none")
+                border-right: !columnRules && groupRules && col._gLast && !col._gSolo ? bracketRule : "none"
                 data-grid-col: col._col.key
                 layout: horizontal
                 block {
