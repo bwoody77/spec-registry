@@ -8,7 +8,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
 // visible label is somewhere the compiler can't see, or when the control needs
 // a longer name than the one on screen.
-component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "") {
+component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "", autoFocus: boolean = false) {
   @state {
     open: false
     query: ""
@@ -24,7 +24,7 @@ component Select(options: array = [], value: string = "", placeholder: string = 
     hasOptions: filteredOptions.length > 0
     // Option groups. An option may carry `group: string`; a non-interactive
     // header row renders above the FIRST option of each contiguous run of the
-    // same group (DataGrid's `_gFirst` idiom — callers pass options already
+    // same group (DataGridNative's `_gFirst` idiom — callers pass options already
     // ordered by group). This list is 1:1 with filteredOptions — same length,
     // same order — so highlightIndex, scroll-to and selectHighlighted never
     // learn that headers exist. Group-less options mark no firsts and render
@@ -90,7 +90,7 @@ component Select(options: array = [], value: string = "", placeholder: string = 
 
     // Trigger button
     //
-    // THE PADDING INVARIANT — the same one DataGridSpec documents for column
+    // THE PADDING INVARIANT — the same one DataGrid documents for column
     // widths. Spec blocks are content-box and Spec has no `box-sizing`, so
     // padding declared BESIDE `min-height` is added to it rather than absorbed:
     // this trigger asked for 40px and rendered 58 (40 + 2×spacing.2 + 2×border)
@@ -117,6 +117,13 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       transition: transition.focus
       tabindex: "0"
       role: "combobox"
+      // autoFocus — opt-in, so every existing caller is untouched. A caller
+      // that reveals a Select (a disclosure, an inline editor) otherwise has
+      // no way to move focus into it: a raw element can be driven with
+      // `focus:`, but a component is a black box unless it offers the door.
+      // Leaving focus behind means the user tabs forward blind to find the
+      // control the disclosure exists to expose.
+      focus: autoFocus
       // Was the bare literal "Select", which announced every select in every
       // app as "Select" and, worse, OVERRODE the visible label sitting beside
       // it. Prefer the name the compiler inferred from that visible label,
@@ -127,12 +134,37 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       on click: toggleOpen()
       on focus: { focused = true }
       on blur: { focused = false }
+      // ESCAPE IS HANDLED OUTSIDE THE `match`, ON PURPOSE.
+      //
+      // `on key-down` + `match event.key` makes the compiler auto-add
+      // preventDefault() for EVERY matched key (ast-to-ir.ts's
+      // preventDefaultKeys, which spares only Tab). With "Escape" as an arm,
+      // this trigger cancelled Escape whether or not there was a dropdown to
+      // close — and closeDropdown() is a no-op when it is already closed.
+      //
+      // That made the Select a black hole for Escape: an ancestor that closes
+      // on Escape (a drawer, a dialog, an inline editor strip) could not tell
+      // "the Select consumed it" from "the Select ignored it", because
+      // defaultPrevented was true either way. Consumers were left choosing
+      // between a dropdown that cannot be dismissed and a container that
+      // cannot be. The contract is now the honest one: cancel Escape when we
+      // actually closed something, otherwise let it through untouched.
+      //
+      // Keep it OUT of the match. Adding an "Escape" arm back — even one
+      // guarded by `open` — restores the unconditional preventDefault,
+      // because the compiler reads the arm LIST, not the arm bodies.
       on key-down(event): {
+        if event.key == 'Escape' {
+          if open {
+            event.preventDefault()
+            closeDropdown()
+          }
+          return
+        }
         match event.key {
           "ArrowDown" -> open ? moveHighlight(1) : openDropdown(),
           "ArrowUp" -> open ? moveHighlight(-1) : openDropdown(),
           "Enter" -> open ? selectHighlighted() : toggleOpen(),
-          "Escape" -> closeDropdown(),
           " " -> open ? selectHighlighted() : toggleOpen(),
           "Tab" -> closeDropdown(),
           _ -> {}
