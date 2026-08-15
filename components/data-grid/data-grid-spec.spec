@@ -623,17 +623,20 @@ component DataGrid(
     _hidden: hiddenColumns
     // Returns a teardown fn. Declared after _gridId (it reads it) and after
     // the action it calls back into.
-    // `allKeysOf` is an ACTION, not the @computed it returns: a @state
-    // initialiser runs before the @computed block exists, so naming
-    // orderedAllKeys here is a temporal-dead-zone error at mount. The action is
-    // called per use, by which time the computed is live — which also keeps the
-    // read fresh rather than captured.
-    _colDragTeardown: wireColumnDrag(_gridId, onColumnDragReorder, reorderableColumns, allKeysOf)
+    // `allKeysOf` is an ACTION, not the @computed it returns, so the read is
+    // taken per use and stays fresh rather than being captured at mount.
+    // `() => reorderableColumns` is a THUNK on purpose: the affordance arms and
+    // disarms when the prop flips after mount, so the wire needs a live read,
+    // and a @state initialiser is a one-shot snapshot. This used to be spelled
+    // as the bare `reorderableColumns` and worked only because the compiler
+    // mis-lowered a @state initialiser's references into the signal itself
+    // (spec#164); the thunk says the same thing deliberately.
+    _colDragTeardown: wireColumnDrag(_gridId, onColumnDragReorder, () => reorderableColumns, allKeysOf)
     // The same drag, one level up: a labelled group's header cell moves the
     // whole run among its sibling segments. Without it a group is the one
     // thing on the grid that cannot be moved, because a group IS a segment and
     // the column wire never crosses one.
-    _groupDragTeardown: wireGroupDrag(_gridId, onColumnDragReorder, reorderableColumns, allKeysOf)
+    _groupDragTeardown: wireGroupDrag(_gridId, onColumnDragReorder, () => reorderableColumns, allKeysOf)
     sortState: sort
     selectedSet: selected
     filters: []
@@ -964,11 +967,14 @@ component DataGrid(
     offerAllMatching: windowed && allSelected && !selectAllMatching && !guarded
     allMatchingLabel: 'Select all ' + toString(rowCount) + ' matching'
     // The wire lives HERE and not in @state, even though the other two wires
-    // (wireColumnDrag / wireGroupDrag) are @state initialisers. A @state
-    // initialiser's prop references arrive as SIGNALS rather than values, so
-    // `rowHeight > 0` there compares a function to a number and is false
-    // forever — the documented @state-prop-ref trap. In a @computed the props
-    // arrive as values, which is the only place `windowed` can be read.
+    // (wireColumnDrag / wireGroupDrag) are @state initialisers. It predates
+    // spec#164, which fixed the @state-prop-ref trap this was avoiding: a
+    // @state initialiser's references used to arrive as SIGNALS rather than
+    // values, so `rowHeight > 0` there compared a function to a number and was
+    // false forever. Both places read props as values now, so this could move —
+    // but it does not need to, and a @computed is still the better home because
+    // `windowed` should re-evaluate when its inputs change, which a one-shot
+    // @state initialiser would not do.
     //
     // wireGridWindow is called with the DOM not yet built: the compiler emits
     // every @computed ABOVE the DOM section, and the mount function appends
