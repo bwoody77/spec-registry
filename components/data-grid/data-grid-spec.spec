@@ -2321,7 +2321,30 @@ component DataGrid(
             visibility: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant == "bar"
             height: rowHeightPx
             padding-x: pad
-            layout: horizontal, align: center
+            // COLUMN, not row, and the difference is the whole variant.
+            //
+            // `layout: horizontal, align: center` — what this was, and what the
+            // avatar row above still is — makes the child a flex item in a ROW.
+            // A block flex item with no basis sizes to its content, and its
+            // content is SkeletonLine at width 60%, so the percentage resolves
+            // against a width that is itself waiting on the content: it
+            // collapses to 0. The row rendered EMPTY. It shipped that way in
+            // 1.7.0 and survived four review rounds and a harness screenshot,
+            // because a blank row and a very pale bar look identical to a
+            // person scrolling past, and happy-dom computes no layout at all.
+            // Measured in Chrome against cf's rate history: bar width 0px, and
+            // 770px the moment the item is given a basis.
+            //
+            // A column flex container leaves align-items at its `stretch`
+            // default, so the item fills the row's width and 60% has something
+            // to be 60% OF; `justify: center` then does the vertical centering
+            // `align: center` was there for. The alternative — wrapping
+            // SkeletonLine in a growing block — costs the gate above its
+            // laziness, because the compiler only mounts lazily when a
+            // component invocation is a DIRECT child of the block carrying
+            // `visibility:`. That is the regression documented on the avatar
+            // row; this shape avoids it by not adding a node at all.
+            layout: vertical, justify: center
             overflow: hidden
             border-top: borders.subtle
             data-grid-row: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant == "bar" ? "unloaded" : "placeholder"
