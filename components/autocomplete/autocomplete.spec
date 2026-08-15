@@ -258,6 +258,28 @@ component Autocomplete(
       highlightIndex = 0
       userHighlighted = false
     }
+    // escapeKey — close the suggestion list AND say so.
+    //
+    // The registry's Escape contract is "cancel it exactly when you consumed
+    // it". This component had the under-capturing half of that wrong: it
+    // closed the list on Escape but never called preventDefault, so a dialog
+    // or drawer around it also closed. One keystroke, two levels destroyed.
+    //
+    // The cancel has to be written by hand here. The compiler's automatic
+    // preventDefault only applies to a `match event.key` that is a top-level
+    // STATEMENT of the handler (ast-to-ir.ts checks Array.isArray on the
+    // handler action); this handler's action is a bare `match` expression, so
+    // no key gets one. That is deliberate and worth preserving — wrapping the
+    // match in a block would silently start cancelling Enter too, and Enter
+    // with nothing highlighted must stay available to submit the surrounding
+    // form.
+    escapeKey(event) {
+      if !open {
+        return
+      }
+      event.preventDefault()
+      closeDropdown()
+    }
     // Tab-away while typing. Strict mode previously left the typed text
     // VISIBLE while the bound value silently kept its old selection — the
     // field lied (forms then submitted the stale value). Tab is handled in
@@ -293,7 +315,7 @@ component Autocomplete(
         "ArrowDown" -> moveDown(),
         "ArrowUp"   -> moveUp(),
         "Enter"     -> selectHighlighted(),
-        "Escape"    -> closeDropdown(),
+        "Escape"    -> escapeKey(event),
         "Tab"       -> handleTabAway(),
         _ -> {}
       }
