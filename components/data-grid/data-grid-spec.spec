@@ -76,11 +76,27 @@ fn gridPadX(pad: string) -> string {
   return parts[1]
 }
 
+// How many pixels of `columnRules` border this run of columns draws.
+//
+// The rule is a 1px `border-left` on every column but the leftmost ON SCREEN,
+// and the cells are content-box — so it is width the column occupies, not
+// decoration inside width it already had. Every width computed from
+// `col.width`/`col.minWidth` has to add it back, or the thing being sized is
+// narrower than the cells it must hold.
+//
+// This exists as its own fn rather than inline because three separate widths
+// need the identical count and they drifted apart the first time: the segment
+// floor, the segment ceiling, and the scroll track.
+fn gridRulePx(cols: list, rules: boolean, firstKey: string) -> number {
+  if !rules { return 0 }
+  return cols |> reduce((acc, c) => acc + (c.key != firstKey ? 1 : 0), 0)
+}
+
 // Total of every visible column's floor — the width the rows must not shrink
 // below. Set on the track so a narrow container scrolls instead of crushing.
-fn gridTrackMin(cols: list) -> string {
+fn gridTrackMin(cols: list, rules: boolean, firstKey: string) -> string {
   let total = cols |> reduce((acc, c) => acc + (c.width != null ? c.width : (c.minWidth != null ? c.minWidth : 100)), 0)
-  return (total + '') + 'px'
+  return ((total + gridRulePx(cols, rules, firstKey)) + '') + 'px'
 }
 
 // ─── Header groups ──────────────────────────────────────────────────────────
@@ -226,16 +242,25 @@ fn gridSizedCols(cols: list, all: list) -> list {
 // only when the grouped columns declare a fixed `width`, and drifts when they
 // are flexible. That is why the docs tell callers to give grouped columns a
 // width — it is a real constraint, not a style preference.
-fn gridSegMin(seg: map) -> string {
+//
+// The segment is the FLEX ITEM; its member cells live inside it. So it must be
+// sized to the members' OUTER widths — their declared width plus the
+// `columnRules` border each of them draws — and not to the declared widths
+// alone. Sized to the bare sum, the header's columns sit 1px closer together
+// than the body's for every ruled column, and the two sets of vertical lines
+// walk apart down the row (cf's market blotter, 2026-08-15: 4px by the seventh
+// column, with the sign flipping halfway because the flexible column absorbs
+// whatever the fixed ones saved).
+fn gridSegMin(seg: map, rules: boolean, firstKey: string) -> string {
   let total = seg.cols |> reduce((acc, c) => acc + (c.width != null ? c.width : (c.minWidth != null ? c.minWidth : 100)), 0)
-  return (total + '') + 'px'
+  return ((total + gridRulePx(seg.cols, rules, firstKey)) + '') + 'px'
 }
 
-fn gridSegMax(seg: map) -> string {
+fn gridSegMax(seg: map, rules: boolean, firstKey: string) -> string {
   let flexible = seg.cols |> some(c => c.width == null)
   if flexible { return '100000px' }
   let total = seg.cols |> reduce((acc, c) => acc + c.width, 0)
-  return (total + '') + 'px'
+  return ((total + gridRulePx(seg.cols, rules, firstKey)) + '') + 'px'
 }
 
 // ─── Row kinds ──────────────────────────────────────────────────────────────
@@ -933,9 +958,18 @@ component DataGrid(
     // run straddle the pin boundary, so the body's _gFirst/_gLast must treat
     // that boundary as a run edge too, or header and body disagree about
     // where the groupRules bracket falls.
+    // Which column is leftmost ON SCREEN, by key. columnRules skips it, and a
+    // key is the only handle available in all four cell sites — the two header
+    // loops run inside a segment (`each seg._cols`) where the column's global
+    // position is not in scope.
+    //
+    // Declared HERE, above the widths, because they now read it: an entry that
+    // reads a later one in this block is the cascade-staleness trap, not a
+    // forward reference the compiler resolves.
+    firstColKey: visibleColumns.length > 0 ? visibleColumns[0].key : ''
     pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1), visibleColumns) : []
     scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1), visibleColumns) : gridSizedCols(visibleColumns, visibleColumns)
-    trackMin: gridTrackMin(visibleColumns)
+    trackMin: gridTrackMin(visibleColumns, columnRules, firstColKey)
     // Header segments. The pinned column renders outside the scrolling loop, so
     // a segment may never straddle that boundary — with pinFirst the first
     // column is segmented on its own. `_cols` sizes each segment's members from
@@ -951,12 +985,12 @@ component DataGrid(
     // binding will not parse a function call — the same reason the widths are
     // resolved in this block rather than at the use site. `_segId` is here for
     // the same reason: it is read by an attribute binding.
-    sizedPinnedSegments: pinnedSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+    sizedPinnedSegments: pinnedSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSizedCols(s.cols, visibleColumns),
       _segId: 'p:' + (pinnedSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
       _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
-    sizedScrollSegments: scrollSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s), _max: gridSegMax(s), _cols: gridSizedCols(s.cols, visibleColumns),
+    sizedScrollSegments: scrollSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSizedCols(s.cols, visibleColumns),
       _segId: 's:' + (scrollSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
@@ -972,11 +1006,6 @@ component DataGrid(
     // be picked by a ternary in a style position on every target, but a plain
     // string can.
     bracketRule: '1px solid ' + semantic.border
-    // Which column is leftmost ON SCREEN, by key. columnRules skips it, and a
-    // key is the only handle available in all four cell sites — the two header
-    // loops run inside a segment (`each seg._cols`) where the column's global
-    // position is not in scope.
-    firstColKey: visibleColumns.length > 0 ? visibleColumns[0].key : ''
     hasHover: hoverBackground != ""
     // The grid's own control buttons (group + expand carets), sized once.
     ctrlPx: controlSize + 'px'
@@ -1562,8 +1591,8 @@ component DataGrid(
               z-index: 5
               background: semantic.surface-raised
               layout: vertical
-              border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
-              border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
+              border-left: !columnRules && groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
+              border-right: !columnRules && groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
               // Segment identity for column drag. 'p:' = pinned side, then the
               // RUN id (see gridSegRunIds). Grouped by VALUE, not by container:
@@ -1692,8 +1721,8 @@ component DataGrid(
               min-width: seg._min
               max-width: seg._max
               layout: vertical
-              border-left: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
-              border-right: groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
+              border-left: !columnRules && groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
+              border-right: !columnRules && groupRules && seg._seg.label != '' && !seg._solo ? bracketRule : "none"
               data-grid-col-group: seg._seg.label
               // Segment identity for column drag. 's:' = scrolling side, then
               // the RUN id. See the pinned loop above for why this is by VALUE
