@@ -2291,10 +2291,13 @@ component DataGrid(
             // raw `[data-grid-row="failed"]` count (5 rows read as 10). The
             // tests could not see it because they filter through `isShown`.
             data-grid-row: gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, winFirstVisible) ? "failed" : "placeholder"
-            // The block states itself ONCE to a screen reader too. Without this
-            // the collapse traded a message on every row for a message on none
-            // of them, for anyone whose cursor is below the one visible row.
-            role: "status"
+            // NO `role="status"` here, deliberately. This row is per-SLOT and it
+            // moves as the user scrolls, so a live region on it announces either
+            // never (the text never changes, which several readers ignore) or on
+            // every row of travel, as each new slot is un-hidden. The message is
+            // ordinary text in the accessibility tree, which is what the filler
+            // rows below are aria-hidden to keep unambiguous. One live region
+            // declared outside the row loop is the fix if announcement is wanted.
             text('Could not load these rows') {
               style: type.body-sm
               color: semantic.destructive
@@ -2368,6 +2371,13 @@ component DataGrid(
           }
           block {
             visibility: skeletonVariant == "bar"
+            // The same row box the avatar branch gets from SkeletonRow's own
+            // content. Without it this is a bare 10px line, so six of them stand
+            // in for a table a third their height and the panel jumps when the
+            // rows land.
+            height: rowHeightPx
+            padding-x: pad
+            layout: horizontal, align: center
             SkeletonLine(width: "60%", height: "10px")
           }
         }

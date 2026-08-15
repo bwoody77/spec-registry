@@ -12,7 +12,7 @@
  * DataGrid sizes itself height:100% and has no pixel height of its own to
  * pass, but the scroll container knows its clientHeight.
  */
-import { computeWindow } from './grid-window.js';
+import { computeWindow, firstVisibleSlot } from './grid-window.js';
 import { createBlockCache, registerCache, unregisterCache, } from './grid-block-cache.js';
 /**
  * Live wires, by grid id. Two things need this.
@@ -72,22 +72,34 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
     // new cache's first key against a dead one's.
     let generation = null;
     /**
-     * See WindowState.firstVisible. A row is clear of the header once its top
-     * edge is at or below `scrollTop + headerH`, hence the ceil.
+     * Measures the two geometric facts `firstVisibleSlot` needs and hands them to
+     * it. The arithmetic itself is pure and tested in grid-window-first-visible
+     * — it had a term missing once, and nothing in a happy-dom test could see it
+     * because happy-dom reports every header as 0px tall.
      */
-    function firstVisibleSlot(w, rowH) {
+    function measureFirstVisible(w, rowH) {
         const rendered = w.end - w.start;
-        if (rendered <= 0)
-            return 0;
-        if (!scroller || rowH <= 0)
+        if (!scroller)
             return 0;
         const header = scroller.querySelector('[data-grid-row="header"]');
         const headerH = header ? header.getBoundingClientRect().height : 0;
-        const abs = Math.ceil((scroller.scrollTop + headerH) / rowH);
-        const slot = abs - w.start;
-        return Math.min(Math.max(slot, 0), rendered - 1);
+        // Row 0's conceptual position — the same measurement, for the same reason,
+        // as gridScrollRowIntoView below. It already covers the filter strip and
+        // any future chrome above the rows without naming them.
+        const pad = scroller.querySelector('[data-grid-pad-top]');
+        const virtualTop = pad
+            ? pad.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
+            : 0;
+        return firstVisibleSlot({
+            scrollTop: scroller.scrollTop,
+            headerH,
+            virtualTop,
+            rowHeight: rowH,
+            start: w.start,
+            rendered,
+        });
     }
-    function project(w, rowH) {
+    function project(w, firstVisible) {
         const rows = [];
         const failed = [];
         for (let i = w.start; i < w.end; i++) {
@@ -96,7 +108,7 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         }
         return {
             rows, failed, start: w.start, end: w.end, topPad: w.topPad, botPad: w.botPad,
-            firstVisible: firstVisibleSlot(w, rowH),
+            firstVisible,
         };
     }
     // Guards the synchronous cycle deliver → notify → recompute → request →
@@ -188,11 +200,14 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         // Push only when the window actually moved. Without this the grid
         // re-renders on every scroll pixel, remounting every cell component 30
         // times per row of travel.
+        // Measured ONCE per recompute and threaded through, rather than computed
+        // again inside project(): it reads getBoundingClientRect twice, and this
+        // runs on every scroll event.
+        const fv = measureFirstVisible(w, rowH);
         // `firstVisible` is in the comparison because it can move while the window
         // does not: at the top of the list `start` is clamped at 0 while the first
         // on-screen row keeps climbing, and a stale value would leave the failed
         // block's only message behind the sticky header.
-        const fv = firstVisibleSlot(w, rowH);
         const moved = !last || last.start !== w.start || last.end !== w.end
             || lastFirstVisible !== fv;
         if (!moved && !force)
@@ -200,7 +215,7 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         last = w;
         lastFirstVisible = fv;
         const reqs = cache.requestBlocksFor(w.start, w.end);
-        onWindow(project(w, rowH));
+        onWindow(project(w, fv));
         // Stamped with the grid id, because deliverBlock(gridId, …) needs one and
         // the request is the only thing the caller receives. Without it a caller
         // can only scrape [data-grid-id] out of the DOM, and a page with two
