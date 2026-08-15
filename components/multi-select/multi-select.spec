@@ -186,12 +186,37 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         on hover { background: disabled ? token.select-bg : semantic.surface-raised }
         on focus: { focused = true }
         on blur: { focused = false }
+        // ESCAPE IS HANDLED OUTSIDE THE `match`, ON PURPOSE — see the same
+        // note on Select, which had this bug first.
+        //
+        // `on key-down` + a top-level `match event.key` makes the compiler
+        // auto-add preventDefault for every key in the ARM LIST, whatever the
+        // arm body does (ast-to-ir.ts's preventDefaultKeys, which spares only
+        // Tab). With "Escape" as an arm this trigger cancelled Escape even
+        // when no dropdown was open and closeDropdown() was a no-op.
+        //
+        // That makes the control a black hole for Escape: a dialog, drawer or
+        // inline editor around it cannot tell "the MultiSelect consumed it"
+        // from "the MultiSelect ignored it", since defaultPrevented is true
+        // either way — so the container can never be dismissed while focus
+        // sits here. Cancel it when we actually closed something; otherwise
+        // let it through untouched.
+        //
+        // Keep it OUT of the match. Re-adding an "Escape" arm — even one
+        // guarded by `open` — restores the unconditional cancel, because the
+        // compiler reads the arm list, not the arm bodies.
         on key-down(event): {
+          if event.key == 'Escape' {
+            if open {
+              event.preventDefault()
+              closeDropdown()
+            }
+            return
+          }
           match event.key {
             "ArrowDown" -> open ? moveHighlight(1) : openDropdown(),
             "ArrowUp" -> open ? moveHighlight(-1) : openDropdown(),
             "Enter" -> open ? toggleHighlighted() : toggleOpen(),
-            "Escape" -> closeDropdown(),
             " " -> open ? toggleHighlighted() : toggleOpen(),
             "Tab" -> closeDropdown(),
             "Backspace" -> query == "" && hasSelections ? removeLastTag() : {},
