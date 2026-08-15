@@ -367,6 +367,21 @@ component EditableGrid(
       justCommitted = true
       focusTrigger = false
     }
+    // escapeCell — abandon the cell edit AND cancel the key.
+    //
+    // Reverting an in-progress edit consumes Escape, so the grid has to say
+    // so: without it, one Escape reverted the cell AND closed the dialog the
+    // grid was sitting in. The call site is already guarded by
+    // `if editing == true && …`, so reaching here always means there was an
+    // edit to abandon.
+    //
+    // Written by hand because that guard is exactly what stops the compiler
+    // adding a preventDefault of its own: the `match event.key` is nested
+    // inside the `if`, not a top-level statement of the handler.
+    escapeCell(event) {
+      event.preventDefault()
+      cancelEdit()
+    }
     commitAndMoveDown() {
       commitEdit()
       moveDown()
@@ -572,7 +587,7 @@ component EditableGrid(
                   if editing == true && rowIdx == activeRow && colIdx == activeCol {
                     match event.key {
                       "Enter" -> commitEdit(),
-                      "Escape" -> cancelEdit(),
+                      "Escape" -> escapeCell(event),
                       _ -> {}
                     }
                   }
