@@ -54,6 +54,28 @@ fn gridColMax(col: map) -> string {
   return '100000px'
 }
 
+// The horizontal half of a `padding` value, for the rows that can only take a
+// longhand.
+//
+// `padding-x:` compiles to the paddingLeft/paddingRight LONGHANDS, and CSSOM
+// silently DROPS a multi-value string on a longhand. `cellPadding` is a full
+// `padding` value — the data cells take it through the `padding:` shorthand,
+// where two values are legal — so a consumer passing `'9.92px 8px'` got
+// correctly padded cells and placeholder rows with no horizontal padding at
+// all. The skeleton bar then sat flush against the grid edge while every data
+// cell started 8px in. Measured in cf's benchmark rate history.
+//
+// Positional, because that is how the shorthand is defined: one value is all
+// four sides, two is `vertical horizontal`, three is `top horizontal bottom`.
+// Four (`top right bottom left`) is the one case a single longhand cannot
+// represent — left and right may differ — so it takes `right` and is the
+// documented limit rather than a silent wrong answer.
+fn gridPadX(pad: string) -> string {
+  let parts = split(trim(pad), ' ') |> filter(p => p != '')
+  if length(parts) < 2 { return pad }
+  return parts[1]
+}
+
 // Total of every visible column's floor — the width the rows must not shrink
 // below. Set on the track so a narrow container scrolls instead of crushing.
 fn gridTrackMin(cols: list) -> string {
@@ -943,6 +965,8 @@ component DataGrid(
     groupBg: groupBackground != "" ? groupBackground : semantic.surface-raised
     stripeBg: stripeBackground != "" ? stripeBackground : semantic.surface
     pad: cellPadding != "" ? cellPadding : spacing.2
+    // `pad`'s horizontal component, for the placeholder rows — see gridPadX.
+    padX: gridPadX(pad)
     headerPad: headerPadding != "" ? headerPadding : pad
     // The group bracket, as a ready border string: a `borders.*` token cannot
     // be picked by a ternary in a style position on every target, but a plain
@@ -2300,7 +2324,7 @@ component DataGrid(
           block {
             visibility: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant != "bar"
             height: rowHeightPx
-            padding-x: pad
+            padding-x: padX
             layout: horizontal, align: center
             overflow: hidden
             border-top: borders.subtle
@@ -2320,7 +2344,7 @@ component DataGrid(
           block {
             visibility: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) && skeletonVariant == "bar"
             height: rowHeightPx
-            padding-x: pad
+            padding-x: padX
             // COLUMN, not row, and the difference is the whole variant.
             //
             // `layout: horizontal, align: center` — what this was, and what the
@@ -2367,7 +2391,7 @@ component DataGrid(
           block {
             visibility: gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, winFirstVisible)
             height: rowHeightPx
-            padding-x: pad
+            padding-x: padX
             layout: horizontal, gap: spacing.2, align: center
             overflow: hidden
             border-top: borders.subtle
@@ -2411,7 +2435,7 @@ component DataGrid(
           block {
             visibility: gridBlockFailed(winFailed, rowIdx) && !gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, winFirstVisible)
             height: rowHeightPx
-            padding-x: pad
+            padding-x: padX
             layout: horizontal, align: center
             overflow: hidden
             border-top: borders.subtle
@@ -2462,8 +2486,15 @@ component DataGrid(
             // in for a table a third their height and the panel jumps when the
             // rows land. `skelRowPx`, not `rowHeightPx` — see its declaration.
             height: skelRowPx
-            padding-x: pad
-            layout: horizontal, align: center
+            padding-x: padX
+            // COLUMN, for the reason spelled out on the windowed bar row above:
+            // a block flex ITEM in a row container sizes to its content, and
+            // this one's content asks for 60% of the width the item is supposed
+            // to be establishing, so it collapses to zero and the row renders
+            // BLANK. 1.7.5 fixed that on the windowed row and left this branch
+            // — the only bar an UNWINDOWED grid can reach — still broken, so
+            // `>= 1.7.5` meant "the bar works" only if you happened to window.
+            layout: vertical, justify: center
             SkeletonLine(width: "60%", height: "10px")
           }
         }
