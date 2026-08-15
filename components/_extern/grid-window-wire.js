@@ -81,7 +81,9 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         const rendered = w.end - w.start;
         if (!scroller)
             return 0;
-        const header = scroller.querySelector('[data-grid-row="header"]');
+        const header = opts.stickyHeader
+            ? scroller.querySelector('[data-grid-row="header"]')
+            : null;
         const headerH = header ? header.getBoundingClientRect().height : 0;
         // Row 0's conceptual position — the same measurement, for the same reason,
         // as gridScrollRowIntoView below. It already covers the filter strip and
@@ -208,8 +210,20 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         // does not: at the top of the list `start` is clamped at 0 while the first
         // on-screen row keeps climbing, and a stale value would leave the failed
         // block's only message behind the sticky header.
+        //
+        // ...but ONLY when something in the window has actually failed. `fv` is out
+        // of phase with `start` whenever in-flow chrome sits above the rows (a
+        // filter strip), so counting it unconditionally adds a push per row of
+        // travel — measured at 40 -> 60 over 600px — and every push rebuilds the
+        // whole window, which is the cost the `moved` guard exists to avoid.
+        // Nothing but the failed-block message reads `winFirstVisible`.
+        let anyFailed = false;
+        for (let i = w.start; i < w.end && !anyFailed; i++) {
+            if (cache.isFailedAt(i))
+                anyFailed = true;
+        }
         const moved = !last || last.start !== w.start || last.end !== w.end
-            || lastFirstVisible !== fv;
+            || (anyFailed && lastFirstVisible !== fv);
         if (!moved && !force)
             return;
         last = w;

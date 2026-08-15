@@ -328,6 +328,17 @@ fn gridBlockOf(start: number, idx: number, size: number) -> number {
 // hides the message — it ignores the composite header, which is `position:
 // sticky` INSIDE the scroll container, so the row aligned to `scrollTop` sits
 // UNDER it. The wire already measures that header for gridScrollRowIntoView.
+// Is any slot of the current window a failed one? Drives the single live
+// region — see its use site. A per-ROW live region cannot do this job: the
+// message row moves from slot to slot as the user scrolls, so it announces
+// either never (its text never changes) or once per row of travel.
+fn gridAnyFailed(failed: list) -> boolean {
+  for f in failed {
+    if f == true { return true }
+  }
+  return false
+}
+
 fn gridBlockMsgSlot(failed: list, start: number, idx: number, size: number, firstVisible: number) -> boolean {
   if !gridBlockFailed(failed, idx) { return false }
   if idx < firstVisible { return false }
@@ -963,6 +974,12 @@ component DataGrid(
     // height from the ones the spacers are standing in for, and the scrollbar
     // would then lie by exactly the difference.
     rowHeightPx: rowHeight + 'px'
+    // `isFirstLoad` is `!windowed`, and an unwindowed grid usually leaves
+    // `rowHeight` at its 0 default — so `rowHeightPx` is "0px" on the one path
+    // the first-load placeholder ever renders. The avatar branch is unaffected
+    // (SkeletonRow brings its own height); a bare SkeletonLine collapses, and
+    // six of them overlap inside a gap'd column. 38px matches SkeletonRow.
+    skelRowPx: rowHeight > 0 ? rowHeight + 'px' : '38px'
     // The windowed loop's collection. A row the cache has not delivered yet
     // arrives as null, and a null cannot go through the row template: the
     // template reads row[rowKeyField], row._kind and row._toggleLabel, and
@@ -1040,7 +1057,7 @@ component DataGrid(
     // as zero-height, and asks for block 0 regardless — making the caller
     // fetch a hundred rows to feed a cache that nothing on screen reads.
     _windowTeardown: windowed && !guarded
-      ? wireGridWindow(_gridId, { rowHeight: rowHeight, overscan: overscan, blockSize: blockSize, rowCount: rowCount }, applyWindow, emitRangeNeeded)
+      ? wireGridWindow(_gridId, { rowHeight: rowHeight, overscan: overscan, blockSize: blockSize, rowCount: rowCount, stickyHeader: stickyHeader }, applyWindow, emitRangeNeeded)
       // NOT `null`. wireGridWindow destroys the previous wire for this id, so
       // the truthy arm cleans up after itself — but this arm is taken whenever
       // windowing switches OFF (a filter returning zero rows, a caller
@@ -2344,6 +2361,29 @@ component DataGrid(
         }
       }
 
+      // ── THE FAILURE, ANNOUNCED ONCE ──────────────────────────────────────
+      // Outside the row loop deliberately. The visible message rides one slot
+      // of each failed block and moves as the user scrolls; a live region there
+      // announces either never or on every row of travel. This one exists once
+      // per grid, flips with "is anything in the window failed", and is the only
+      // thing that makes the collapse from a message-per-row safe for a screen
+      // reader — every other row of a failed block is aria-hidden.
+      //
+      // `visibility:` compiles to display:none, which keeps it out of the
+      // accessibility tree until it matters and gives the live region a real
+      // content change to announce.
+      block {
+        visibility: gridAnyFailed(winFailed)
+        role: "status"
+        aria-live: "polite"
+        padding-x: pad
+        padding-y: spacing.1
+        text('Some rows could not be loaded. Use the Retry button in the grid to try again.') {
+          style: type.body-sm
+          color: semantic.destructive
+        }
+      }
+
       // Empty state. Gated on `isEmpty`, NOT on "no rows": a grid that is
       // still fetching used to render this at the user while the data was in
       // flight, which every consumer papered over with a spinner of its own.
@@ -2374,8 +2414,8 @@ component DataGrid(
             // The same row box the avatar branch gets from SkeletonRow's own
             // content. Without it this is a bare 10px line, so six of them stand
             // in for a table a third their height and the panel jumps when the
-            // rows land.
-            height: rowHeightPx
+            // rows land. `skelRowPx`, not `rowHeightPx` — see its declaration.
+            height: skelRowPx
             padding-x: pad
             layout: horizontal, align: center
             SkeletonLine(width: "60%", height: "10px")

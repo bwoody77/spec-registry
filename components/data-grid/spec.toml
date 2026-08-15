@@ -1,6 +1,6 @@
 [package]
 name = "data-grid"
-version = "1.7.2"
+version = "1.7.3"
 category = "components"
 description = "High-performance grid for large tabular datasets with sorting and filtering"
 license = "MIT"
