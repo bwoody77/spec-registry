@@ -297,6 +297,44 @@ fn gridBlockOf(start: number, idx: number, size: number) -> number {
   return floor((start + idx) / size)
 }
 
+// Does the failure message and its Retry button belong on slot `idx`? Exactly
+// one slot per failed block gets them, so a failed block states itself once
+// instead of once per row.
+//
+// ── WHY THIS IS NOT "the block boundary", AND NOT "slot 0" EITHER ──────────
+//
+// Both simpler rules put the message somewhere the user cannot see, which is
+// strictly worse than the repetition they replace: a screen of blank rows with
+// no error on it and no way back.
+//
+//   `(start + idx) % size == 0` — a user scrolled into the middle of a failed
+//   block has its boundary up to `size` rows above; nothing renders at all.
+//
+//   `idx == 0` — slot 0 is the top of the RENDERED window, which sits `over`
+//   rows above the top of the VIEWPORT. Measured in Chrome, 2026-08-15: scrolled
+//   into a failed block, 21 failed rows on screen and the message on none of
+//   them, parked in the overscan. happy-dom reports every rendered row as
+//   on-screen — it lays nothing out — so no unit test in this file can see it.
+//
+// So the message rides the first slot of its block AT OR AFTER the first
+// VISIBLE slot, which pins it to the top of the viewport for a block the user
+// is scrolled inside, and leaves it on the boundary for one that begins on
+// screen. The block comparison is what separates two ADJACENT failed blocks —
+// two distinct things to retry, one message each.
+//
+// `over` rows sit above the viewport whenever the window is not clamped at the
+// top: computeWindow uses `max(0, floor(rawStart - overscan))`, so the count is
+// exactly `overscan` unless `start` hit that floor. When it did, the true count
+// is smaller and this puts the message up to `over - 1` rows high — only ever
+// within the first screen of the list, where scrolling up costs nothing.
+fn gridBlockMsgSlot(failed: list, start: number, idx: number, size: number, over: number) -> boolean {
+  if !gridBlockFailed(failed, idx) { return false }
+  let firstVisible = start > 0 ? over : 0
+  if idx < firstVisible { return false }
+  if idx == firstVisible { return true }
+  return gridBlockOf(start, idx, size) != gridBlockOf(start, idx - 1, size)
+}
+
 fn gridGroupIsOpen(openGroups: list, key: string) -> boolean {
   return openGroups |> some(k => k == key)
 }
@@ -599,6 +637,15 @@ component DataGrid(
   // Bumped by the caller to drop the cache — needed because the grid cannot
   // see a filter control that lives outside it.
   dataVersion: number = 0,
+  // The shape a not-yet-arrived row takes. "avatar" is SkeletonRow — a 38px
+  // circle, two stacked lines and a pill — which is right for a list of people
+  // and reads as a PERSON in a dense table of figures. "bar" is a single
+  // shimmer line at the row's own height, for numeric grids.
+  //
+  // Defaulted to "avatar" so all 16 existing consumers render byte-identically;
+  // anything other than "bar" is the avatar, so a typo degrades to today's
+  // behaviour rather than to a blank row.
+  skeletonVariant: string = "avatar",
 
   // ─── The second step of select-all ────────────────────────────────────────
   // Selection over a window cannot enumerate keys it has not fetched, so "all"
@@ -2182,7 +2229,23 @@ component DataGrid(
             // and a consumer counting `[data-grid-row="unloaded"]` raw would
             // read the whole window as still loading, forever.
             data-grid-row: row._unloaded == true && !gridBlockFailed(winFailed, rowIdx) ? "unloaded" : "placeholder"
-            SkeletonRow()
+            // Two shapes, one slot. `visibility:` rather than a branch because
+            // Spec has no conditional element — the unchosen one is display:none
+            // and costs a node, which is why this is two blocks and not two
+            // whole row bodies.
+            block {
+              visibility: skeletonVariant != "bar"
+              grow: true
+              SkeletonRow()
+            }
+            // The dense-table shape: one shimmer line, no avatar, no pill.
+            // SkeletonLine is the registry primitive SkeletonRow itself is built
+            // from — not a hand-rolled bar.
+            block {
+              visibility: skeletonVariant == "bar"
+              grow: true
+              SkeletonLine(width: "60%", height: "10px")
+            }
           }
 
           // The block failed. A failed block is NEVER re-requested on its own —
@@ -2191,8 +2254,15 @@ component DataGrid(
           // back. It emits the BLOCK index, which is what retryBlock() takes;
           // the row index and the absolute row index are both one small
           // expression away and both wrong.
+          //
+          // ONCE PER BLOCK, not once per row. Rendering it on every slot put 12
+          // identical messages and 12 Retry buttons on screen at a 520px
+          // viewport (measured against cf's benchmark-rates page, 2026-08-15) —
+          // a wall of errors for a single failure. Every slot below stays
+          // stamped `failed`, because the block really is dead for its whole
+          // height; only the message and the affordance collapse.
           block {
-            visibility: gridBlockFailed(winFailed, rowIdx)
+            visibility: gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, overscan)
             height: rowHeightPx
             padding-x: pad
             layout: horizontal, gap: spacing.2, align: center
@@ -2214,6 +2284,23 @@ component DataGrid(
               on click: retryFailedBlock(gridBlockOf(winStart, rowIdx, blockSize))
               text('Retry') { style: type.label-sm, weight: 500, color: semantic.text-secondary }
             }
+          }
+
+          // The REST of a failed block: its height, its rule, its stamp, and
+          // nothing else. Deliberately not a skeleton — a shimmer says "still
+          // loading", and this block has stopped asking; the permanent-skeleton
+          // reading is the exact confusion the failed branch exists to end.
+          // Deliberately not empty of stamp either: a consumer counting failed
+          // rows must still see the whole block, and the row loop's three gates
+          // have to keep partitioning it (unloaded / failed / body).
+          block {
+            visibility: gridBlockFailed(winFailed, rowIdx) && !gridBlockMsgSlot(winFailed, winStart, rowIdx, blockSize, overscan)
+            height: rowHeightPx
+            padding-x: pad
+            layout: horizontal, align: center
+            overflow: hidden
+            border-top: borders.subtle
+            data-grid-row: gridBlockFailed(winFailed, rowIdx) ? "failed" : "placeholder"
           }
         }
 
@@ -2245,7 +2332,14 @@ component DataGrid(
         // uses for this exact state — not a hand-rolled shimmer. (There is no
         // `SkeletonLines`; the file exports SkeletonLine / Block / Circle / Row.)
         each [1, 2, 3, 4, 5, 6] as n (n) {
-          SkeletonRow()
+          block {
+            visibility: skeletonVariant != "bar"
+            SkeletonRow()
+          }
+          block {
+            visibility: skeletonVariant == "bar"
+            SkeletonLine(width: "60%", height: "10px")
+          }
         }
       }
 
