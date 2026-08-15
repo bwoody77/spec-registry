@@ -344,6 +344,24 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       yearTyped = false
       digitBuffer = ""
     }
+    // escapeSegments / escapeClose — the two ways this picker consumes Escape,
+    // each cancelling the key only when it actually did something.
+    //
+    // Abandoning half-typed segments always counts as consuming it: this arm
+    // is only reachable while activeSegment >= 0.
+    escapeSegments(event) {
+      event.preventDefault()
+      cancelSegments()
+    }
+    // Closing the calendar only counts when a calendar is open. Otherwise the
+    // key belongs to whatever contains this picker.
+    escapeClose(event) {
+      if !open {
+        return
+      }
+      event.preventDefault()
+      close()
+    }
     cancelSegments() {
       activeSegment = -1
       editing = false
@@ -425,7 +443,13 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               "ArrowUp" -> incrementSegment(),
               "ArrowDown" -> decrementSegment(),
               "Enter" -> commitSegments(),
-              "Escape" -> cancelSegments(),
+              // escapeSegments, not cancelSegments: abandoning a half-typed
+              // date CONSUMES the key, so it must say so. Neither match here
+              // is a top-level statement of the handler — they sit inside the
+              // if/else — so the compiler adds no preventDefault for any key
+              // in this handler (see the Tab note below, which depends on
+              // that). The cancel therefore has to be written by hand.
+              "Escape" -> escapeSegments(event),
               // Tab: commit the typed value so it isn't lost, then allow the
               // browser's native Tab to move focus. Because this match arm is
               // inside an `if` block the compiler does NOT auto-preventDefault
@@ -438,7 +462,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             }
           } else {
             match event.key {
-              "Escape" -> close(),
+              // Conditional, unlike the segment branch above: with no segments
+              // active there may also be no calendar open, and close() on an
+              // already-closed picker is a no-op. Cancelling Escape there
+              // would make this control a black hole — the dialog around it
+              // could never be dismissed while focus sat on the field.
+              "Escape" -> escapeClose(event),
               "ArrowUp" -> activateSegments(),
               "ArrowDown" -> activateSegments(),
               _ -> {}
