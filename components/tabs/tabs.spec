@@ -10,6 +10,16 @@
 // variant:  'pill' (filled chip, carded strip) | 'underline' (2px indicator)
 // overflow: 'wrap' (grid auto-fill) | 'scroll' (single row, auto-scroll)
 //           | 'grow' (equal-width columns filling the row)
+// countTone: how a tab's `count` badge is coloured.
+//           'state'  (default) — tinted with the tab's own active/inactive
+//                    state, so the count reads as part of that tab.
+//           'strong' — one fixed solid fill in both states, from the
+//                    `tab-countStrongBg` / `tab-countStrongColor` tokens. For a
+//                    strip of QUEUES, where a busy tab must pull the eye
+//                    whether or not it is the one you are standing on.
+//           A tab with no `count` renders no badge under either tone, so a
+//           caller showing outstanding work should pass `count: null` at zero
+//           rather than 0 — an empty queue should not wear a badge.
 //
 // Optional slot `tabAdornment`, invoked once per tab with that tab, so a
 // caller can render something (a chip naming what was drilled into, say)
@@ -42,7 +52,8 @@ fn _tabWrap(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
-component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap") {
+component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
+               countTone: string = "state") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -148,6 +159,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
         variant: variant
         tabStop: tab.id == tabStopId
         focused: tab.id == focusedId
+        countTone: countTone
       ) {
         on change(id): pickTab(id)
       }
@@ -171,6 +183,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
           variant: variant
           tabStop: tab.id == tabStopId
           focused: tab.id == focusedId
+          countTone: countTone
         ) {
           on change(id): pickTab(id)
         }
@@ -194,7 +207,8 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // visual output byte-for-byte; the compiler already emits
 // `style.fontFamily = 'inherit'` for buttons, so typography is unaffected.
 component TabsItem(tab: object, active: boolean = false, variant: string = "pill",
-                   tabStop: boolean = true, focused: boolean = false) {
+                   tabStop: boolean = true, focused: boolean = false,
+                   countTone: string = "state") {
   @computed {
     padY:        variant == 'pill' ? 9px : 10px
     padX:        variant == 'pill' ? 12px : 16px
@@ -211,12 +225,36 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     fg:          active ? semantic.interactive-hover : semantic.text-secondary
     iconFg:      active ? semantic.interactive-hover : semantic.text-tertiary
     labelWeight: active ? 700 : 600
-    // Count badge — tinted with the tab's own state so it reads as part of the
-    // tab rather than a floating chip. toString guards a null (the badge is
-    // hidden then anyway, but the computed still evaluates).
+    // Count badge. toString guards a null (the badge is hidden then anyway, but
+    // the computed still evaluates).
     countText: tab.count != null ? toString(tab.count) : ''
-    countBg:   active ? semantic.interactive-bg : semantic.surface-hover
-    countFg:   active ? semantic.interactive-hover : semantic.text-tertiary
+    // Two tones, because a count means two different things depending on the
+    // strip:
+    //
+    //   'state'  (default) — tinted with the TAB's own state, so it reads as
+    //            part of the tab. Right when the count is a property of the
+    //            thing you are looking at ("Documents 12"): the number is
+    //            context for the tab you are on, and the tabs you are not on
+    //            should recede.
+    //
+    //   'strong' — one fixed solid fill in BOTH states. Right when the strip is
+    //            a set of QUEUES and the count is the work outstanding: under
+    //            'state' a busy queue you are not standing on renders in the
+    //            quietest colour on the strip, which is backwards — the whole
+    //            reason to show the number is that it should pull you to a tab
+    //            you are NOT on.
+    //
+    // The strong fill is tokenised rather than hard-coded because it has to
+    // carry contrast against BOTH the active pill and the bare strip, in every
+    // theme an app ships — one literal cannot do that. Apps override
+    // `tab.countStrongBg` / `tab.countStrongColor`; the defaults are neutral
+    // slate so they sit correctly under any accent hue.
+    countBg:   countTone == 'strong'
+                 ? token.tab-countStrongBg
+                 : (active ? semantic.interactive-bg : semantic.surface-hover)
+    countFg:   countTone == 'strong'
+                 ? token.tab-countStrongColor
+                 : (active ? semantic.interactive-hover : semantic.text-tertiary)
     // Conditional attribute values must be named computeds, not inline
     // ternaries at the property.
     tabStopOrder: tabStop ? '0' : '-1'
