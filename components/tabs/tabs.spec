@@ -141,6 +141,23 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     }
     layout: grid, columns: gridColumns, gap: 4px, align: center
     overflow: scrollMode
+    // The strip scrolls, and it does NOT draw a bar to do it.
+    //
+    // The active tab is marked with a 2px bottom border, and a phone draws its
+    // overlay scrollbar inside this box — directly on top of that border. So on
+    // a handset the one cue telling the reader which tab they are on was
+    // covered by a bar they had no way to dismiss. Reported against Vector's
+    // /my-profile credentials strip.
+    //
+    // Unconditional rather than gated on `overflow == 'scroll'`: the property
+    // is inert on a box that does not scroll, and a conditional here would have
+    // to be an expression, which `scrollbar:` deliberately does not take (part
+    // of its output is a ::-webkit-scrollbar rule — see ai-reference §styles).
+    //
+    // The strip stays fully scrollable by wheel, touch and keyboard, and the
+    // tablist's own ArrowLeft/ArrowRight handling above is unaffected — which
+    // is what keeps hiding the bar a cosmetic change rather than a trap.
+    scrollbar: none
     background: stripBg
     border: stripBorder
     border-bottom: stripBorderBot
