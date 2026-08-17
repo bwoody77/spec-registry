@@ -52,8 +52,15 @@ fn _tabWrap(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
+// size — "md" (default, unchanged) or "sm", which tightens the per-item padding.
+//
+// A tab strip that IS the page's navigation wants presence. A strip used as a
+// SEGMENT CONTROL inside a toolbar is one control among several, and at the
+// default padding it stands 39px tall beside 32px dropdowns — measured on cf's
+// deals toolbar against its own mockup, which draws the segment at 28px. Same
+// prop, same two values, as Select and Button.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
-               countTone: string = "state") {
+               countTone: string = "state", size: string = "md") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -177,6 +184,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
         tabStop: tab.id == tabStopId
         focused: tab.id == focusedId
         countTone: countTone
+        size: size
       ) {
         on change(id): pickTab(id)
       }
@@ -201,6 +209,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
           tabStop: tab.id == tabStopId
           focused: tab.id == focusedId
           countTone: countTone
+          size: size
         ) {
           on change(id): pickTab(id)
         }
@@ -225,10 +234,13 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // `style.fontFamily = 'inherit'` for buttons, so typography is unaffected.
 component TabsItem(tab: object, active: boolean = false, variant: string = "pill",
                    tabStop: boolean = true, focused: boolean = false,
-                   countTone: string = "state") {
+                   countTone: string = "state", size: string = "md") {
   @computed {
-    padY:        variant == 'pill' ? 9px : 10px
-    padX:        variant == 'pill' ? 12px : 16px
+    // The ONLY thing size changes. The radius, the borders and the count badge
+    // are untouched, so a small strip is the same control drawn tighter rather
+    // than a second design.
+    padY:        size == 'sm' ? (variant == 'pill' ? 4px : 5px) : (variant == 'pill' ? 9px : 10px)
+    padX:        size == 'sm' ? (variant == 'pill' ? 10px : 12px) : (variant == 'pill' ? 12px : 16px)
     itemRadius:  variant == 'pill' ? 8px : 0px
     // pill: filled chip when active. underline: no chip.
     itemBg:      (variant == 'pill' && active) ? semantic.interactive-bg : 'transparent'
