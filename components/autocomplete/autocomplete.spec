@@ -19,8 +19,9 @@
 //     list. This is the "dropdown that also accepts typing" UX — the
 //     right choice for short bounded lists (aircraft, instructors,
 //     time slots) where users often want to browse without typing.
-//     This mode also paints Select's "▾" caret at the right edge, so the
-//     field advertises the menu it drops; clicking the caret opens it.
+//     This mode also paints Select's chevron-down caret INSIDE the field
+//     at its right edge, so the field advertises the menu it drops;
+//     clicking the caret focuses the input and opens it.
 //     Typing-driven mode (the default) deliberately has no caret — there
 //     is no menu to promise until the user has typed.
 //
@@ -150,6 +151,28 @@ component Autocomplete(
     // string. We still hide the Clear pill while the dropdown is open in
     // freeText, since there's no resting "selected" state to clear FROM.
     hasSelection:   freeText ? (value != "" && !typing) : (selectedOption != null && !typing)
+
+    // Dropdown caret, handed to the wrapped TextInput so it paints INSIDE the
+    // field's border — the same mark, size and tone Select uses, so a browse-
+    // style Autocomplete reads as a sibling of the Selects beside it rather
+    // than as a plain text field that mysteriously drops a menu. It used to be
+    // a "▾" text glyph in a block of its own OUTSIDE the input, which is what
+    // made it look bolted on next to the field instead of part of it.
+    //
+    // Only in openOnFocus mode. Without it there IS no menu to promise until
+    // the user has typed something, and a permanent caret on a typing-driven
+    // search field would advertise a dropdown that clicking cannot produce.
+    // "" is the TextInput's "no trailing icon" value.
+    //
+    // It needs no click handler of its own any more: TextInput's field
+    // container is a <label> wrapping the input, so a click on the caret is
+    // delegated to the input, which fires the focus event this component
+    // already listens to. That is strictly better than the old block's
+    // `on click: handleFocus()` — the caret press now really does put the
+    // caret in the field, instead of opening a menu the user then had to
+    // click again to type into.
+    caretIcon:      openOnFocus && !disabled ? "chevron-down" : ""
+
     matchLen:       filteredOptions.length
     safeIndex:      matchLen > 0 && highlightIndex < matchLen ? highlightIndex : 0
     // The floating panel is shown when there are matches to list OR a typed
@@ -322,7 +345,7 @@ component Autocomplete(
 
       block {
         grow: true
-        TextInput(value: inputValue, placeholder: placeholder, error: error, errorMessage: errorMessage, disabled: disabled, ariaLabel: ariaLabel) {
+        TextInput(value: inputValue, placeholder: placeholder, error: error, errorMessage: errorMessage, disabled: disabled, ariaLabel: ariaLabel, trailingIcon: caretIcon) {
           on change(v): handleInput(v)
           on focus: handleFocus()
         }
@@ -343,38 +366,10 @@ component Autocomplete(
         text("Clear") { style: type.label-sm, color: semantic.text-secondary, weight: 600 }
       }
 
-      // Dropdown caret — the same "▾" glyph, size and tone Select paints,
-      // so a browse-style Autocomplete reads as a sibling of the Selects beside
-      // it rather than as a plain text field that mysteriously drops a menu.
-      //
-      // Only in openOnFocus mode. Without it there IS no menu to promise until
-      // the user has typed something, and a permanent caret on a typing-driven
-      // search field would advertise a dropdown that clicking cannot produce.
-      //
-      // Clickable on purpose: a caret that looks like a control but ignores
-      // clicks is a dead zone, and this glyph sits OUTSIDE the TextInput, so a
-      // click on it would otherwise land on nothing. It opens rather than
-      // toggles — popup.js already closes the panel on any outside click, and
-      // this element is outside the panel, so a toggle would race that handler
-      // and read as "the caret does nothing". Escape and click-away still
-      // close. Being a block (not a button) it takes no focus, so the caret
-      // press leaves the caret in the input where the user can keep typing.
-      block {
-        visibility: openOnFocus && !disabled
-        padding-x: spacing.1
-        cursor: "pointer"
-        on click: handleFocus()
-        // Decorative: the combobox semantics live on the wrapped TextInput, and
-        // "▾" announces as "black down-pointing small triangle". aria-hidden
-        // sits on this INNER block because `visibility:` on the outer one drives
-        // its own aria-hidden reactively (bindVisibility clears the attribute
-        // whenever the block is shown), which would wipe a static value set on
-        // that same element — the modal-select.spec check-glyph gotcha.
-        block {
-          aria-hidden: "true"
-          text("▾") { style: type.caption, color: semantic.text-tertiary }
-        }
-      }
+      // The dropdown caret used to be a third block here, outside the field.
+      // It now rides on the TextInput as `trailingIcon: caretIcon` (see the
+      // caretIcon computed) so it paints inside the field's border, which is
+      // where Select has always drawn it.
     }
 
     // Floating suggestion panel — anchored to the input row above, rendered

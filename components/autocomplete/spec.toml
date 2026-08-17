@@ -1,6 +1,6 @@
 [package]
 name = "autocomplete"
-version = "0.6.0"
+version = "0.7.0"
 category = "components"
 description = "Type-to-filter combobox — TextInput that opens an inline dropdown filtered by what the user types. Supports openOnFocus (browse without typing) and freeText (caller-controlled options for server-side filtering / free-form input like ICAO codes)."
 license = "MIT"
@@ -13,4 +13,6 @@ origin = "@spec/components"
 file = "autocomplete.spec"
 
 [depends]
-text-input = "0.1.0"
+# 0.6.0 is the first TextInput with `trailingIcon`, which is where this
+# component's dropdown caret now lives.
+text-input = "0.6.0"
