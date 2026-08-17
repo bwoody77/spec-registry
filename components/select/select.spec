@@ -8,7 +8,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
 // visible label is somewhere the compiler can't see, or when the control needs
 // a longer name than the one on screen.
-component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "", autoFocus: boolean = false) {
+component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "", autoFocus: boolean = false, size: string = "md") {
   @state {
     open: false
     query: ""
@@ -17,6 +17,26 @@ component Select(options: array = [], value: string = "", placeholder: string = 
   }
 
   @computed {
+    // ── size: "md" (default, unchanged) | "sm" ───────────────────────────────
+    //
+    // BOTH of these move together or neither does anything, which is the whole
+    // reason they are named here instead of written inline at their two sites.
+    // Per the padding invariant documented on the trigger below, the outer box
+    // carries min-height and no padding while an inner box carries the padding
+    // and the text. The rendered height is therefore
+    // max(min-height, padding×2 + line) + 2×border, so at "md" the outer 40
+    // beats the inner 8+20+8=36 and the control measures 42.
+    //
+    // Drop min-height alone and the inner 36 becomes the floor: the control
+    // goes 42 → 38 and looks untouched. Drop the padding alone and the outer 40
+    // still wins: nothing moves at all. An earlier attempt at this prop changed
+    // one of them, measured no change, and was reverted as a no-op.
+    //
+    // "sm" is 4+20+4=28 under a 30 floor, so the control measures 32 — the
+    // height a filter toolbar wants beside a 30px segmented control.
+    triggerMinHeight: size == "sm" ? 30 : 40
+    triggerPad: size == "sm" ? spacing.1 : spacing.2
+
     safeOptions: options != null ? options : []
     filteredOptions: searchable && query != "" ? safeOptions.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : safeOptions
     selectedOption: safeOptions.find(o => o.value == value)
@@ -98,7 +118,7 @@ component Select(options: array = [], value: string = "", placeholder: string = 
     // an inner block holds the padding and the content.
     block {
       layout: horizontal
-      min-height: 40px
+      min-height: triggerMinHeight
       background: token.select-bg
       border: match error {
         true -> token.input-borderWidth + " solid " + semantic.destructive,
@@ -174,7 +194,7 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       block {
         grow: true
         layout: horizontal, justify: between, align: center
-        padding: spacing.2
+        padding: triggerPad
         text(displayText) {
           style: type.body-md
           color: selectedOption != null ? semantic.text-primary : semantic.text-tertiary
