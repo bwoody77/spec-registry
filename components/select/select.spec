@@ -179,7 +179,13 @@ component Select(options: array = [], value: string = "", placeholder: string = 
           style: type.body-md
           color: selectedOption != null ? semantic.text-primary : semantic.text-tertiary
         }
-        text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
+        // Caret. An Icon, not the "\u25BE" text glyph it used to be: that glyph
+        // is font-dependent (it renders at a different weight and baseline
+        // across platforms) and it left the registry disagreeing with itself,
+        // since column-chooser and Vector's hand-rolled dropdown triggers all
+        // draw `chevron-down`. Every combobox in the registry now uses this
+        // exact mark at this exact size.
+        Icon(name: 'chevron-down', size: 16, color: semantic.text-tertiary)
       }
     }
 
