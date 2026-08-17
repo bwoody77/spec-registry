@@ -314,7 +314,8 @@ component MultiSelect(options: array = [], values: array = [], placeholder: stri
         block {
           width: 16px
           layout: horizontal, justify: center, align: center
-          text("\u25BE") { style: type.caption, color: semantic.text-tertiary }
+          // Icon, not the "\u25BE" text glyph \u2014 see the note on Select's caret.
+          Icon(name: 'chevron-down', size: 16, color: semantic.text-tertiary)
         }
       }
 
