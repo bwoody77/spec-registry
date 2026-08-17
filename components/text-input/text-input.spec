@@ -1,4 +1,4 @@
-// Input — form text input with label, prefix/suffix, leading icon, segmented unit, error state, focus ring
+// Input — form text input with label, prefix/suffix, leading icon, trailing icon, segmented unit, error state, focus ring
 component TextInput(
   type: string = "text",
   label: string = "",
@@ -9,6 +9,16 @@ component TextInput(
   prefix: string = "",
   suffix: string = "",
   icon: string = "",
+  // Trailing adornment icon, rendered INSIDE the field's border at its right
+  // edge. Exists for combobox wrappers (Autocomplete, Vector's UserPicker)
+  // that need Select's caret to sit inside the control rather than floating
+  // beside it — the only trailing affordances before this were `suffix`
+  // (text) and `unit` (a bordered segment), neither of which can carry a
+  // glyph. Purely decorative and aria-hidden: the input container is a
+  // <label>, so a click anywhere on the icon focuses the input and the
+  // wrapper's own `on focus` handler opens its dropdown. Do NOT give it a
+  // click handler — that would double-fire against the label delegation.
+  trailingIcon: string = "",
   unit: string = "",
   tone: string = "default",
   error: boolean = false,
@@ -147,6 +157,23 @@ component TextInput(
           style: type.body-md
           color: semantic.text-tertiary
         }
+      }
+
+      // Trailing icon (e.g. a combobox caret). Sits before `unit` because the
+      // unit segment draws its own left divider and reads as the field's right
+      // edge — a caret outside it would look like it belonged to the unit box.
+      // The two are never used together in practice.
+      // No aria-hidden here: mountIcon already sets aria-hidden="true" and
+      // focusable="false" on the <svg> whenever the Icon has no `label`, so an
+      // unlabelled icon is out of the a11y tree on its own. Setting it here as
+      // well would also collide with `visibility:` on this same element —
+      // bindVisibility clears an aria-hidden it believes it owns, and the
+      // runtime marker that would protect an authored one is not in the spec
+      // build Vector currently pins.
+      block {
+        visibility: trailingIcon != ""
+        layout: horizontal, align: center
+        Icon(name: trailingIcon, size: 16, color: semantic.text-tertiary)
       }
 
       // Segmented unit (e.g. "qts", "gal") — right-aligned box with a full-height divider
