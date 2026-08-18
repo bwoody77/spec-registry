@@ -52,6 +52,49 @@ fn _tabWrap(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
+// The strip's CELLS — one grid column each.
+//
+// A run of ADJACENT tabs carrying the same non-null `group` collapses into one
+// cell, so they can share a single enclosure. Every other tab is a cell of one,
+// which is what keeps `repeat(N, …)` correct for every existing caller: no
+// `group` anywhere means cells.length == tabs.length, exactly as before.
+//
+// ADJACENCY, not a tag: two tabs sharing a group value with another tab between
+// them stay separate. The enclosure describes a position in the strip, and
+// pulling them together would silently reorder tabs the caller placed
+// deliberately. So the run breaks the moment the value changes.
+//
+// Each cell is `{ key, grouped, tabs }`. `grouped` is false for a run of one —
+// a box drawn around a single tab would be a lie about the hierarchy — and
+// `key` is the first tab's id, which is unique across the strip.
+//
+// On the accumulator shape: the run is built in its OWN local and the finished
+// cell is pushed whole, then `run` is REBOUND (`run = [item]`) rather than
+// emptied in place. `push` into a receiver two or more levels inside a local —
+// `out[i].tabs` — is mutated in place on JS but COPIED on Swift, losing the
+// mutation (fn-reference §Array). Rebinding is well-defined on every target.
+fn _tabCells(items: array) -> array {
+  let out = []
+  let run = []
+  let runKey = null
+  for item in items {
+    let g = item.group ?? null
+    if g != null && g == runKey && length(run) > 0 {
+      push(run, item)
+    } else {
+      if length(run) > 0 {
+        push(out, { key: run[0].id, grouped: length(run) > 1, tabs: run })
+      }
+      run = [item]
+      runKey = g
+    }
+  }
+  if length(run) > 0 {
+    push(out, { key: run[0].id, grouped: length(run) > 1, tabs: run })
+  }
+  return out
+}
+
 // size — "md" (default, unchanged) or "sm", which tightens the per-item padding.
 //
 // A tab strip that IS the page's navigation wants presence. A strip used as a
@@ -68,11 +111,16 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
   }
 
   @computed {
+    // One column per CELL, not per tab — a grouped run occupies a single
+    // column. With no `group` anywhere, cells.length == tabs.length and every
+    // template below is byte-for-byte what it always was.
+    cells: _tabCells(tabs)
+
     // Overflow is expressed entirely through the grid column template.
     gridColumns: overflow == 'grow'
-                   ? ('repeat(' + (tabs.length + '') + ', 1fr)')
+                   ? ('repeat(' + (cells.length + '') + ', 1fr)')
                    : (overflow == 'scroll'
-                       ? ('repeat(' + (tabs.length + '') + ', max-content)')
+                       ? ('repeat(' + (cells.length + '') + ', max-content)')
                        : 'repeat(auto-fill, minmax(110px, max-content))')
     scrollMode:  overflow == 'scroll' ? 'auto' : 'visible'
     // Strip chrome differs by variant.
@@ -81,6 +129,17 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     stripBorderBot: variant == 'pill' ? borders.default : ('1px solid ' + semantic.border)
     stripRadius:    variant == 'pill' ? 12px : 0px
     stripPad:       variant == 'pill' ? 6px : 0px
+
+    // The grouped cell's fill, which has to differ by variant because the PILL
+    // variant already spends `semantic.interactive-bg` on its active chip
+    // (itemBg in TabsItem). Tinting the enclosure the same colour would make
+    // the active tab inside a group vanish into it — the one tab that must
+    // stay legible. `surface-hover` is the recessed tone against a pill strip's
+    // own `surface`, and leaves the active chip's interactive-bg distinct.
+    //
+    // Underline strips paint no tab background at all, so there is nothing to
+    // collide with and the interactive tint reads as intended there.
+    groupBg:     variant == 'pill' ? semantic.surface-hover : semantic.interactive-bg
 
     // Roving tabindex: exactly ONE tab is in the page tab order, so Tab moves
     // past the whole strip to the panel instead of stepping through every tab.
@@ -97,8 +156,19 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // un-adorned caller runs the original loop below, byte-for-byte unchanged.
     // (An `each` still creates its own list container, so the unused loop costs
     // one EMPTY `display: contents` div: no box, no grid item, nothing painted.)
-    unadornedTabs: hasSlot("tabAdornment") ? [] : tabs
-    adornedTabs:   hasSlot("tabAdornment") ? tabs : []
+    //
+    // Grouping joins the same branch: an enclosure needs a wrapper to paint on,
+    // so a strip with a real run takes the cell arm even with no slot supplied.
+    // The condition is `cells.length != tabs.length`, which is true exactly when
+    // some run has two or more tabs in it — so a caller whose `group` values
+    // happen to form NO adjacent pair still renders through the original flat
+    // path, wrapper-free and byte-identical to before.
+    //
+    // Both arms read `cells.length` rather than a `hasGroups` computed derived
+    // from it: one extra level of cascade is one more position that can go stale
+    // for a tick, and this comparison is a single integer test.
+    unadornedTabs: (hasSlot("tabAdornment") || cells.length != tabs.length) ? [] : tabs
+    cellList:      (hasSlot("tabAdornment") || cells.length != tabs.length) ? cells : []
   }
 
   @actions {
@@ -198,24 +268,62 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // role=presentation keeps the wrapper out of the accessibility tree, so
     // the tab buttons remain the tablist's semantic children even though this
     // arm nests them one element deeper than the un-adorned arm.
-    each adornedTabs as tab (tab.id) {
+    each cellList as cell (cell.key) {
       block {
         role: 'presentation'
         layout: horizontal, align: center, gap: 6px
-        TabsItem(
-          tab: tab
-          active: tab.id == activeTab
-          variant: variant
-          tabStop: tab.id == tabStopId
-          focused: tab.id == focusedId
-          countTone: countTone
-          size: size
-        ) {
-          on change(id): pickTab(id)
+
+        // The enclosure. Drawn on the CELL, so it spans the whole run and no
+        // grid gap cuts through it — the reason grouping had to land here
+        // rather than in a consumer: an app cannot style a cell it does not
+        // emit, and two half-enclosures either side of the tablist's 4px gap
+        // leave a transparent slit down the middle of the tint.
+        //
+        // A run of one paints nothing at all. `data-tab-group` is bound to null
+        // there, and a binding REMOVES an attribute when its value is null
+        // (ai-reference §31b), so a lone cell carries no marker and no styling
+        // — which is what keeps an adorned-but-ungrouped strip looking exactly
+        // as it did before this existed.
+        //
+        // Tokens, not literals: `semantic.interactive-bg` and
+        // `borders.interactive` both exist in the compiler's own visual-system
+        // defaults, so this renders in every app and adapts per theme. A NEW
+        // token would have been the risk here — an unresolved one emits
+        // nothing, with no error and no warning.
+        data-tab-group: cell.grouped ? 'true' : null
+        background:     cell.grouped ? groupBg : 'transparent'
+        // `none`, not a transparent 1px: an ungrouped cell must not gain a
+        // border box at all. A 1px transparent border would widen every tab in
+        // every adorned strip by 2px — a silent layout change shipped to every
+        // app on the registry for no visual gain.
+        border:         cell.grouped ? borders.interactive : 'none'
+        // Open at the bottom, so the enclosure reads as a tray opening out of
+        // the strip rather than a closed box floating on it. A literal, not a
+        // ternary: a REACTIVE border shorthand clobbers the longhand written
+        // below it, and this has to survive that.
+        border-bottom:  'none'
+        border-radius:  cell.grouped ? '8px 8px 0 0' : 0px
+        padding-x:      cell.grouped ? 4px : 0px
+        // Sit the enclosure's open bottom edge ON the strip's own rule, so it
+        // reads as a tray opening out of the strip rather than a floating box.
+        margin-bottom:  cell.grouped ? -1px : 0px
+
+        each cell.tabs as tab (tab.id) {
+          TabsItem(
+            tab: tab
+            active: tab.id == activeTab
+            variant: variant
+            tabStop: tab.id == tabStopId
+            focused: tab.id == focusedId
+            countTone: countTone
+            size: size
+          ) {
+            on change(id): pickTab(id)
+          }
+          // Invoked once per tab, with that tab — a caller can render for one
+          // tab only: `slot("tabAdornment") { |tab| … }`.
+          @slot("tabAdornment", tab)
         }
-        // Invoked once per tab, with that tab — a caller can render for one
-        // tab only: `slot("tabAdornment") { |tab| … }`.
-        @slot("tabAdornment", tab)
       }
     }
   }
