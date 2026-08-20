@@ -266,7 +266,9 @@ fn gridSegMax(seg: map, rules: boolean, firstKey: string) -> string {
 // ─── Row kinds ──────────────────────────────────────────────────────────────
 // A row may declare `_kind`: 'group' (a collapsible header for the rows that
 // name it in `_group`) or 'total' (a pinned-looking summary). Anything else is
-// an ordinary row. `_accent` draws a left rail and `_opacity` dims the row.
+// an ordinary row. `_accent` draws a left rail, `_opacity` dims the row, and
+// `_bg` gives it its own background (gridRowBg documents where that sits in
+// the paint order, and why it is a row sentinel rather than a prop).
 // A group row may also carry `_toggleLabel` to name its expand/collapse control
 // for screen readers (default: "Toggle group").
 
@@ -441,6 +443,11 @@ fn gridVisibleDerivedRows(rows: list, collapsed: list) -> list {
   return rows |> filter(r => r._kind != null || r._group == null || gridDerivedIsOpen(collapsed, r._group))
 }
 
+fn gridRowBgOf(row: map) -> string {
+  if row._bg != null { return row._bg }
+  return ""
+}
+
 fn gridRowRail(row: map) -> string {
   if row._accent != null { return 'inset 3px 0 0 ' + row._accent }
   return 'none'
@@ -478,10 +485,21 @@ fn gridRowOpacity(row: map) -> number {
 // lines below the pinned cell has always used the canonical predicate; the
 // paint now uses the same one, so a ticked row and a tinted row are the same
 // row in both modes.
-fn gridRowBg(kind: string, hovered: boolean, chosen: boolean, isStriped: boolean, odd: boolean, paints: map, base: string) -> string {
+fn gridRowBg(kind: string, hovered: boolean, chosen: boolean, isStriped: boolean, odd: boolean, paints: map, base: string, rowBg: string) -> string {
   if kind != "row" { return paints.group }
   if hovered { return paints.hover }
   if chosen { return paints.raised }
+  // The row's OWN background (`_bg`), a sibling of the `_accent` rail and the
+  // `_opacity` dim. It exists for the master-detail case: a rail standing
+  // beside a detail pane has to show which record is OPEN, and `chosen`
+  // cannot say it — that tint means "ticked, with a bulk action pending",
+  // and borrowing it would light every checkbox too.
+  //
+  // Placed HERE, and not higher: hover must still answer on the open row or
+  // it reads as disabled, and a tick carries a pending action. Placed above
+  // the stripe because otherwise one open row would look active on an even
+  // index and merely striped on an odd one — a rule no user can learn.
+  if rowBg != "" { return rowBg }
   if isStriped && odd { return paints.stripe }
   return base
 }
@@ -1014,16 +1032,6 @@ component DataGrid(
     firstColKey: visibleColumns.length > 0 ? visibleColumns[0].key : ''
     pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1), visibleColumns) : []
     scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1), visibleColumns) : gridSizedCols(visibleColumns, visibleColumns)
-    // How far the scrolling loop's `colIdx` sits from the SAME column's index
-    // in `visibleColumns` — which is the index space `focusedCol` counts in
-    // (`moveRight` caps it at `visibleColumns.length - 1`). Zero unpinned, one
-    // when a column is pinned out of the loop.
-    //
-    // `pinnedColumns.length` and not `pinFirst ? 1 : 0` deliberately: it is
-    // derived from the same slice that removes the column, so the two indices
-    // cannot disagree. They differ for real — `pinFirst: true` with no visible
-    // columns leaves BOTH lists empty, and a hardcoded 1 would be wrong there.
-    scrollColOffset: pinnedColumns.length
     trackMin: gridTrackMin(visibleColumns, columnRules, firstColKey)
     // Header segments. The pinned column renders outside the scrolling loop, so
     // a segment may never straddle that boundary — with pinFirst the first
@@ -2039,7 +2047,7 @@ component DataGrid(
             height: windowed ? rowHeightPx : 'auto'
             max-height: windowed ? rowHeightPx : 'none'
             border-top: gridRowKind(row) == "total" ? borders.strong : borders.subtle
-            background: gridRowBg(gridRowKind(row), false, gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
+            background: gridRowBg(gridRowKind(row), false, gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent", gridRowBgOf(row))
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
             // `rowsClickable` is scoped to ordinary rows (see the prop): a
@@ -2052,7 +2060,7 @@ component DataGrid(
             // one up would say it was. `visibility` cannot express this, so it
             // is a guarded style rather than a wrapper.
             on hover {
-              background: gridRowBg(gridRowKind(row), hasHover, gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
+              background: gridRowBg(gridRowKind(row), hasHover, gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent", gridRowBgOf(row))
             }
             // The pinned cell cannot inherit the `on hover` style above — it
             // paints its own opaque sticky background over the row — so the
@@ -2120,7 +2128,7 @@ component DataGrid(
                 // only this site tracks WHICH row the pointer is on (`on
                 // hover` cannot reach a sticky child), and `pinBg` rather than
                 // "transparent" is the base because rows must not show through.
-                background: gridRowBg(gridRowKind(row), hasHover && hoveredRow == gridAbsIdx(windowed, winStart, rowIdx), gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, pinBg)
+                background: gridRowBg(gridRowKind(row), hasHover && hoveredRow == gridAbsIdx(windowed, winStart, rowIdx), gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, pinBg, gridRowBgOf(row))
                 // The row's left rail (_accent) is drawn on the row container, but
                 // this sticky pinned column's opaque background paints over it — so
                 // re-draw the rail here, on top of the pin background, or a
@@ -2130,22 +2138,6 @@ component DataGrid(
                 block {
                 padding: pad
                 grow: true
-                // The keyboard focus tint — the fourth state that never
-                // reached the left-most column. `focusedCol == 0` because the
-                // pinned column IS visibleColumns[0] (the chooser refuses to
-                // hide or move it), and this loop renders only when there is
-                // one.
-                //
-                // It goes on this INNER box and not on the sticky cell above,
-                // where the scrolling half puts it, because the tint is
-                // translucent and that cell's background is the opaque backing
-                // that stops the scrolled columns showing through a sticky
-                // element. Painting rgba() there would replace the backing
-                // rather than layer over it. Here it composites over it, which
-                // is exactly what the scrolling cell gets for free from the
-                // row behind it. `grow: true` in a stretch flex means this box
-                // is the whole cell, so the tinted area matches.
-                background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == 0 ? "rgba(59,130,246,0.08)" : "transparent"
                 // Per-column horizontal alignment. This is a ROW flex, so the
                 // horizontal axis is `justify`. It goes HERE and not on the
                 // cell above because `grow: true` makes this box fill the cell
@@ -2261,16 +2253,7 @@ component DataGrid(
                 grow: true
                 min-width: col._min
                 max-width: col._max
-                // `colIdx + scrollColOffset`, NOT `colIdx`. This loop walks
-                // `scrollColumns` while `focusedCol` counts `visibleColumns`,
-                // and under `pinFirst` those are off by the pinned column: the
-                // comparison used to ask whether the focused column was the
-                // one to this cell's LEFT, so every tint landed a column right
-                // of the arrows, `focusedCol: 0` lit the second column, and
-                // the last column could not be tinted at all (its focusedCol
-                // is one past the end of a list one shorter). Unpinned the
-                // offset is 0 and this is the expression it always was.
-                background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == colIdx + scrollColOffset ? "rgba(59,130,246,0.08)" : "transparent"
+                background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
                 // The group bracket's body half: without it the grouping
                 // dissolves below the header (mockup: q-first/q-last on td AND th).
                 border-left: columnRules && col._col.key != firstColKey ? bracketRule
