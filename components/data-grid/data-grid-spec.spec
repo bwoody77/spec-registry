@@ -451,6 +451,34 @@ fn gridRowOpacity(row: map) -> number {
   return 1.0
 }
 
+ // The background ONE BODY ROW takes — at every site that has to paint it.
+ //
+ // Three sites do: the row container's resting style, its `on hover`
+ // restatement of that style, and the pinned cell. The pinned cell is sticky
+ // and opaque (rows scroll under it), so it paints OVER the row container
+ // rather than inheriting from it, and therefore has to restate every state the
+ // row expresses — not just the one it was written for.
+ //
+ // It was three hand-written copies of one nested ternary, and the pinned copy
+ // had drifted: it knew about group rows and about hover, but not about stripe
+ // parity or selection. So `striped: true` produced stripes that stopped dead
+ // at the first column boundary, and a selected row's left-most cell stayed
+ // unselected-coloured. Both were invisible to every test in the suite, because
+ // the two copies that WERE right are the ones the tests read.
+ //
+ // `paints` is the palette, resolved once in @computed; `base` is the only
+ // thing the three sites legitimately disagree on. An ordinary row falls
+ // through to "transparent" and lets the card behind it show; the pinned cell
+ // must fall through to an opaque `pinBg` or the rows are visible sliding
+ // underneath it.
+fn gridRowBg(kind: string, hovered: boolean, chosen: boolean, isStriped: boolean, odd: boolean, paints: map, base: string) -> string {
+  if kind != "row" { return paints.group }
+  if hovered { return paints.hover }
+  if chosen { return paints.raised }
+  if isStriped && odd { return paints.stripe }
+  return base
+}
+
 // True when the row set uses group/total rows. Sorting is suppressed for those
 // grids: reordering would tear group headers away from their members.
 fn gridHasStructuralRows(rows: list) -> boolean {
@@ -1007,6 +1035,11 @@ component DataGrid(
     // string can.
     bracketRule: '1px solid ' + semantic.border
     hasHover: hoverBackground != ""
+    // The row palette, named once and handed to gridRowBg by all three paint
+    // sites. Resolved here rather than inside the fn because `semantic.*` is a
+    // token, and a token belongs where the other three backgrounds above are
+    // already resolved.
+    rowPaints: { group: groupBg, hover: hoverBackground, raised: semantic.surface-raised, stripe: stripeBg }
     // The grid's own control buttons (group + expand carets), sized once.
     ctrlPx: controlSize + 'px'
     ctrlFont: ((controlSize * 6) / 10) + 'px'
@@ -1979,7 +2012,7 @@ component DataGrid(
             height: windowed ? rowHeightPx : 'auto'
             max-height: windowed ? rowHeightPx : 'none'
             border-top: gridRowKind(row) == "total" ? borders.strong : borders.subtle
-            background: gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1 ? stripeBg : "transparent"))
+            background: gridRowBg(gridRowKind(row), false, selectedSet.includes(row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
             // `rowsClickable` is scoped to ordinary rows (see the prop): a
@@ -1992,7 +2025,7 @@ component DataGrid(
             // one up would say it was. `visibility` cannot express this, so it
             // is a guarded style rather than a wrapper.
             on hover {
-              background: hasHover && gridRowKind(row) == "row" ? hoverBackground : (gridRowKind(row) != "row" ? groupBg : (selectedSet.includes(row[rowKeyField]) ? semantic.surface-raised : (striped && gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1 ? stripeBg : "transparent")))
+              background: gridRowBg(gridRowKind(row), hasHover, selectedSet.includes(row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
             }
             // The pinned cell cannot inherit the `on hover` style above — it
             // paints its own opaque sticky background over the row — so the
@@ -2052,11 +2085,15 @@ component DataGrid(
                 position: "sticky"
                 left: 0px
                 z-index: 2
-                // Hover joins the paint order here because this background is
-                // what the user actually sees on the pinned column — the row's
-                // hover style is underneath it. Same guard as the row: only
-                // ordinary rows, only when hoverBackground is set.
-                background: gridRowKind(row) != "row" ? groupBg : (hasHover && hoveredRow == gridAbsIdx(windowed, winStart, rowIdx) ? hoverBackground : pinBg)
+                // The SAME paint the row container takes — every state of it,
+                // not just the ones this cell was originally written for. It
+                // is sticky and opaque, so it covers the row's own background
+                // entirely: a state missing here is a state that never reaches
+                // the left-most column. Hover is passed in resolved because
+                // only this site tracks WHICH row the pointer is on (`on
+                // hover` cannot reach a sticky child), and `pinBg` rather than
+                // "transparent" is the base because rows must not show through.
+                background: gridRowBg(gridRowKind(row), hasHover && hoveredRow == gridAbsIdx(windowed, winStart, rowIdx), selectedSet.includes(row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, pinBg)
                 // The row's left rail (_accent) is drawn on the row container, but
                 // this sticky pinned column's opaque background paints over it — so
                 // re-draw the rail here, on top of the pin background, or a
