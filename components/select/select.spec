@@ -34,7 +34,23 @@ component Select(options: array = [], value: string = "", placeholder: string = 
     //
     // "sm" is 4+20+4=28 under a 30 floor, so the control measures 32 — the
     // height a filter toolbar wants beside a 30px segmented control.
-    triggerMinHeight: size == "sm" ? 30 : 40
+    //
+    // ⚠ THE UNITS ARE LOAD-BEARING, and this prop shipped without them.
+    //
+    // A size property written as a LITERAL in markup is resolved by the
+    // compiler and emitted with its unit; bound to a `@computed` the raw value
+    // is emitted. This line used to read `min-height: 40px` in the markup below
+    // and worked. Hoisting it into a computed NUMBER emitted `min-height: 40`,
+    // which is not a length — so the browser dropped the declaration, the floor
+    // stopped applying, and every Select in every consuming app went 42 → 38
+    // and "sm" 32 → 30.
+    //
+    // That is the third face of the same no-op this comment already warned
+    // about twice: not "changed one of the two" but "changed both, and one of
+    // them stopped being valid CSS on the way". `select-trigger-padding.test.ts`
+    // asserts the emitted value is `40px` and has been RED on main since — a
+    // guard doing its job into a room with nobody in it.
+    triggerMinHeight: size == "sm" ? '30px' : '40px'
     triggerPad: size == "sm" ? spacing.1 : spacing.2
 
     safeOptions: options != null ? options : []
