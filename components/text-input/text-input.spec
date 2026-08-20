@@ -55,22 +55,33 @@ component TextInput(
     // earlier attempt at Select's prop changed one, measured no change, and
     // was reverted as a no-op.
     //
-    // The container carries the padding and the border; the <input> inside is
-    // borderless and transparent. Rendered height is therefore
-    // padding×2 + line + 2×border, floored by min-height.
+    // ⚠ A SPEC BLOCK IS CONTENT-BOX, so `min-height` is a floor on the CONTENT
+    // and the padding is added on top of it — it does not floor the whole
+    // control the way a border-box reading suggests. Rendered height is:
     //
-    //   md: 8 + 20 + 8 = 36, +2 border = 38, floor 0  → 38 (what it has always been)
-    //   sm: 4 + 20 + 4 = 28, +2 border = 30, floor 30 → 32
+    //     max(min-height, content) + padding×2 + border×2
     //
-    // The floor is not decoration. Without it, anything with a taller line box
-    // than a bare input — a leading icon, a prefix, a unit segment — sets the
-    // height instead, so the same `size: "sm"` measures differently depending
-    // on which adornments a call site happens to pass. The floor makes "sm"
-    // mean one number.
+    // The first version of this prop read it the other way round and shipped
+    // `padding: 4px` beside `min-height: 30px`, which measured 40 in a browser:
+    // 30 + 8 + 2. The property grid it was written for holds a 32px row, so the
+    // row still sheared open by 8px on click — the prop moved both declarations,
+    // both were emitted, and the control was still the wrong height. Measured,
+    // not calculated; the arithmetic here had been wrong twice.
     //
-    // md's floor is 0 rather than a number, because ANY min-height here would
-    // change the default rendering — the point of the prop is that an existing
-    // call site is untouched.
+    //   md: content 25.6 (the input's own line box) + 16 + 2, floor auto → unchanged
+    //   sm: floor 30 + 0 + 2                                             → 32
+    //
+    // "sm" therefore takes NO vertical padding at all and lets the floor set the
+    // height. That is what makes it a fixed 32 rather than a number that drifts
+    // with the font: an icon, a prefix or a unit segment has a taller line box
+    // than a bare input, so without the floor the same `size: "sm"` would
+    // measure differently depending on which adornments a call site passes.
+    // Horizontal padding is kept, or the text sits on the border.
+    //
+    // md's floor is `auto`, the CSS initial value, and NOT `0px`. `0px` is a
+    // real declaration that overrides the flex `min-height: auto` behaviour, so
+    // it would change what an existing caller renders — which is the one thing
+    // a new prop with a default must not do.
     //
     // ⚠ THE UNIT IS LOAD-BEARING, and it is why these are strings.
     //
@@ -90,8 +101,8 @@ component TextInput(
     // never applied. That is how this was found: matching Select's height
     // meant measuring Select, and Select was not the height it claimed.
     // Corrected on the same branch, so the two agree again.
-    boxPad: size == "sm" ? spacing.1 : spacing.2
-    boxMinHeight: size == "sm" ? '30px' : '0px'
+    boxPad: size == "sm" ? '0 8px' : spacing.2
+    boxMinHeight: size == "sm" ? '30px' : 'auto'
   }
 
   @actions {

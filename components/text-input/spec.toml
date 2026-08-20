@@ -1,6 +1,6 @@
 [package]
 name = "text-input"
-version = "0.7.0"
+version = "0.7.1"
 category = "components"
 description = "Single-line text field with label, leading/trailing icon, segmented unit, tone (warning/danger/highlight), and validation support"
 license = "MIT"
