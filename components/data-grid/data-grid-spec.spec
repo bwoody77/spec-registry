@@ -451,26 +451,33 @@ fn gridRowOpacity(row: map) -> number {
   return 1.0
 }
 
- // The background ONE BODY ROW takes — at every site that has to paint it.
- //
- // Three sites do: the row container's resting style, its `on hover`
- // restatement of that style, and the pinned cell. The pinned cell is sticky
- // and opaque (rows scroll under it), so it paints OVER the row container
- // rather than inheriting from it, and therefore has to restate every state the
- // row expresses — not just the one it was written for.
- //
- // It was three hand-written copies of one nested ternary, and the pinned copy
- // had drifted: it knew about group rows and about hover, but not about stripe
- // parity or selection. So `striped: true` produced stripes that stopped dead
- // at the first column boundary, and a selected row's left-most cell stayed
- // unselected-coloured. Both were invisible to every test in the suite, because
- // the two copies that WERE right are the ones the tests read.
- //
- // `paints` is the palette, resolved once in @computed; `base` is the only
- // thing the three sites legitimately disagree on. An ordinary row falls
- // through to "transparent" and lets the card behind it show; the pinned cell
- // must fall through to an opaque `pinBg` or the rows are visible sliding
- // underneath it.
+// The background ONE BODY ROW takes — at every site that has to paint it.
+//
+// Three sites do: the row container's resting style, its `on hover`
+// restatement of that style, and the pinned cell. The pinned cell is sticky
+// and opaque (rows scroll under it), so it paints OVER the row container
+// rather than inheriting from it, and therefore has to restate every state the
+// row expresses — not just the one it was written for.
+//
+// It was three hand-written copies of one nested ternary, and the pinned copy
+// had drifted: it knew about group rows and about hover, but not about stripe
+// parity or selection. So `striped: true` produced stripes that stopped dead
+// at the first column boundary, and a selected row's left-most cell stayed
+// unselected-coloured. Both were invisible to every test in the suite, because
+// the two copies that WERE right are the ones the tests read.
+//
+// `paints` is the palette, resolved once in @computed; `base` is the only
+// thing the three sites legitimately disagree on. An ordinary row falls
+// through to "transparent" and lets the card behind it show; the pinned cell
+// must fall through to an opaque `pinBg` or the rows are visible sliding
+// underneath it.
+// `chosen` is gridRowChecked's answer, NOT `selectedSet.includes(...)`. All
+// three sites used the latter, and in select-all-matching mode `selectedSet`
+// is empty by design: the user ticked "select all 1043 matching", every
+// checkbox went on, and not one row took the selected tint. The checkbox 20
+// lines below the pinned cell has always used the canonical predicate; the
+// paint now uses the same one, so a ticked row and a tinted row are the same
+// row in both modes.
 fn gridRowBg(kind: string, hovered: boolean, chosen: boolean, isStriped: boolean, odd: boolean, paints: map, base: string) -> string {
   if kind != "row" { return paints.group }
   if hovered { return paints.hover }
@@ -548,9 +555,19 @@ component DataGrid(
   // resolves to the SAME colour as the unstriped rows, so `striped: true` could
   // not produce a visible stripe at any setting. A caller on a white card needs
   // to name a tint a shade off it.
+  //
+  // MUST BE OPAQUE when `pinFirst` is set. The pinned cell repaints the row's
+  // background (see gridRowBg), and it is the only thing standing between the
+  // reader and the columns scrolling underneath it — a translucent
+  // `rgba(0,0,0,0.03)` zebra, which is an otherwise perfectly ordinary value,
+  // would let them show through on every odd row. Name the composited colour
+  // rather than an alpha. `hoverBackground` carries the same requirement, and
+  // always has.
   stripeBackground: string = "",
   // Row hover. Empty keeps the previous behaviour: none at all, which on a grid
   // whose rows are clickable left nothing to say a row was a target.
+  //
+  // Opaque when `pinFirst` is set, for the reason on `stripeBackground` above.
   hoverBackground: string = "",
   // Cell padding, for callers whose design system is denser or looser than
   // spacing.2. Applies to every cell in every row so the columns cannot drift.
@@ -2012,7 +2029,7 @@ component DataGrid(
             height: windowed ? rowHeightPx : 'auto'
             max-height: windowed ? rowHeightPx : 'none'
             border-top: gridRowKind(row) == "total" ? borders.strong : borders.subtle
-            background: gridRowBg(gridRowKind(row), false, selectedSet.includes(row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
+            background: gridRowBg(gridRowKind(row), false, gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
             shadow: gridRowRail(row)
             opacity: gridRowOpacity(row)
             // `rowsClickable` is scoped to ordinary rows (see the prop): a
@@ -2025,7 +2042,7 @@ component DataGrid(
             // one up would say it was. `visibility` cannot express this, so it
             // is a guarded style rather than a wrapper.
             on hover {
-              background: gridRowBg(gridRowKind(row), hasHover, selectedSet.includes(row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
+              background: gridRowBg(gridRowKind(row), hasHover, gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, "transparent")
             }
             // The pinned cell cannot inherit the `on hover` style above — it
             // paints its own opaque sticky background over the row — so the
@@ -2093,7 +2110,7 @@ component DataGrid(
                 // only this site tracks WHICH row the pointer is on (`on
                 // hover` cannot reach a sticky child), and `pinBg` rather than
                 // "transparent" is the base because rows must not show through.
-                background: gridRowBg(gridRowKind(row), hasHover && hoveredRow == gridAbsIdx(windowed, winStart, rowIdx), selectedSet.includes(row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, pinBg)
+                background: gridRowBg(gridRowKind(row), hasHover && hoveredRow == gridAbsIdx(windowed, winStart, rowIdx), gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField]), striped, gridAbsIdx(windowed, winStart, rowIdx) % 2 == 1, rowPaints, pinBg)
                 // The row's left rail (_accent) is drawn on the row container, but
                 // this sticky pinned column's opaque background paints over it — so
                 // re-draw the rail here, on top of the pin background, or a
