@@ -1,0 +1,13 @@
+[package]
+name = "segmented-control"
+version = "0.1.1"
+category = "components"
+description = "Mutually exclusive choices shown side by side, for switching between views"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "segmented-control.spec"
