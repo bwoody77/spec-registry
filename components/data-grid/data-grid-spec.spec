@@ -1014,6 +1014,16 @@ component DataGrid(
     firstColKey: visibleColumns.length > 0 ? visibleColumns[0].key : ''
     pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1), visibleColumns) : []
     scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1), visibleColumns) : gridSizedCols(visibleColumns, visibleColumns)
+    // How far the scrolling loop's `colIdx` sits from the SAME column's index
+    // in `visibleColumns` — which is the index space `focusedCol` counts in
+    // (`moveRight` caps it at `visibleColumns.length - 1`). Zero unpinned, one
+    // when a column is pinned out of the loop.
+    //
+    // `pinnedColumns.length` and not `pinFirst ? 1 : 0` deliberately: it is
+    // derived from the same slice that removes the column, so the two indices
+    // cannot disagree. They differ for real — `pinFirst: true` with no visible
+    // columns leaves BOTH lists empty, and a hardcoded 1 would be wrong there.
+    scrollColOffset: pinnedColumns.length
     trackMin: gridTrackMin(visibleColumns, columnRules, firstColKey)
     // Header segments. The pinned column renders outside the scrolling loop, so
     // a segment may never straddle that boundary — with pinFirst the first
@@ -2120,6 +2130,22 @@ component DataGrid(
                 block {
                 padding: pad
                 grow: true
+                // The keyboard focus tint — the fourth state that never
+                // reached the left-most column. `focusedCol == 0` because the
+                // pinned column IS visibleColumns[0] (the chooser refuses to
+                // hide or move it), and this loop renders only when there is
+                // one.
+                //
+                // It goes on this INNER box and not on the sticky cell above,
+                // where the scrolling half puts it, because the tint is
+                // translucent and that cell's background is the opaque backing
+                // that stops the scrolled columns showing through a sticky
+                // element. Painting rgba() there would replace the backing
+                // rather than layer over it. Here it composites over it, which
+                // is exactly what the scrolling cell gets for free from the
+                // row behind it. `grow: true` in a stretch flex means this box
+                // is the whole cell, so the tinted area matches.
+                background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == 0 ? "rgba(59,130,246,0.08)" : "transparent"
                 // Per-column horizontal alignment. This is a ROW flex, so the
                 // horizontal axis is `justify`. It goes HERE and not on the
                 // cell above because `grow: true` makes this box fill the cell
@@ -2235,7 +2261,16 @@ component DataGrid(
                 grow: true
                 min-width: col._min
                 max-width: col._max
-                background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == colIdx ? "rgba(59,130,246,0.08)" : "transparent"
+                // `colIdx + scrollColOffset`, NOT `colIdx`. This loop walks
+                // `scrollColumns` while `focusedCol` counts `visibleColumns`,
+                // and under `pinFirst` those are off by the pinned column: the
+                // comparison used to ask whether the focused column was the
+                // one to this cell's LEFT, so every tint landed a column right
+                // of the arrows, `focusedCol: 0` lit the second column, and
+                // the last column could not be tinted at all (its focusedCol
+                // is one past the end of a list one shorter). Unpinned the
+                // offset is 0 and this is the expression it always was.
+                background: focusedRow == gridAbsIdx(windowed, winStart, rowIdx) && focusedCol == colIdx + scrollColOffset ? "rgba(59,130,246,0.08)" : "transparent"
                 // The group bracket's body half: without it the grouping
                 // dissolves below the header (mockup: q-first/q-last on td AND th).
                 border-left: columnRules && col._col.key != firstColKey ? bracketRule
