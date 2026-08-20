@@ -58,6 +58,15 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     seg0Label: showMask == true ? (segments[0] == 'month' ? "MM" : segments[0] == 'day' ? "DD" : "YYYY") : (segments[0] == 'month' ? mStr : segments[0] == 'day' ? dStr : yStr)
     seg1Label: showMask == true ? (segments[1] == 'month' ? "MM" : segments[1] == 'day' ? "DD" : "YYYY") : (segments[1] == 'month' ? mStr : segments[1] == 'day' ? dStr : yStr)
     seg2Label: showMask == true ? (segments[2] == 'month' ? "MM" : segments[2] == 'day' ? "DD" : "YYYY") : (segments[2] == 'month' ? mStr : segments[2] == 'day' ? dStr : yStr)
+    // What a segment actually SHOWS. The committed value is only half of it:
+    // a segment being typed into has to echo the digits already entered, or
+    // the field looks inert until the segment happens to complete. On a
+    // four-digit year that is three keystrokes of silence - type 2, 0, 2 and
+    // the field still reads YYYY (or the old year); only the 6 changes
+    // anything. digitBuffer holds those pending digits, so show them.
+    seg0Text: activeSegment == 0 && digitBuffer != "" ? digitBuffer : seg0Label
+    seg1Text: activeSegment == 1 && digitBuffer != "" ? digitBuffer : seg1Label
+    seg2Text: activeSegment == 2 && digitBuffer != "" ? digitBuffer : seg2Label
   }
 
   @watch {
@@ -233,16 +242,19 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     focusSegment(idx) {
       if disabled == false {
         if editing == false { activateSegments() }
+        // Commit what was typed into the segment being LEFT. Clicking straight
+        // from a half-typed month onto the day used to drop the month.
+        flushSegment()
         activeSegment = idx
         digitBuffer = ""
       }
     }
     prevSegment() {
-      digitBuffer = ""
+      flushSegment()
       if activeSegment > 0 { activeSegment = activeSegment - 1 }
     }
     nextSegment() {
-      digitBuffer = ""
+      flushSegment()
       if activeSegment < 2 { activeSegment = activeSegment + 1 }
     }
     incrementSegment() {
@@ -283,55 +295,106 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       let mx = daysInMonth(refYear, segMonth - 1)
       if segDay > mx { segDay = mx }
     }
+    // Write the pending digits into the active segment and clear the buffer.
+    // Every route out of a segment funnels through here - auto-advance, a
+    // separator key, an arrow, a click on a sibling segment, Tab, Enter, blur
+    // - so a single typed digit ("1" for January, "5" for the 5th) is never
+    // silently dropped just because the segment was left before it filled.
+    //
+    // Out-of-range digits leave the segment alone rather than writing nonsense;
+    // the field keeps showing the previous value, which is what the user then
+    // corrects.
+    applyBuffer() {
+      if activeSegment < 0 { return }
+      if digitBuffer == "" { return }
+      let n = parseInt(digitBuffer)
+      let segType = segments[activeSegment]
+      if segType == 'month' {
+        if n >= 1 && n <= 12 {
+          segMonth = n
+          monthTyped = true
+        }
+      }
+      if segType == 'day' {
+        // Only range-check against segments the user has actually typed.
+        // Month unknown (DD/MM/YYYY types day first) -> allow any real day.
+        // Month known but year not (MM/DD/YYYY) -> use a LEAP reference year
+        // so Feb 29 is accepted; reconcileDay trims it if the year they go on
+        // to type isn't a leap year. Checking the day against the today-
+        // prefilled year instead silently dropped Feb 29 and kept the default.
+        let refYear = yearTyped ? segYear : 2000
+        let maxD = monthTyped ? daysInMonth(refYear, segMonth - 1) : 31
+        if n >= 1 && n <= maxD { segDay = n }
+      }
+      if segType == 'year' {
+        // Two digits is the familiar shorthand, and it only ever reaches here
+        // when the user LEFT the segment early (auto-advance needs four), so
+        // expanding it is the difference between "08/20/26" working and the
+        // year being thrown away. Pivot at 68, the POSIX convention.
+        let y = digitBuffer.length == 2 ? (n <= 68 ? 2000 + n : 1900 + n) : n
+        if y >= 1900 && y <= 2200 {
+          segYear = y
+          yearTyped = true
+        }
+      }
+      digitBuffer = ""
+      reconcileDay()
+    }
+    // applyBuffer + emit, for the paths that leave a segment without also
+    // committing the whole field. Silent when nothing was typed: a stray key
+    // on an untouched field must not commit the today-prefill.
+    flushSegment() {
+      if digitBuffer != "" {
+        applyBuffer()
+        emitBuffer()
+      }
+    }
+    // A separator key means "done with this segment". Without it the buffer
+    // just kept accumulating - typing 1/5/2026 sent "1", ignored the "/", then
+    // appended the "5" to make month 15, which is not a month, so the field
+    // committed nothing at all. Any of / - . is accepted regardless of the
+    // format's own separator; nobody looks before they type.
+    //
+    // An EMPTY buffer means there is nothing to finish, so the key does
+    // nothing rather than skipping a segment. That case is the common one, not
+    // an edge: a full-width segment auto-advances on its last digit, so in
+    // "08/20/2026" every separator arrives just after the move it would
+    // otherwise repeat — and a repeat lands the day's digits in the year.
+    advanceSegment() {
+      if digitBuffer == "" { return }
+      flushSegment()
+      if activeSegment < 2 { activeSegment = activeSegment + 1 }
+    }
+    // Backspace takes back the digit you just typed. Now that pending digits
+    // are visible (see seg0Text), a mistype is something you can SEE, and the
+    // only reasonable expectation is to be able to delete it. An already-empty
+    // buffer steps back to the previous segment instead.
+    backspaceSegment() {
+      if digitBuffer != "" {
+        digitBuffer = digitBuffer.slice(0, digitBuffer.length - 1)
+        return
+      }
+      if activeSegment > 0 { activeSegment = activeSegment - 1 }
+    }
     handleDigit(key) {
       if key >= "0" && key <= "9" {
         digitBuffer = digitBuffer + key
         let segType = segments[activeSegment]
-        if segType == 'month' {
-          let n = parseInt(digitBuffer)
-          let advance = (digitBuffer.length == 1 && n >= 2) || digitBuffer.length >= 2
-          if advance == true {
-            segMonth = n >= 1 && n <= 12 ? n : segMonth
-            monthTyped = true
-            reconcileDay()
-            digitBuffer = ""
-            if activeSegment < 2 { activeSegment = activeSegment + 1 }
-            emitBuffer()
-          }
-        }
-        if segType == 'day' {
-          // Only range-check against segments the user has actually typed.
-          // Month unknown (DD/MM/YYYY types day first) -> allow any real day.
-          // Month known but year not (MM/DD/YYYY) -> use a LEAP reference year
-          // so Feb 29 is accepted; reconcileDay trims it if the year they go on
-          // to type isn't a leap year. Previously this checked the day against
-          // the today-prefilled year, so Feb 29 was silently dropped and the
-          // default day was kept instead.
-          let refYear = yearTyped ? segYear : 2000
-          let maxD = monthTyped ? daysInMonth(refYear, segMonth - 1) : 31
-          let n = parseInt(digitBuffer)
-          let advance = (digitBuffer.length == 1 && n >= 4) || digitBuffer.length >= 2
-          if advance == true {
-            segDay = n >= 1 && n <= maxD ? n : segDay
-            digitBuffer = ""
-            if activeSegment < 2 { activeSegment = activeSegment + 1 }
-            emitBuffer()
-          }
-        }
-        if segType == 'year' {
-          if digitBuffer.length >= 4 {
-            let v = parseInt(digitBuffer)
-            segYear = v >= 1900 && v <= 2200 ? v : segYear
-            yearTyped = true
-            reconcileDay()
-            digitBuffer = ""
-            if activeSegment < 2 { activeSegment = activeSegment + 1 }
-            emitBuffer()
-          }
+        let n = parseInt(digitBuffer)
+        // Advance as soon as no further digit could change the answer: a
+        // segment at full width, a month starting 2-9, or a day starting 4-9.
+        let full = segType == 'year' ? digitBuffer.length >= 4 : digitBuffer.length >= 2
+        let leadMonth = segType == 'month' && digitBuffer.length == 1 && n >= 2
+        let leadDay = segType == 'day' && digitBuffer.length == 1 && n >= 4
+        if full || leadMonth || leadDay {
+          advanceSegment()
         }
       }
     }
     commitSegments() {
+      // Flush the half-typed segment first: blurring or tabbing out of a field
+      // visibly showing "1" for the month has to commit January, not drop it.
+      applyBuffer()
       // Never emit an out-of-range year (defends against a corrupt incoming
       // `value` parsed back into segYear). Clamp into the supported window
       // rather than emitting e.g. 0710 downstream.
@@ -344,23 +407,42 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       yearTyped = false
       digitBuffer = ""
     }
-    // escapeSegments / escapeClose — the two ways this picker consumes Escape,
-    // each cancelling the key only when it actually did something.
+    // escapeSegments / escapePopup — the two ways this picker consumes Escape,
+    // each cancelling the key only when it actually did something. Anything
+    // else has to travel on: the dialog around the picker is usually what the
+    // user meant to dismiss, and a control that swallows Escape unconditionally
+    // is a black hole no dialog can be closed from.
     //
-    // Abandoning half-typed segments always counts as consuming it: this arm
-    // is only reachable while activeSegment >= 0.
-    escapeSegments(event) {
+    // preventDefault alone does NOT hold the key here. Modal installs its
+    // dismiss listener on `document` and never consults defaultPrevented, so a
+    // merely-prevented Escape still bubbles all the way out and closes the
+    // dialog — which is how backing out of the year grid used to take the
+    // whole modal with it. Stopping propagation is the part that does the work.
+    consumeKey(event) {
       event.preventDefault()
-      cancelSegments()
+      event.stopPropagation()
     }
-    // Closing the calendar only counts when a calendar is open. Otherwise the
-    // key belongs to whatever contains this picker.
-    escapeClose(event) {
-      if !open {
+    // Escape with the calendar open backs out ONE layer at a time: the
+    // month/year chooser returns to the day grid, the day grid closes the
+    // calendar, and only a closed calendar lets the key reach the dialog.
+    escapePopup(event) {
+      if popupView != 0 {
+        popupView = 0
+        consumeKey(event)
         return
       }
-      event.preventDefault()
-      close()
+      if open == true {
+        consumeKey(event)
+        close()
+      }
+    }
+    // Abandoning the segment edit. Always consumes: this arm is only reachable
+    // while activeSegment >= 0, and dropping the active-segment highlight is a
+    // visible undo. A second Escape then finds nothing active and travels on,
+    // so the dialog around the picker is still reachable.
+    escapeSegments(event) {
+      consumeKey(event)
+      cancelSegments()
     }
     cancelSegments() {
       activeSegment = -1
@@ -390,6 +472,17 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     // the calendar popup (which now uses anchor:'bottom' → position:fixed
     // via positionDropdown, escaping any overflow ancestors).
     position: relative
+
+    // Escape fallback for focus sitting on a part of the picker with no handler
+    // of its own — the calendar toggle button, or a chooser button the focus
+    // binding could not reach because its view was still hidden when the write
+    // was scheduled. Everything that DOES consume Escape stops propagation, so
+    // this only ever runs when nothing else did.
+    on key-down(event): {
+      if event.key == "Escape" {
+        escapePopup(event)
+      }
+    }
 
     // Label
     block {
@@ -450,6 +543,13 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               // in this handler (see the Tab note below, which depends on
               // that). The cancel therefore has to be written by hand.
               "Escape" -> escapeSegments(event),
+              // A separator commits the segment and moves on, so a date can be
+              // typed the way it is spoken: 1/5/2026, not 01/05/2026.
+              "/" -> advanceSegment(),
+              "-" -> advanceSegment(),
+              "." -> advanceSegment(),
+              "Backspace" -> backspaceSegment(),
+              "Delete" -> backspaceSegment(),
               // Tab: commit the typed value so it isn't lost, then allow the
               // browser's native Tab to move focus. Because this match arm is
               // inside an `if` block the compiler does NOT auto-preventDefault
@@ -467,7 +567,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               // already-closed picker is a no-op. Cancelling Escape there
               // would make this control a black hole — the dialog around it
               // could never be dismissed while focus sat on the field.
-              "Escape" -> escapeClose(event),
+              "Escape" -> escapePopup(event),
               "ArrowUp" -> activateSegments(),
               "ArrowDown" -> activateSegments(),
               _ -> {}
@@ -490,7 +590,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             background: activeSegment == 0 ? semantic.interactive : "transparent"
             border-radius: radius.sm
             on click: focusSegment(0)
-            text(seg0Label) {
+            text(seg0Text) {
               style: type.body-md
               color: activeSegment == 0 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
             }
@@ -504,7 +604,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             background: activeSegment == 1 ? semantic.interactive : "transparent"
             border-radius: radius.sm
             on click: focusSegment(1)
-            text(seg1Label) {
+            text(seg1Text) {
               style: type.body-md
               color: activeSegment == 1 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
             }
@@ -518,7 +618,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             background: activeSegment == 2 ? semantic.interactive : "transparent"
             border-radius: radius.sm
             on click: focusSegment(2)
-            text(seg2Label) {
+            text(seg2Text) {
               style: type.body-md
               color: activeSegment == 2 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
             }
@@ -647,7 +747,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
               "ArrowDown" -> moveFocusDown(),
               "Enter" -> selectFocused(),
               " " -> selectFocused(),
-              "Escape" -> close(),
+              "Escape" -> escapePopup(event),
               "PageUp" -> focusPrevMonth(),
               "PageDown" -> focusNextMonth(),
               "Home" -> focusFirst(),
@@ -672,7 +772,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
                 _ -> cell.day == focusedDay && cell.isCurrentMonth ? semantic.surface-raised : "transparent"
               }
               tabindex: "-1"
-              focus: cell.day == focusedDay && cell.isCurrentMonth && open
+              focus: cell.day == focusedDay && cell.isCurrentMonth && open && popupView == 0
               on hover { background: cell.dateStr == valueISO ? semantic.interactive-hover : semantic.surface-raised }
               on click: selectCell(cell.dateStr)
 
@@ -715,6 +815,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           block {
             layout: grid, columns: "repeat(3, 1fr)", gap: spacing.1
             padding: spacing.2
+            // Escape backs out to the day grid rather than closing anything.
+            on key-down(event): {
+              if event.key == "Escape" {
+                escapePopup(event)
+              }
+            }
             each monthShort as name, idx {
               button {
                 border: "none"
@@ -724,6 +830,11 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
                 border-radius: radius.sm
                 cursor: "pointer"
                 background: idx == viewMonth ? semantic.interactive : "transparent"
+                // Opening the chooser hides the button that opened it, which
+                // drops focus to the body — and a key pressed on the body is
+                // a key this component never sees. Pull focus onto the current
+                // month so the grid above can hear Escape.
+                focus: idx == viewMonth && popupView == 1 && open
                 on hover { background: idx == viewMonth ? semantic.interactive : semantic.surface-raised }
                 on click: pickMonth(idx)
                 text(name) {
@@ -765,6 +876,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
           block {
             layout: grid, columns: "repeat(3, 1fr)", gap: spacing.1
             padding: spacing.2
+            // Escape backs out to the day grid rather than closing anything.
+            on key-down(event): {
+              if event.key == "Escape" {
+                escapePopup(event)
+              }
+            }
             each gridIndices as idx {
               button {
                 border: "none"
@@ -774,6 +891,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
                 border-radius: radius.sm
                 cursor: "pointer"
                 background: (yearGridStart + idx) == viewYear ? semantic.interactive : "transparent"
+                // See the month grid: without this, focus is on a hidden button
+                // and Escape goes straight past the picker to the dialog.
+                focus: (yearGridStart + idx) == viewYear && popupView == 2 && open
                 on hover { background: (yearGridStart + idx) == viewYear ? semantic.interactive : semantic.surface-raised }
                 on click: pickYear(yearGridStart + idx)
                 text((yearGridStart + idx) + "") {
