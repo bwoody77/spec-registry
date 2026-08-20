@@ -9,7 +9,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     viewMonth: 2
     focusedDay: 1
     focused: false
-    focusTrigger: false
+    // "The field should take focus back." A REQUEST, not a toggle. It used to
+    // be flipped (`focusTrigger = focusTrigger == false`) on every close, and
+    // bindFocus fires on the false->true EDGE only — so focus came back on
+    // alternate closes and landed on <body> the other half of the time. The
+    // flag is cleared when the calendar opens, so every close is a fresh edge.
+    refocusField: false
     activeSegment: -1
     segMonth: 1
     segDay: 1
@@ -31,6 +36,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     monthTyped: false
     yearTyped: false
     digitBuffer: ""
+    // Did the user ASK to edit the segments, or did focus arm them for free?
+    // `on focus` calls activateSegments so a tabbed-into field is immediately
+    // typeable — a convenience, not an edit. Escape must not treat it as
+    // something to cancel, or every date field costs the dialog around it an
+    // extra keystroke to dismiss. See escapeSegments.
+    userArmed: false
     popupView: 0
     yearGridStart: 2020
   }
@@ -82,6 +93,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       if disabled == false {
         open = open == false
         if open == true {
+          refocusField = false
           activeSegment = -1
           popupView = 0
           editing = false
@@ -104,7 +116,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     close() {
       open = false
       popupView = 0
-      focusTrigger = focusTrigger == false
+      refocusField = true
     }
     prevMonth() {
       if viewMonth == 0 {
@@ -220,6 +232,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       }
       if activeSegment < 0 { activeSegment = 0 }
       editing = true
+      userArmed = true
       // Armed but not yet edited: keep the mask showing for an empty field.
       dirty = false
       digitBuffer = ""
@@ -232,6 +245,12 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       dirty = true
       let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
       emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
+    }
+    // Arm the segments because focus arrived, not because the user asked. Same
+    // setup, but Escape stays available to the dialog (see escapeSegments).
+    armFromFocus() {
+      activateSegments()
+      userArmed = false
     }
     // Click a specific segment to edit it. Without this, focusing the field
     // always parks editing on segment 0; for a YYYY-MM-DD format that's the
@@ -402,6 +421,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
       activeSegment = -1
       editing = false
+      userArmed = false
       dirty = false
       monthTyped = false
       yearTyped = false
@@ -436,17 +456,24 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         close()
       }
     }
-    // Abandoning the segment edit. Always consumes: this arm is only reachable
-    // while activeSegment >= 0, and dropping the active-segment highlight is a
-    // visible undo. A second Escape then finds nothing active and travels on,
-    // so the dialog around the picker is still reachable.
+    // Abandoning the segment edit. Consumes when there is an edit to abandon —
+    // the user armed the segments deliberately, changed one, or has digits
+    // pending. Segments armed by focus alone with nothing typed are NOT an
+    // edit: closing the calendar hands focus back to the field, which re-arms
+    // them, and consuming there left the Escape ladder unable to reach the
+    // dialog at all.
     escapeSegments(event) {
+      if userArmed == false && dirty == false && digitBuffer == "" {
+        escapePopup(event)
+        return
+      }
       consumeKey(event)
       cancelSegments()
     }
     cancelSegments() {
       activeSegment = -1
       editing = false
+      userArmed = false
       dirty = false
       monthTyped = false
       yearTyped = false
@@ -461,7 +488,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     closeAfterPick() {
       if open == true {
         open = false
-        focusTrigger = focusTrigger == false
+        refocusField = true
       }
     }
   }
@@ -519,10 +546,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         cursor: "text"
         tabindex: "0"
         aria-label: "Date picker"
-        focus: focusTrigger
+        focus: refocusField
         on focus: {
           focused = true
-          if editing == false { activateSegments() }
+          if editing == false { armFromFocus() }
         }
         on blur: {
           focused = false
