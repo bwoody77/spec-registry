@@ -25,7 +25,15 @@ component TextInput(
   errorMessage: string = "",
   // Normally supplied by the compiler from the visible label rendered
   // beside the field (ast-to-ir inferAccessibleNames), not by hand.
-  ariaLabel: string = ""
+  ariaLabel: string = "",
+  // "md" (default, unchanged) | "sm". Mirrors Select's prop of the same name,
+  // and lands on the same measured height, so the two sit level in a toolbar
+  // or a property grid — which is the gap that motivated this. Select took a
+  // `size` in the toolbar-density work and TextInput did not, so every dense
+  // surface that used both got a 32px control beside a 38px one, and a
+  // fixed-height row holding a TextInput sheared open the moment it was
+  // focused.
+  size: string = "md"
 ) {
   @state { focused: false }
 
@@ -39,6 +47,51 @@ component TextInput(
     // browser would otherwise have used. Falls through to the placeholder
     // only because a weak name beats none.
     inputAriaLabel: ariaLabel != "" ? ariaLabel : (label != "" ? label : (placeholder != "" ? placeholder : null))
+
+    // ── size: "md" (default, unchanged) | "sm" ───────────────────────────────
+    //
+    // Both of these move together or neither does anything — the same
+    // invariant Select's own size prop documents, and the same trap: an
+    // earlier attempt at Select's prop changed one, measured no change, and
+    // was reverted as a no-op.
+    //
+    // The container carries the padding and the border; the <input> inside is
+    // borderless and transparent. Rendered height is therefore
+    // padding×2 + line + 2×border, floored by min-height.
+    //
+    //   md: 8 + 20 + 8 = 36, +2 border = 38, floor 0  → 38 (what it has always been)
+    //   sm: 4 + 20 + 4 = 28, +2 border = 30, floor 30 → 32
+    //
+    // The floor is not decoration. Without it, anything with a taller line box
+    // than a bare input — a leading icon, a prefix, a unit segment — sets the
+    // height instead, so the same `size: "sm"` measures differently depending
+    // on which adornments a call site happens to pass. The floor makes "sm"
+    // mean one number.
+    //
+    // md's floor is 0 rather than a number, because ANY min-height here would
+    // change the default rendering — the point of the prop is that an existing
+    // call site is untouched.
+    //
+    // ⚠ THE UNIT IS LOAD-BEARING, and it is why these are strings.
+    //
+    // A size property written as a LITERAL in markup (`min-height: 30px`) is
+    // resolved by the compiler and emitted with its unit. A size property bound
+    // to a COMPUTED gets the raw value: a computed number 30 emits
+    // `min-height: 30`, which is not a length, so the browser drops the whole
+    // declaration and the floor silently does nothing. Measured, all four
+    // forms, on this component:
+    //
+    //     min-height: 30px            -> "30px"   ✓
+    //     min-height: <computed 30>   -> "30"     ✗ dropped
+    //     min-height: <computed '30px'> -> "30px" ✓
+    //     min-height: size == "sm" ? 30 : 40  -> "30"  ✗ dropped
+    //
+    // Select's `size` shipped with the number form and its floor therefore
+    // never applied. That is how this was found: matching Select's height
+    // meant measuring Select, and Select was not the height it claimed.
+    // Corrected on the same branch, so the two agree again.
+    boxPad: size == "sm" ? spacing.1 : spacing.2
+    boxMinHeight: size == "sm" ? '30px' : '0px'
   }
 
   @actions {
@@ -68,7 +121,8 @@ component TextInput(
     // Input container — label delegates clicks to the input inside
     label {
       layout: horizontal, align: center, gap: 8px
-      padding: spacing.2
+      padding: boxPad
+      min-height: boxMinHeight
       border-radius: token.input-radius
       background: match tone {
         "warning" -> semantic.warning-bg,
