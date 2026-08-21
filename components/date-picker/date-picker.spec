@@ -33,7 +33,11 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     // against the prefilled current year silently rejected every Feb-29 date
     // whenever today's year was not a leap year — the day kept its default and
     // 02/29/1968 committed as 1968-02-14. See reconcileDay.
+    // …and the day needs the same flag, for the DISPLAY rather than for
+    // validation: all three say "this segment holds something the user chose,
+    // not the activateSegments prefill". See maskMonth/maskDay/maskYear.
     monthTyped: false
+    dayTyped: false
     yearTyped: false
     digitBuffer: ""
     // Did the user ASK to edit the segments, or did focus arm them for free?
@@ -56,7 +60,20 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     segments: formatSegments(format)
     sep: formatSeparator(format)
     parts: value != "" ? parseDateInput(value, format) : null
-    showMask: value == "" && (editing == false || dirty == false)
+    // Masking is PER SEGMENT, because activateSegments prefills all three with
+    // today at once. A single showMask flag meant entering the month un-masked
+    // the day and year too, so the field read 03/20/2026 when the user had
+    // typed "03" — today's date presented as their answer. Not editing: a
+    // parseable value shows, anything else masks.
+    maskMonth: editing == true ? monthTyped == false : parts == null
+    maskDay:   editing == true ? dayTyped == false   : parts == null
+    maskYear:  editing == true ? yearTyped == false  : parts == null
+    mask0: segments[0] == 'month' ? maskMonth : (segments[0] == 'day' ? maskDay : maskYear)
+    mask1: segments[1] == 'month' ? maskMonth : (segments[1] == 'day' ? maskDay : maskYear)
+    mask2: segments[2] == 'month' ? maskMonth : (segments[2] == 'day' ? maskDay : maskYear)
+    // A date needs all three parts. Until it has them there is nothing honest
+    // to emit — see emitBuffer.
+    segmentsComplete: monthTyped && dayTyped && yearTyped
     dMonth: editing == true ? segMonth : (parts != null ? parts.month + 1 : 1)
     dDay: editing == true ? segDay : (parts != null ? parts.day : 1)
     dYear: editing == true ? segYear : (parts != null ? parts.year : 2026)
@@ -66,9 +83,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     monthShort: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     gridIndices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     yearRangeLabel: yearGridStart + " – " + (yearGridStart + 11)
-    seg0Label: showMask == true ? (segments[0] == 'month' ? "MM" : segments[0] == 'day' ? "DD" : "YYYY") : (segments[0] == 'month' ? mStr : segments[0] == 'day' ? dStr : yStr)
-    seg1Label: showMask == true ? (segments[1] == 'month' ? "MM" : segments[1] == 'day' ? "DD" : "YYYY") : (segments[1] == 'month' ? mStr : segments[1] == 'day' ? dStr : yStr)
-    seg2Label: showMask == true ? (segments[2] == 'month' ? "MM" : segments[2] == 'day' ? "DD" : "YYYY") : (segments[2] == 'month' ? mStr : segments[2] == 'day' ? dStr : yStr)
+    seg0Label: mask0 ? (segments[0] == 'month' ? "MM" : segments[0] == 'day' ? "DD" : "YYYY") : (segments[0] == 'month' ? mStr : segments[0] == 'day' ? dStr : yStr)
+    seg1Label: mask1 ? (segments[1] == 'month' ? "MM" : segments[1] == 'day' ? "DD" : "YYYY") : (segments[1] == 'month' ? mStr : segments[1] == 'day' ? dStr : yStr)
+    seg2Label: mask2 ? (segments[2] == 'month' ? "MM" : segments[2] == 'day' ? "DD" : "YYYY") : (segments[2] == 'month' ? mStr : segments[2] == 'day' ? dStr : yStr)
     // What a segment actually SHOWS. The committed value is only half of it:
     // a segment being typed into has to echo the digits already entered, or
     // the field looks inert until the segment happens to complete. On a
@@ -209,15 +226,21 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
 
     // Segment navigation
     activateSegments() {
+      // Reset first, so an unparseable incoming value leaves the field masked
+      // rather than showing whatever the segments happened to hold.
+      monthTyped = false
+      dayTyped = false
+      yearTyped = false
       if value != "" {
         let parsed = parseDateInput(value, format)
         if parsed != null {
           segYear = parsed.year
           segMonth = parsed.month + 1
           segDay = parsed.day
-          // Parsed from a real value: month/year are genuine, so the day can be
-          // range-checked against them straight away.
+          // Parsed from a real value: all three are genuine, so they show
+          // rather than mask, and the day can be range-checked straight away.
           monthTyped = true
+          dayTyped = true
           yearTyped = true
         }
       } else {
@@ -225,10 +248,9 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         segYear = today.year
         segMonth = today.month + 1
         segDay = today.day
-        // Prefill only — NOT the user's intent. Until they type these, the day
-        // is validated permissively (see handleDigit).
-        monthTyped = false
-        yearTyped = false
+        // Prefill only — NOT the user's intent. Until they type these the day
+        // is validated permissively (see applyBuffer), the segments show their
+        // mask, and nothing is emitted.
       }
       if activeSegment < 0 { activeSegment = 0 }
       editing = true
@@ -242,7 +264,15 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
     // this, submitting a form while a date field is still focused reads the old
     // (often empty) value even though the field visibly shows a date.
     emitBuffer() {
+      // Records that the user has edited — Escape reads this — whether or not
+      // there is yet a date to emit.
       dirty = true
+      // A partial entry is not a date. Emitting one meant the segments the
+      // user had not reached were filled from the today-prefill and committed
+      // as though chosen: type "03", tab away, and the form received
+      // 03/20/2026. The field now shows 03/DD/YYYY and sends nothing until it
+      // can send the whole thing.
+      if segmentsComplete == false { return }
       let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
       emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
     }
@@ -276,6 +306,14 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       flushSegment()
       if activeSegment < 2 { activeSegment = activeSegment + 1 }
     }
+    // Arrowing a segment is the user choosing that value, so it counts as
+    // entered — otherwise the segment they just changed would keep its mask.
+    markSegmentEntered() {
+      let segType = segments[activeSegment]
+      if segType == 'month' { monthTyped = true }
+      if segType == 'day' { dayTyped = true }
+      if segType == 'year' { yearTyped = true }
+    }
     incrementSegment() {
       let segType = segments[activeSegment]
       if segType == 'month' {
@@ -288,6 +326,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       if segType == 'year' {
         segYear = segYear + 1
       }
+      markSegmentEntered()
       emitBuffer()
     }
     decrementSegment() {
@@ -302,6 +341,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       if segType == 'year' {
         segYear = segYear > 1 ? segYear - 1 : 1
       }
+      markSegmentEntered()
       emitBuffer()
     }
     // Trim the day once a newly-typed month/year makes it impossible (Feb 30,
@@ -343,7 +383,10 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
         // prefilled year instead silently dropped Feb 29 and kept the default.
         let refYear = yearTyped ? segYear : 2000
         let maxD = monthTyped ? daysInMonth(refYear, segMonth - 1) : 31
-        if n >= 1 && n <= maxD { segDay = n }
+        if n >= 1 && n <= maxD {
+          segDay = n
+          dayTyped = true
+        }
       }
       if segType == 'year' {
         // Two digits is the familiar shorthand, and it only ever reaches here
@@ -414,16 +457,22 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       // Flush the half-typed segment first: blurring or tabbing out of a field
       // visibly showing "1" for the month has to commit January, not drop it.
       applyBuffer()
-      // Never emit an out-of-range year (defends against a corrupt incoming
-      // `value` parsed back into segYear). Clamp into the supported window
-      // rather than emitting e.g. 0710 downstream.
-      let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
-      emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
+      // Same rule as emitBuffer: an incomplete entry is discarded rather than
+      // completed from the prefill. Blur is where that mattered most — tabbing
+      // out of a field showing "03" used to commit today's day and year.
+      if segmentsComplete == true {
+        // Never emit an out-of-range year (defends against a corrupt incoming
+        // `value` parsed back into segYear). Clamp into the supported window
+        // rather than emitting e.g. 0710 downstream.
+        let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
+        emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
+      }
       activeSegment = -1
       editing = false
       userArmed = false
       dirty = false
       monthTyped = false
+      dayTyped = false
       yearTyped = false
       digitBuffer = ""
     }
@@ -476,6 +525,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       userArmed = false
       dirty = false
       monthTyped = false
+      dayTyped = false
       yearTyped = false
       digitBuffer = ""
     }
@@ -619,7 +669,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             on click: focusSegment(0)
             text(seg0Text) {
               style: type.body-md
-              color: activeSegment == 0 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
+              color: activeSegment == 0 ? semantic.surface : (mask0 ? semantic.text-tertiary : semantic.text-primary)
             }
           }
           text(sep) { style: type.body-md, color: semantic.text-tertiary }
@@ -633,7 +683,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             on click: focusSegment(1)
             text(seg1Text) {
               style: type.body-md
-              color: activeSegment == 1 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
+              color: activeSegment == 1 ? semantic.surface : (mask1 ? semantic.text-tertiary : semantic.text-primary)
             }
           }
           text(sep) { style: type.body-md, color: semantic.text-tertiary }
@@ -647,7 +697,7 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
             on click: focusSegment(2)
             text(seg2Text) {
               style: type.body-md
-              color: activeSegment == 2 ? semantic.surface : (showMask == true ? semantic.text-tertiary : semantic.text-primary)
+              color: activeSegment == 2 ? semantic.surface : (mask2 ? semantic.text-tertiary : semantic.text-primary)
             }
           }
         }
