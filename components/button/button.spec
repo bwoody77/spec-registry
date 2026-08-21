@@ -70,6 +70,12 @@ component Button(
   pressed:      boolean = false,
   toggle:       boolean = false,
   disclosure:   boolean = false,
+  // "xs" | "sm" | "md" | "lg". NOTE that until xs was added, `size` only
+  // ever changed PADDING — the label is type.label-md at sm, md and lg
+  // alike, so a `size:"sm"` button still renders a 16px label. A dense
+  // list of them therefore reads as a list of headlines. Redefining "sm"
+  // would restyle every small button in every consuming app, so "xs" is a
+  // new value that shrinks BOTH, and nothing existing moves.
   size:         string  = "md",
   shape:        string  = "rect",
   iconLeft:     string  = "",
@@ -115,12 +121,17 @@ component Button(
 
     padX:
       variant == "link" ? 0 :
-      (isIconOnly ? (size == "sm" ? spacing.1 : (size == "lg" ? spacing.3 : spacing.2)) :
-       (size == "sm" ? spacing.2 : (size == "lg" ? spacing.6 : token.btn-paddingH)))
+      (isIconOnly ? (size == "xs" ? spacing.1 : (size == "sm" ? spacing.1 : (size == "lg" ? spacing.3 : spacing.2))) :
+       (size == "xs" ? spacing.1 : (size == "sm" ? spacing.2 : (size == "lg" ? spacing.6 : token.btn-paddingH))))
 
     padY:
       variant == "link" ? 0 :
-      (size == "sm" ? spacing.1 : (size == "lg" ? spacing.3 : token.btn-paddingV))
+      (size == "xs" ? spacing.1 : (size == "sm" ? spacing.1 : (size == "lg" ? spacing.3 : token.btn-paddingV)))
+
+    // The label style, which used to be type.label-md unconditionally.
+    // Only "xs" reads anything else, so sm/md/lg are byte-identical to what
+    // they rendered before.
+    labelStyle: size == "xs" ? type.label-sm : type.label-md
   }
 
   // NOTE: Conditional rendering uses `visibility:` on always-emitted nodes
@@ -240,7 +251,7 @@ component Button(
       layout: horizontal, align: center, justify: center
 
       text(effectiveLabel) {
-        style: type.label-md
+        style: labelStyle
         font-weight: token.btn-fontWeight
         // Button labels must never wrap to a second line — a button squeezed
         // by a flex sibling should keep its width and let the sibling reflow,
