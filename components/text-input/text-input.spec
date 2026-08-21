@@ -1,6 +1,10 @@
 // Input — form text input with label, prefix/suffix, leading icon, trailing icon, segmented unit, error state, focus ring
 component TextInput(
   type: string = "text",
+  // Textarea height, in rows. Was hardcoded at 4 with no way to ask for
+  // more, so a paragraph field could not grow into the pane it was given.
+  // Defaulted to 4, so every existing consumer renders exactly as before.
+  rows: number = 4,
   label: string = "",
   placeholder: string = "",
   value: string = "",
@@ -212,7 +216,7 @@ component TextInput(
           aria-label: inputAriaLabel
           disabled: disabled
           readonly: readonly
-          rows: 4
+          rows: rows
           border: "none"
           background: "transparent"
           width: 100%
