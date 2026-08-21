@@ -95,10 +95,21 @@ function whenFieldReady(fieldName, act) {
             act(wrap);
             return;
         }
-        // Nothing by that name at all, ever: give up immediately rather than
-        // holding a timer open for a typo.
-        if (resolveFieldWrapper(fieldName, false) === null)
-            return;
+        // ABSENT is retried too, not just HIDDEN.
+        //
+        // The first version gave up at once when no wrapper by that name existed,
+        // on the reasoning that a typo should not hold a timer open. That reasoning
+        // quietly assumed a form is only ever hidden, never unmounted — and Spec
+        // gives you both. A `visibility:` block whose DIRECT children include a
+        // component instance compiles to a LAZY MOUNT rather than display:none
+        // (ast-to-ir's hasSurfaceRef check is non-recursive), so the very same
+        // form can render its fields as hidden or as absent depending on whether
+        // its immediate children happen to be components — which is a detail no
+        // caller of this function can see, and which changes when someone
+        // refactors the markup.
+        //
+        // So the only safe reading of "not there yet" is: not there yet. The cost
+        // of a genuine typo is now one second of 50ms timers and nothing else.
         if (tries++ < READY_MAX_TRIES) {
             setTimeout(tick, READY_RETRY_MS);
         }
