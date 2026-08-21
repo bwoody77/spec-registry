@@ -23,7 +23,7 @@ const PULSE_MS = 2000; // two flashes over ~2s
  * pulse was added; two copies of a rule whose whole purpose is to dodge a
  * subtle shipped bug is how one of them silently regresses.
  */
-function resolveFieldWrapper(fieldName) {
+function resolveFieldWrapper(fieldName, requireVisible = false) {
     if (typeof document === 'undefined')
         return null;
     if (!fieldName)
@@ -57,7 +57,7 @@ function resolveFieldWrapper(fieldName) {
     const wrappers = document.querySelectorAll('[data-field="' + fieldName + '"]');
     if (wrappers.length === 0)
         return null;
-    let wrap = wrappers[0];
+    let wrap = requireVisible ? null : wrappers[0];
     for (const candidate of wrappers) {
         if (!isHidden(candidate)) {
             wrap = candidate;
@@ -65,6 +65,45 @@ function resolveFieldWrapper(fieldName) {
         }
     }
     return wrap;
+}
+// ── Waiting for the field to exist AND be visible ───────────────────────────
+//
+// Both helpers below are usually called from a click, when the DOM has long
+// settled. But the other real caller is an ARRIVAL effect: a page that has just
+// revealed a form and wants to point at a field in it. On that path the wrapper
+// is in the DOM and still `display:none`, because Spec's `visibility:` hides
+// rather than unmounts — so a naive call focuses nothing (focus on a hidden
+// control is a silent no-op) and animates a wrapper the user cannot see.
+//
+// That combination is worse than doing nothing, because it REPORTS success: the
+// animation runs, an Element.prototype.animate spy sees it, and the only thing
+// missing is the part a person would have noticed. Vector hit exactly this — a
+// pulse that fired on every arrival and was never once visible.
+//
+// So retry briefly rather than acting on a hidden node. The shape is
+// deliberately the same as Vector's reconciliation-scroll.js, which treats
+// hidden as not-yet-available for the same reason. A caller whose field is
+// genuinely absent (filtered out, never rendered) simply gets nothing after
+// ~1s, which is what it used to get immediately.
+const READY_RETRY_MS = 50;
+const READY_MAX_TRIES = 20; // ~1s
+function whenFieldReady(fieldName, act) {
+    let tries = 0;
+    const tick = () => {
+        const wrap = resolveFieldWrapper(fieldName, true);
+        if (wrap) {
+            act(wrap);
+            return;
+        }
+        // Nothing by that name at all, ever: give up immediately rather than
+        // holding a timer open for a typo.
+        if (resolveFieldWrapper(fieldName, false) === null)
+            return;
+        if (tries++ < READY_MAX_TRIES) {
+            setTimeout(tick, READY_RETRY_MS);
+        }
+    };
+    tick();
 }
 /** True when the user has asked for reduced motion. */
 function prefersReducedMotion() {
@@ -78,9 +117,9 @@ function prefersReducedMotion() {
     }
 }
 export function focusFormField(fieldName) {
-    const wrap = resolveFieldWrapper(fieldName);
-    if (!wrap)
-        return;
+    whenFieldReady(fieldName, (wrap) => focusResolvedField(wrap));
+}
+function focusResolvedField(wrap) {
     const reduce = prefersReducedMotion();
     try {
         wrap.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
@@ -165,11 +204,12 @@ function isHidden(el) {
  * Not idempotent: fires on every call.
  */
 export function pulseFormField(fieldName) {
-    const wrap = resolveFieldWrapper(fieldName);
-    if (!wrap)
-        return;
+    // Checked BEFORE waiting: under reduced motion there is nothing to wait for.
     if (prefersReducedMotion())
         return;
+    whenFieldReady(fieldName, (wrap) => pulseResolvedField(wrap));
+}
+function pulseResolvedField(wrap) {
     if (typeof wrap.animate !== 'function')
         return;
     let rest = 'transparent';
