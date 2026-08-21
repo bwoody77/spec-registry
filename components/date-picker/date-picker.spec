@@ -2,7 +2,16 @@
 
 component DatePicker(value: string = "", label: string = "", placeholder: string = "",
                      disabled: boolean = false, format: string = "MM/DD/YYYY",
-                     error: boolean = false, errorMessage: string = "") {
+                     error: boolean = false, errorMessage: string = "",
+                     // Same value space as TextInput's `tone`, and the same
+                     // meaning: `error` says the submit rejected this field,
+                     // `tone: "warning"` says something still wants a value
+                     // here. A date the form has not been given yet is not a
+                     // date entered wrongly.
+                     //
+                     // Defaults to "default", so every existing call site is
+                     // untouched.
+                     tone: string = "default") {
   @state {
     open: false
     viewYear: 2026
@@ -572,12 +581,26 @@ component DatePicker(value: string = "", label: string = "", placeholder: string
       role: "combobox"
       layout: horizontal, align: center, gap: 0px
       min-height: 36px
-      background: token.input-bg
+      // Ordering mirrors TextInput.spec exactly: error first, then tone, then
+      // focus, then rest. The two match blocks are separate code — this trigger
+      // is hand-styled to match rather than reusing TextInput — so they can
+      // drift, and date-picker-typing.test.ts asserts this precedence here for
+      // that reason.
+      background: match tone {
+        "warning" -> semantic.warning-bg,
+        "danger"  -> semantic.destructive-bg,
+        _ -> token.input-bg
+      }
       border: match error {
         true -> token.input-borderWidth + " solid " + semantic.destructive,
-        _ -> match focused {
-          true -> token.input-borderWidth + " solid " + semantic.interactive,
-          _ -> token.input-borderWidth + " solid " + token.input-border
+        _ -> match tone {
+          "warning"   -> token.input-borderWidth + " solid " + semantic.warning,
+          "danger"    -> token.input-borderWidth + " solid " + semantic.destructive,
+          "highlight" -> token.input-borderWidth + " solid " + semantic.interactive,
+          _ -> match focused {
+            true -> token.input-borderWidth + " solid " + semantic.interactive,
+            _ -> token.input-borderWidth + " solid " + token.input-border
+          }
         }
       }
       shadow: match focused {
