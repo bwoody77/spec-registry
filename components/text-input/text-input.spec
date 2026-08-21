@@ -135,10 +135,18 @@ component TextInput(
       padding: boxPad
       min-height: boxMinHeight
       border-radius: token.input-radius
-      background: match tone {
-        "warning" -> semantic.warning-bg,
-        "danger"  -> semantic.destructive-bg,
-        _ -> token.input-bg
+      // `error` outranks `tone` here for the same reason it does on the border
+      // below, and it has to be said in BOTH places or the precedence is only
+      // half true: a field that is a setup gap AND a failed validation would
+      // otherwise paint a red border over an amber fill — two states at once,
+      // which is exactly the mixed signal the two-state split exists to avoid.
+      background: match error {
+        true -> semantic.destructive-bg,
+        _ -> match tone {
+          "warning" -> semantic.warning-bg,
+          "danger"  -> semantic.destructive-bg,
+          _ -> token.input-bg
+        }
       }
       border: match error {
         true -> token.input-borderWidth + " solid " + semantic.destructive,
