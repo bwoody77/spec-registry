@@ -1,4 +1,4 @@
-@extern { focusFormField } from "@spec/components/forms-focus.js"
+@extern { focusFormField, pulseFormField } from "@spec/components/forms-focus.js"
 
 // forms — the shared form standard: one validation engine, one field, one
 // summary panel. Consumed by every Spec app, so it carries no app concepts.
@@ -65,11 +65,37 @@ component FormField(
   showErrors:   boolean = false,
   error:        boolean = false,
   errorMessage: string  = '',
+  // Forwarded verbatim to the built-in TextInput; its value space is
+  // TextInput's ("default" | "warning" | "danger" | "highlight").
+  //
+  // This is how a caller marks a field as WANTED without marking it WRONG.
+  // `error:` means "you broke a rule the submit enforces"; `tone: 'warning'`
+  // means "something still wants this" — a blank field nobody has asked for
+  // yet is not a mistake, and painting it in the error colour tells the user
+  // they made one.
+  //
+  // Forwarded rather than reconciled here on purpose: TextInput already
+  // resolves `match error { true -> destructive, _ -> match tone { ... } }`,
+  // so a field that is both a gap and a failed validation reads as the
+  // failure with no precedence logic in this component to drift out of sync.
+  //
+  // Defaults to 'default', so every existing call site is untouched.
+  tone:         string  = 'default',
   labelWeight:  number  = 700,
   labelSpacing: string  = '0.06em',
   labelTone:    "tertiary" | "secondary" | "primary" = 'tertiary',
   labelColor:   string  = '',
   labelStyle:   string  = '',
+  // PAINT ONLY — the visible label's `text-transform`.
+  //
+  // The accessible name is deliberately NOT transformed. `effAriaLabel` falls
+  // back to `label`, so an app wanting uppercase labels without this prop had
+  // to pass 'PHONE' as the label itself — which is the name a screen reader
+  // then announces. Casing is a visual decision and must not leave the paint
+  // layer.
+  //
+  // Defaults to 'none', so every existing call site is untouched.
+  labelTransform: "none" | "uppercase" = 'none',
   fieldGap:     string  = '6px'
 ) {
   @computed {
@@ -150,6 +176,11 @@ component FormField(
     // every labelled call site rather than accept the default. A default every
     // adopter overrides is the wrong default.
     effLabelStyle: labelStyle != '' ? labelStyle : token.field-labelStyle
+    // A style value that varies is a NAMED computed, never an inline
+    // expression on the property. Normalised to an explicit 'none' rather than
+    // passed through, so the emitted declaration is always a valid
+    // text-transform even if the union ever grows a value CSS does not know.
+    effLabelTransform: labelTransform == 'uppercase' ? 'uppercase' : 'none'
   }
 
   @actions {
@@ -169,6 +200,7 @@ component FormField(
         weight: labelWeight
         style: effLabelStyle
         letter-spacing: labelSpacing
+        text-transform: effLabelTransform
       }
     }
 
@@ -187,7 +219,7 @@ component FormField(
       // `ariaLabel:`, never `label:` — see the note on effAriaLabel. `label:`
       // would render a second visible copy of every field's label.
       TextInput(value: value, placeholder: placeholder, type: inputType,
-                ariaLabel: effAriaLabel,
+                ariaLabel: effAriaLabel, tone: tone,
                 error: effError, errorMessage: effMsg) {
         on change(x): emit("input", x)
         on keydown(e): onKey(e)

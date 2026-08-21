@@ -12,16 +12,27 @@
  * Not idempotent: fires on every click. Reduced-motion aware. Best-effort on
  * older engines.
  */
-export function focusFormField(fieldName) {
+const PULSE_PEAK = '#fde047'; // bright amber peak
+const PULSE_MS = 2000; // two flashes over ~2s
+/**
+ * The first VISIBLE `[data-field=<name>]` wrapper, else the first match, else
+ * null.
+ *
+ * Shared by focusFormField and pulseFormField so the wrapper-selection rule
+ * below has exactly one definition. It was inlined in focusFormField when the
+ * pulse was added; two copies of a rule whose whole purpose is to dodge a
+ * subtle shipped bug is how one of them silently regresses.
+ */
+function resolveFieldWrapper(fieldName) {
     if (typeof document === 'undefined')
-        return;
+        return null;
     if (!fieldName)
-        return;
+        return null;
     // CSS.escape is not universally available in the engines Spec targets, and
     // the field names are author-controlled identifiers — so restrict the input
     // rather than escape it.
     if (!/^[A-Za-z0-9_-]+$/.test(fieldName))
-        return;
+        return null;
     // A field NAME is unique within a form, not within a document. The same name
     // can legitimately appear several times on one page — and worse, a modal
     // mounted unconditionally at app level and merely HIDDEN by CSS puts its
@@ -45,7 +56,7 @@ export function focusFormField(fieldName) {
     // is genuinely ABSENT rather than hidden, and never matches at all.
     const wrappers = document.querySelectorAll('[data-field="' + fieldName + '"]');
     if (wrappers.length === 0)
-        return;
+        return null;
     let wrap = wrappers[0];
     for (const candidate of wrappers) {
         if (!isHidden(candidate)) {
@@ -53,9 +64,24 @@ export function focusFormField(fieldName) {
             break;
         }
     }
-    const reduce = typeof window !== 'undefined' &&
-        typeof window.matchMedia === 'function' &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return wrap;
+}
+/** True when the user has asked for reduced motion. */
+function prefersReducedMotion() {
+    try {
+        return (typeof window !== 'undefined' &&
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches === true);
+    }
+    catch {
+        return false;
+    }
+}
+export function focusFormField(fieldName) {
+    const wrap = resolveFieldWrapper(fieldName);
+    if (!wrap)
+        return;
+    const reduce = prefersReducedMotion();
     try {
         wrap.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
     }
@@ -118,5 +144,56 @@ function isHidden(el) {
         node = node.parentElement;
     }
     return false;
+}
+/**
+ * Double-pulse a field's background to say "this is the one".
+ *
+ * Companion to focusFormField, which scrolls and focuses. They are separate
+ * because they answer different questions: focus says WHERE to type, the pulse
+ * says WHICH of several fields brought you here. A caller wanting both calls
+ * both — and a caller pulsing several fields focuses only the first.
+ *
+ * Deliberately NOT the whole of the message. This does nothing under reduced
+ * motion and is gone in two seconds regardless, while a form is worked in for
+ * minutes. Callers pair it with a persistent state — FormField's
+ * `tone: "warning"` — which is what carries the meaning after the animation
+ * ends and what says anything at all to a user who asked for no motion.
+ *
+ * Fades back to the element's OWN resting background rather than to a literal,
+ * so it never leaves a field a colour the rest of the form is not.
+ *
+ * Not idempotent: fires on every call.
+ */
+export function pulseFormField(fieldName) {
+    const wrap = resolveFieldWrapper(fieldName);
+    if (!wrap)
+        return;
+    if (prefersReducedMotion())
+        return;
+    if (typeof wrap.animate !== 'function')
+        return;
+    let rest = 'transparent';
+    try {
+        if (typeof getComputedStyle === 'function') {
+            const bg = getComputedStyle(wrap).backgroundColor;
+            if (bg)
+                rest = bg;
+        }
+    }
+    catch {
+        /* no style engine: transparent is a safe resting value */
+    }
+    try {
+        wrap.animate([
+            { backgroundColor: rest, offset: 0 },
+            { backgroundColor: PULSE_PEAK, offset: 0.18 },
+            { backgroundColor: rest, offset: 0.45 },
+            { backgroundColor: PULSE_PEAK, offset: 0.63 },
+            { backgroundColor: rest, offset: 1 },
+        ], { duration: PULSE_MS, easing: 'ease-in-out', fill: 'none' });
+    }
+    catch {
+        /* WAAPI refused: the caller's persistent tone still marks the field */
+    }
 }
 //# sourceMappingURL=forms-focus.js.map
