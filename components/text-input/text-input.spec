@@ -1,6 +1,18 @@
 // Input — form text input with label, prefix/suffix, leading icon, trailing icon, segmented unit, error state, focus ring
 component TextInput(
   type: string = "text",
+  // On-screen-keyboard hint for touch devices: "decimal" (number pad with a
+  // decimal separator), "numeric" (digits only), "tel", "email", "search",
+  // "url", "none". Empty means "say nothing" and the browser picks.
+  //
+  // This is the RIGHT prop for a numeric field, and `type: "number"` is the
+  // wrong one. A number input's value getter returns "" for an intermediate
+  // keystroke like "1." (HTML's own sanitization), so a field two-way-bound
+  // to a string signal loses the character while it is being typed — the
+  // whole reason several consumers deliberately kept a plain text input and
+  // ate the alphanumeric keyboard. `inputMode` leaves `type` (and the value)
+  // untouched and only changes which keyboard the phone raises.
+  inputMode: string = "",
   // Textarea height, in rows. Was hardcoded at 4 with no way to ask for
   // more, so a paragraph field could not grow into the pane it was given.
   // Defaulted to 4, so every existing consumer renders exactly as before.
@@ -51,6 +63,12 @@ component TextInput(
     // browser would otherwise have used. Falls through to the placeholder
     // only because a weak name beats none.
     inputAriaLabel: ariaLabel != "" ? ariaLabel : (label != "" ? label : (placeholder != "" ? placeholder : null))
+
+    // null, not "", for the reason spelled out directly above: bindAttr
+    // removes an attribute whose value is null, and `inputmode=""` is not a
+    // valid keyboard token — it would land on all ~577 call sites that never
+    // asked for one.
+    inputModeAttr: inputMode != "" ? inputMode : null
 
     // ── size: "md" (default, unchanged) | "sm" ───────────────────────────────
     //
@@ -195,6 +213,7 @@ component TextInput(
           placeholder: placeholder
           aria-label: inputAriaLabel
           type: type
+          inputMode: inputModeAttr
           disabled: disabled
           readonly: readonly
           border: "none"
@@ -214,6 +233,7 @@ component TextInput(
         textArea(value) {
           placeholder: placeholder
           aria-label: inputAriaLabel
+          inputMode: inputModeAttr
           disabled: disabled
           readonly: readonly
           rows: rows
