@@ -1677,7 +1677,10 @@ component DataGrid(
             block {
               padding: headerPad
               layout: horizontal, align: center, justify: center
-              Checkbox(label: "", checked: allSelected) {
+              // The grid's own two unnamed checkboxes, named. A select-all in a
+              // header cell has nothing to take a name from, so before Checkbox
+              // 0.5.0 it announced as "checkbox, not checked" and nothing else.
+              Checkbox(label: "", ariaLabel: "Select all rows", checked: allSelected) {
                 on change(isChecked): { if isChecked { selectAllRows() } else { if windowed { deselectRenderedRows() } else { clearSelection() } } }
               }
             }
@@ -2136,7 +2139,11 @@ component DataGrid(
                 grow: true
                 layout: horizontal, align: center, justify: center
                 on click(event): swallowRowClick(event)
-                Checkbox(label: "", checked: gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField])) {
+                // "Select row", not "Select row <key>": rowKeyField is usually a
+                // uuid, and announcing one is worse than announcing nothing
+                // specific. The row's own cells follow immediately in the
+                // reading order, which is where the identity actually lives.
+                Checkbox(label: "", ariaLabel: "Select row", checked: gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField])) {
                   on change(isChecked): selectRow(row)
                 }
               }

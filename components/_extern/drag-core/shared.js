@@ -46,7 +46,19 @@ export function createGhost(srcEl, pointerX, pointerY, styleOverride) {
     const offsetX = pointerX - rect.left;
     const offsetY = pointerY - rect.top;
     const ghost = srcEl.cloneNode(true);
-    ghost.style.cssText = `${DEFAULT_GHOST_CSS};left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;`;
+    // The source's own inline styles come FIRST, then the ghost treatment on
+    // top. Assigning cssText replaces the whole style attribute, so writing only
+    // DEFAULT_GHOST_CSS deleted everything the clone was carrying — and Spec
+    // emits every style inline, so that is the element's entire appearance:
+    // `display:flex`, background, border, padding and radius all went, and the
+    // ghost lifted as unstyled text with its children stacked in a column.
+    // Ordering matters: `position`/`pointer-events`/`z-index`/`opacity` must
+    // beat anything the source declared, and the measured left/top/width must
+    // beat both (a percentage or `auto` width collapses once the clone is out
+    // of the layout).
+    const srcCss = srcEl.style.cssText;
+    ghost.style.cssText =
+        `${srcCss ? `${srcCss};` : ''}${DEFAULT_GHOST_CSS};left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;`;
     if (styleOverride) {
         Object.assign(ghost.style, styleOverride);
     }
