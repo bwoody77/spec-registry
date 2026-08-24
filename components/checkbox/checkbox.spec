@@ -12,13 +12,38 @@
 // checkboxes, nearly all of them a body-sm label beside a 15-16px box; forcing
 // them all up to body-md on adoption would have reflowed real layouts. Default
 // stays "md" so existing call sites are untouched.
-component Checkbox(label: string, checked: boolean = false, disabled: boolean = false, size: string = "md") {
+//
+// `ariaLabel` is for the case this component had no answer for at all: a
+// checkbox with NO visible label. In a dense grid the row already says what the
+// box selects, so repeating "Annual inspection" beside every tick is noise —
+// and callers wrote `label: ""`, which left a role="checkbox" with an EMPTY
+// ACCESSIBLE NAME. Vector's shop worklist shipped eight of those per expanded
+// card, every one announcing as an unnamed checkbox, while passing an
+// `ariaLabel` the compiler warned about and dropped on the floor.
+//
+// Same shape and same default as Button's: empty means the accessible name is
+// the visible label, so every existing caller is byte-identical.
+component Checkbox(
+  label: string,
+  checked: boolean = false,
+  disabled: boolean = false,
+  size: string = "md",
+  ariaLabel: string = ""
+) {
   @computed {
     isSm:      size == "sm"
     boxSize:   isSm ? 16px : 18px
     iconSize:  isSm ? "12px" : "14px"
     labelType: isSm ? type.body-sm : type.body-md
     rowGap:    isSm ? 8px : 10px
+
+    // Resolved to one string rather than emitted conditionally. `aria-label=""`
+    // is not "no override" — the accname spec tells browsers to ignore an empty
+    // one and fall back to content — so the two forms reach the same outcome
+    // and one of them is two code paths. A caller with neither still gets the
+    // empty name it gets today; naming it is the caller's job, and this is the
+    // prop that finally lets them.
+    accessibleName: ariaLabel != "" ? ariaLabel : label
   }
   button {
     disabled: disabled
@@ -26,6 +51,7 @@ component Checkbox(label: string, checked: boolean = false, disabled: boolean = 
     background: "transparent"
     padding: 0
     role: "checkbox"
+    aria-label: accessibleName
     aria-checked: checked
     aria-disabled: disabled
     layout: horizontal, gap: rowGap, align: center
