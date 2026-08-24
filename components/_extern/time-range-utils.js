@@ -13,10 +13,16 @@ function toMinutes(hhmm) {
 function fromMinutes(min) {
     return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
 }
+// Hour 24 is END-OF-DAY midnight, not a 25th hour: fold it onto 0 before the
+// AM/PM split. Without the fold `h >= 12` picks PM and `h > 12` maps 24 onto
+// 12, so a range ending at midnight renders "12:00 PM" — noon. On a 0..24 grid
+// that puts two options labelled "12:00 PM" in one dropdown with nothing to
+// tell them apart, and picking the wrong one silently records the wrong time.
 function label12(hhmm) {
     const [h, m] = hhmm.split(':').map(Number);
-    const period = h >= 12 ? 'PM' : 'AM';
-    const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const h24 = h === 24 ? 0 : h;
+    const period = h24 >= 12 ? 'PM' : 'AM';
+    const display = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
     return `${display}:${pad2(m)} ${period}`;
 }
 function labelFor(hhmm, format) {
