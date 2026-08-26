@@ -242,15 +242,23 @@ component AvatarPicker(
 
     // The photo itself is the most obvious thing to tap when you want to
     // re-frame it, so it opens Adjust when there is something to adjust.
-    block {
+    // A real <button>, not a div with an onclick: a div cannot be tabbed to and
+    // does not answer Enter/Space, and pairing one with an aria-label is the
+    // worst of both — it ANNOUNCES as interactive and then cannot be reached.
+    // `disabled` carries the not-yet-adjustable state to assistive tech
+    // instead of only to the cursor.
+    button {
       width: avatarPx
       height: avatarPx
       border-radius: 999px
       overflow: hidden
+      border: 'none'
+      padding: 0px
       background: fallbackColor
       layout: horizontal, justify: center, align: center
       cursor: canAdjust ? "pointer" : "default"
-      aria-label: canAdjust ? "Adjust your photo" : ""
+      disabled: !canAdjust
+      aria-label: "Adjust your photo"
       on click: { if canAdjust { adjustPhoto() } }
 
       block {
@@ -278,11 +286,12 @@ component AvatarPicker(
     block {
       layout: vertical, gap: spacing.2
 
-      block {
+      button {
         cursor: "pointer"
         padding-y: 6px
         padding-x: 12px
         border-radius: 8px
+        border: 'none'
         background: semantic.interactive
         layout: horizontal, justify: center
         on click: pickPhoto()
@@ -296,13 +305,14 @@ component AvatarPicker(
 
       // Only offered when there is an image to re-frame. Before this existed
       // the ONLY route back into the cropper was uploading the photo again.
-      block {
+      button {
         visibility: adjustSrc != ""
         cursor: "pointer"
         padding-y: 6px
         padding-x: 12px
         border-radius: 8px
         border: borders.default
+        background: 'transparent'
         layout: horizontal, justify: center
         on click: adjustPhoto()
 
@@ -313,13 +323,14 @@ component AvatarPicker(
         }
       }
 
-      block {
+      button {
         visibility: removable && hasAvatar
         cursor: "pointer"
         padding-y: 6px
         padding-x: 12px
         border-radius: 8px
         border: borders.default
+        background: 'transparent'
         layout: horizontal, justify: center
         on click: removePhoto()
 
@@ -447,12 +458,13 @@ component AvatarPicker(
         border-top: borders.default
         layout: horizontal, gap: spacing.2, justify: end
 
-        block {
+        button {
           cursor: "pointer"
           padding-y: 8px
           padding-x: 14px
           border-radius: 8px
           border: borders.default
+          background: 'transparent'
           on click: cancelCrop()
 
           text("Cancel") {
@@ -462,11 +474,12 @@ component AvatarPicker(
           }
         }
 
-        block {
+        button {
           cursor: "pointer"
           padding-y: 8px
           padding-x: 14px
           border-radius: 8px
+          border: 'none'
           background: semantic.interactive
           on click: applyCrop()
 
