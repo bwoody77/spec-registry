@@ -66,10 +66,25 @@ component Radio(label: string, value: string = "", checked: boolean = false, dis
       }
     }
 
+    // `text-align: start` is load-bearing, and only on a LONG label.
+    //
+    // A <button> carries the UA `text-align: center`, which inherits into every
+    // text box inside it. A short label hugs its glyphs, so nothing moves and
+    // this looks unnecessary. A label long enough to WRAP does not: the box
+    // becomes the full width available in the row and the lines centre inside
+    // it. RadioGroup makes that reachable on its own — its `layout: vertical`
+    // stretches each Radio to the group's width, so the row is as wide as the
+    // widest option regardless of what any single label needs.
+    //
+    // Measured in Vector at 390px (/gift-certificates/new): "Same as buyer
+    // (self-redeem / discovery flights)" wrapped into a 268px box with 209px of
+    // glyphs, sitting 30px in, while the option below it started somewhere else
+    // again. `start` rather than `left` so RTL flips.
     text(label) {
       style: type.body-md
       font-weight: token.btn-fontWeight
       color: semantic.text-secondary
+      text-align: start
     }
   }
 }
