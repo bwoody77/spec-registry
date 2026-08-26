@@ -18,7 +18,7 @@
  * pan range cannot be known), and re-opening the cropper later needs an
  * ORIGINAL to re-crop, which has to be shrunk before it is worth storing.
  */
-import { cropWindow } from './avatar-picker-math.js';
+import { cropWindow, needsReencode, dataUrlBytes } from './avatar-picker-math.js';
 export function pickImageFile() {
     return new Promise((resolve) => {
         if (typeof document === 'undefined') {
@@ -72,10 +72,20 @@ export function pickImageFile() {
         input.click();
     });
 }
+/**
+ * Crop to a square data URL, or RESOLVE `''` if that is not possible.
+ *
+ * It resolves rather than rejects on purpose. Spec actions have no try/catch,
+ * so a rejection aborts the calling action mid-way — leaving `busy` stuck true
+ * and the dialog open with no explanation. Every failure here is one a user can
+ * actually hit: an undecodable file, a browser with no canvas, and — in
+ * production, where the stored original is served from R2 — a tainted-canvas
+ * SecurityError when the bucket sends no `Access-Control-Allow-Origin`.
+ */
 export function cropAvatarToDataUrl(srcDataUrl, zoom, offsetX, offsetY, size) {
-    return new Promise((resolve, reject) => {
-        if (!srcDataUrl) {
-            reject(new Error('no image source'));
+    return new Promise((resolve) => {
+        if (!srcDataUrl || typeof Image === 'undefined') {
+            resolve('');
             return;
         }
         const out = Math.max(16, Math.floor(size || 256));
@@ -94,7 +104,7 @@ export function cropAvatarToDataUrl(srcDataUrl, zoom, offsetX, offsetY, size) {
             canvas.height = out;
             const ctx = canvas.getContext('2d');
             if (!ctx) {
-                reject(new Error('canvas unavailable'));
+                resolve('');
                 return;
             }
             ctx.imageSmoothingQuality = 'high';
@@ -102,11 +112,12 @@ export function cropAvatarToDataUrl(srcDataUrl, zoom, offsetX, offsetY, size) {
             try {
                 resolve(canvas.toDataURL('image/jpeg', 0.9));
             }
-            catch (err) {
-                reject(err);
+            catch {
+                // Tainted canvas — a cross-origin source without CORS headers.
+                resolve('');
             }
         };
-        img.onerror = () => reject(new Error('failed to load image'));
+        img.onerror = () => resolve('');
         img.src = srcDataUrl;
     });
 }
@@ -117,6 +128,15 @@ export function cropAvatarToDataUrl(srcDataUrl, zoom, offsetX, offsetY, size) {
  * which the image overflows the circle, which is a function of the aspect
  * ratio. Resolves rather than rejects on failure so a broken URL degrades to a
  * square preview (no pan) instead of leaving the cropper stuck.
+ *
+ * Deliberately does NOT set `crossOrigin`. Reading naturalWidth/Height never
+ * taints anything, so requiring CORS here would buy nothing and cost the whole
+ * preview geometry: in production the stored original comes from R2, and if the
+ * bucket sends no `Access-Control-Allow-Origin` an anonymous request simply
+ * fails — the aspect would come back 0, the preview would fall back to square,
+ * and a landscape photo would be framed wrongly before the user touched it.
+ * (cropAvatarToDataUrl still needs CORS, because it reads pixels back out; it
+ * reports that failure instead of hiding it.)
  */
 export function imageAspect(src) {
     return new Promise((resolve) => {
@@ -125,7 +145,6 @@ export function imageAspect(src) {
             return;
         }
         const img = new Image();
-        img.crossOrigin = 'anonymous';
         img.onload = () => {
             const w = img.naturalWidth;
             const h = img.naturalHeight;
@@ -144,13 +163,14 @@ export function imageAspect(src) {
  * phone photo is 3-5 MB. Returns the input untouched when it is already small
  * enough, so a modest upload is not needlessly re-encoded (and never grows).
  */
-export function downscaleToDataUrl(srcDataUrl, maxDim, quality) {
+export function downscaleToDataUrl(srcDataUrl, maxDim, quality, maxBytes = 1_200_000) {
     return new Promise((resolve) => {
         if (!srcDataUrl || typeof Image === 'undefined') {
             resolve(srcDataUrl);
             return;
         }
         const cap = Math.max(64, Math.floor(maxDim || 1024));
+        const budget = Math.max(50_000, Math.floor(maxBytes || 1_200_000));
         const q = quality > 0 && quality <= 1 ? quality : 0.85;
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -161,30 +181,50 @@ export function downscaleToDataUrl(srcDataUrl, maxDim, quality) {
                 resolve(srcDataUrl);
                 return;
             }
-            const scale = Math.min(1, cap / Math.max(w, h));
-            if (scale >= 1) {
+            if (!needsReencode(dataUrlBytes(srcDataUrl), Math.max(w, h), budget, cap)) {
                 resolve(srcDataUrl);
                 return;
             }
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, Math.round(w * scale));
-            canvas.height = Math.max(1, Math.round(h * scale));
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                resolve(srcDataUrl);
-                return;
+            const ctx2d = (cw, ch) => {
+                const c = document.createElement('canvas');
+                c.width = Math.max(1, Math.round(cw));
+                c.height = Math.max(1, Math.round(ch));
+                const g = c.getContext('2d');
+                if (!g)
+                    return null;
+                g.imageSmoothingQuality = 'high';
+                g.drawImage(img, 0, 0, c.width, c.height);
+                return [c, g];
+            };
+            // Step the longest edge down until the DECODED payload fits the budget.
+            // A single pass at `cap` is not enough on its own: a detailed photo can
+            // still exceed the cap at 1024px, and the server rejects the entire
+            // avatar update rather than just the original. 320px is the floor —
+            // below that the stored original stops being able to feed a re-crop.
+            let edge = Math.min(cap, Math.max(w, h));
+            let best = srcDataUrl;
+            for (let i = 0; i < 4; i += 1) {
+                const scale = edge / Math.max(w, h);
+                const made = ctx2d(w * scale, h * scale);
+                if (!made)
+                    break;
+                let out = '';
+                try {
+                    out = made[0].toDataURL('image/jpeg', q);
+                }
+                catch {
+                    break; // tainted canvas — keep the input
+                }
+                best = out;
+                if (dataUrlBytes(out) <= budget)
+                    break;
+                if (edge <= 320)
+                    break;
+                edge = Math.max(320, Math.floor(edge * 0.75));
             }
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            try {
-                const out = canvas.toDataURL('image/jpeg', q);
-                // A pathological re-encode that GREW the payload is never worth
-                // taking — keep whichever is smaller.
-                resolve(out.length < srcDataUrl.length ? out : srcDataUrl);
-            }
-            catch {
-                resolve(srcDataUrl);
-            }
+            // A pathological re-encode that GREW the payload is never worth taking.
+            resolve(dataUrlBytes(best) > 0 && dataUrlBytes(best) < dataUrlBytes(srcDataUrl)
+                ? best : srcDataUrl);
         };
         img.onerror = () => resolve(srcDataUrl);
         img.src = srcDataUrl;

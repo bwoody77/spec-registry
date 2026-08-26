@@ -103,4 +103,45 @@ export function cropWindow(w, h, zoom, offsetX, offsetY) {
 function clampTo(v, lo, hi) {
     return v < lo ? lo : v > hi ? hi : v;
 }
+/**
+ * DECODED byte count of a base64 data URL — what a server that does
+ * `Buffer.from(b64, 'base64').length` will actually measure. A data URL's
+ * string length overstates that by about 4/3, which is exactly the margin that
+ * turns "comfortably under the cap" into a 413.
+ *
+ * Returns 0 for anything that is not a base64 data URL.
+ */
+export function dataUrlBytes(dataUrl) {
+    if (typeof dataUrl !== 'string')
+        return 0;
+    const at = dataUrl.indexOf(';base64,');
+    if (!dataUrl.startsWith('data:') || at < 0)
+        return 0;
+    const body = dataUrl.slice(at + ';base64,'.length);
+    if (body.length === 0)
+        return 0;
+    let padding = 0;
+    if (body.endsWith('=='))
+        padding = 2;
+    else if (body.endsWith('='))
+        padding = 1;
+    return Math.floor((body.length * 3) / 4) - padding;
+}
+/**
+ * Should this image be re-encoded before we upload it as the stored original?
+ *
+ * TWO budgets, because either alone lets something through. Capping only the
+ * longest EDGE passes a 1024x1024 PNG screenshot — routinely 2-4 MB — straight
+ * to the server, which rejects the whole avatar update with 413. Capping only
+ * BYTES passes a huge-but-well-compressed photo whose extra pixels can never
+ * be seen in a 256px circle. `bytes` may be NaN when it cannot be measured, in
+ * which case the dimension test decides alone.
+ */
+export function needsReencode(bytes, longestEdge, maxBytes, maxDim) {
+    if (Number.isFinite(longestEdge) && longestEdge > maxDim)
+        return true;
+    if (Number.isFinite(bytes) && bytes > maxBytes)
+        return true;
+    return false;
+}
 //# sourceMappingURL=avatar-picker-math.js.map

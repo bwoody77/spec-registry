@@ -67,6 +67,7 @@ component AvatarPicker(
     panTy: 0
     dragBaseX: 0
     dragBaseY: 0
+    cropError: ""
     busy: false
   }
 
@@ -103,19 +104,29 @@ component AvatarPicker(
   @actions {
     // Restore a saved crop onto the current preview geometry. Offsets are
     // stored normalised, so they survive a different zoom or a re-measure.
+    //
+    // BOTH axes get their real bound. An earlier version zeroed the "short"
+    // axis by aspect ratio (usableY = 0 for a landscape image), which is only
+    // right at zoom 1 — as soon as zoom > 1 the image overflows the circle on
+    // BOTH axes, exactly as panMaxX/panMaxY say. The effect was that
+    // re-opening Adjust on a zoomed photo silently dropped one axis of the
+    // user's framing, and pressing Save then wrote that loss back.
     applyInitialCrop() {
       zoom = initialZoom > 1 ? initialZoom : 1
-      let mx = (260 * zoom * (srcAspect > 0 ? srcAspect : 1) - 260) / 2
-      let my = (260 * zoom / (srcAspect > 0 ? srcAspect : 1) - 260) / 2
-      let usableX = srcAspect >= 1 ? mx : 0
-      let usableY = srcAspect >= 1 ? 0 : my
-      panTx = 0 - initialOffsetX * (usableX > 0 ? usableX : 0)
-      panTy = 0 - initialOffsetY * (usableY > 0 ? usableY : 0)
+      let a = srcAspect > 0 ? srcAspect : 1
+      let sp = 260 * zoom
+      let w = a >= 1 ? sp * a : sp
+      let h = a >= 1 ? sp : sp / a
+      let cx = (w - 260) / 2 > 0 ? (w - 260) / 2 : 0
+      let cy = (h - 260) / 2 > 0 ? (h - 260) / 2 : 0
+      panTx = 0 - initialOffsetX * cx
+      panTy = 0 - initialOffsetY * cy
       dragBaseX = panTx
       dragBaseY = panTy
     }
 
     resetCrop() {
+      cropError = ""
       zoom = 1
       panTx = 0
       panTy = 0
@@ -145,6 +156,7 @@ component AvatarPicker(
     // Re-open the cropper on the image we already have — no re-upload.
     adjustPhoto() {
       if adjustSrc == "" { return }
+      cropError = ""
       busy = true
       let a = await imageAspect(adjustSrc)
       busy = false
@@ -160,10 +172,22 @@ component AvatarPicker(
       resetCrop()
     }
 
+    // cropAvatarToDataUrl RESOLVES "" on failure rather than rejecting, and
+    // that is deliberate: Spec actions have no try/catch, so a rejection would
+    // abort this action before `busy = false` — leaving the dialog open with
+    // Save permanently inert and nothing said to the user. (The failures are
+    // real: a decode error, no canvas, and — in production, where the stored
+    // original is served from R2 — a tainted-canvas SecurityError when the
+    // bucket sends no CORS header.) Same rule as Vector's Safe api variants.
     applyCrop() {
+      cropError = ""
       busy = true
       let dataUrl = await cropAvatarToDataUrl(imageSrc, zoom, cropOffsetX, cropOffsetY, cropSize)
       busy = false
+      if dataUrl == "" {
+        cropError = "Couldn't process that photo. Try uploading it again."
+        return
+      }
       cropOpen = false
       // `source` is "" when re-framing a photo the caller already stored —
       // that is the signal to keep the stored original rather than re-upload
@@ -403,6 +427,17 @@ component AvatarPicker(
             aria-label: "Zoom"
             on input(event): onZoom(event.target.value)
           }
+        }
+      }
+
+      block {
+        visibility: cropError != ""
+        padding-x: 20px
+        padding-bottom: 4px
+        text(cropError) {
+          color: semantic.destructive
+          weight: 600
+          style: type.label-sm
         }
       }
 
