@@ -1,11 +1,67 @@
-@extern { pickImageFile, cropAvatarToDataUrl } from "@spec/components/avatar-picker.js"
+@extern { pickImageFile, cropAvatarToDataUrl, imageAspect, downscaleToDataUrl } from "@spec/components/avatar-picker.js"
 
-component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fallbackColor: string = "#7585a0", buttonLabel: string = "", removable: boolean = true, cropSize: number = 256, size: number = 64) {
+// AvatarPicker — pick a photo, frame it in a circle, save the crop.
+//
+// ── PAN (fixed 2026-08-25) ──────────────────────────────────────────────────
+// The preview lays the image out the way the cropper reasons about it: SHORT
+// side pinned to `previewSide * zoom`, long side following the natural aspect
+// ratio, centred in the circle and clipped by it. The overflow IS the pan
+// range, which is why a landscape photo can be panned at zoom 1 — it already
+// overflows.
+//
+// It used to bound pan at `130 * (zoom - 1)` and draw the preview with
+// `object-fit: cover`. Both were wrong, and together they made pan a no-op at
+// every zoom level: the bound is zero at zoom 1 regardless of the picture, and
+// `cover` clips the overflow BEFORE any transform runs, so translating the
+// element slid a pre-cropped square over black rather than revealing more
+// image. A 1200x400 photo showed only its middle third and neither end could
+// be reached. Geometry now lives in avatar-picker-math.ts, shared with
+// cropAvatarToDataUrl and unit-tested for agreement.
+//
+// ── WHY THE ZOOM SLIDER HAS NO `on change` ──────────────────────────────────
+// It used to read `on change(v): onZoom(v)`. On a raw `slider()` the handler
+// argument is the DOM EVENT, not the value (ai-reference "Two-Way Binding"),
+// so that assigned an Event object to `zoom`. The damage was silent and
+// three-deep: every `zoom > 1` test went false, so the pan bounds collapsed to
+// zero; `scale(<object>)` is an invalid CSS declaration the browser DROPS, so
+// the preview kept its last good transform and looked fine; and
+// cropAvatarToDataUrl's `Number(zoom) || 1` turned the Event into 1, so the
+// SAVED avatar quietly ignored the zoom the user had chosen. `slider(zoom)`
+// already writes the value itself; `on input(event)` only has to re-clamp the
+// pan and coerce the string to a number.
+
+component AvatarPicker(
+  currentAvatarUrl: string = "",
+  // The stored ORIGINAL, when the caller keeps one. Given this, "Adjust
+  // photo" can re-open the cropper on the full picture instead of forcing a
+  // re-upload — the second half of the 2026-08-25 report. Callers that do not
+  // keep an original simply omit it and the button does not appear.
+  sourceUrl: string = "",
+  // Crop to restore when re-opening a stored photo, so "Adjust" starts where
+  // the user left off rather than snapping back to centre.
+  initialZoom: number = 1,
+  initialOffsetX: number = 0,
+  initialOffsetY: number = 0,
+  initials: string = "",
+  fallbackColor: string = "#7585a0",
+  buttonLabel: string = "",
+  removable: boolean = true,
+  cropSize: number = 256,
+  size: number = 64,
+  // Longest edge of the original handed back on `change`. 1024 is comfortably
+  // more than re-cropping can ever show (cropSize x maxZoom = 768px) and about
+  // 100 KB, against 3-5 MB for the raw phone photo.
+  sourceMaxDim: number = 1024
+) {
   @state {
     cropOpen: false
     imageSrc: ""
+    // The original for THIS session's pick, kept so Save can hand it back and
+    // so Adjust works before the caller has stored anything.
+    pickedSrc: ""
+    srcAspect: 1
     zoom: 1
-    // Pan offset of the preview image in CSS pixels. dragBase{X,Y} hold the
+    // Pan offset of the preview image in CSS px. dragBase{X,Y} hold the
     // committed offset at drag-start so each drag is additive.
     panTx: 0
     panTy: 0
@@ -16,46 +72,92 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
 
   @computed {
     hasAvatar: currentAvatarUrl != ""
+    // Something to re-frame: either this session's pick or a stored original.
+    adjustSrc: pickedSrc != "" ? pickedSrc : sourceUrl
+    canAdjust: adjustSrc != "" && !busy
     pickLabel: buttonLabel != "" ? buttonLabel : (hasAvatar ? "Change photo" : "Add photo")
     avatarPx: size + "px"
-    // Half the preview side (260 / 2). Pan is bounded by this × (zoom-1) so
-    // the cropped circle always stays filled with image pixels.
-    panMaxAbs: zoom > 1 ? 130 * (zoom - 1) : 0
-    panMaxNeg: zoom > 1 ? -130 * (zoom - 1) : 0
-    // CSS transform applied to the preview image. Order matters: translate
-    // first (post-scale frame), then scale.
-    zoomTransform: "translate(" + panTx + "px," + panTy + "px) scale(" + zoom + ")"
-    // Offsets in [-1, 1] expected by cropAvatarToDataUrl. Dragging the
-    // image right (panTx>0) shifts the visible portion left, so the crop
-    // centre moves left — sign-flipped.
-    cropOffsetX: panMaxAbs > 0 ? (0 - panTx) / panMaxAbs : 0
-    cropOffsetY: panMaxAbs > 0 ? (0 - panTy) / panMaxAbs : 0
+
+    // ── Preview geometry (mirrors avatar-picker-math.ts previewFit) ─────────
+    previewSide: 260
+    zoomSafe: zoom > 1 ? zoom : 1
+    aspectSafe: srcAspect > 0 ? srcAspect : 1
+    shortPx: 260 * zoomSafe
+    dispW: aspectSafe >= 1 ? shortPx * aspectSafe : shortPx
+    dispH: aspectSafe >= 1 ? shortPx : shortPx / aspectSafe
+    panMaxX: (dispW - 260) / 2 > 0 ? (dispW - 260) / 2 : 0
+    panMaxY: (dispH - 260) / 2 > 0 ? (dispH - 260) / 2 : 0
+    dispWPx: dispW + "px"
+    dispHPx: dispH + "px"
+    // Centre the oversized image on the circle, then apply the pan. The -50%
+    // pair resolves against the IMAGE's own box, which is what centres it.
+    previewTransform: "translate(-50%, -50%) translate(" + panTx + "px, " + panTy + "px)"
+
+    // Offsets in [-1, 1] for cropAvatarToDataUrl. SIGN-FLIPPED: dragging the
+    // picture right brings its LEFT side into view, so the crop centre moves
+    // left.
+    cropOffsetX: panMaxX > 0 ? (0 - panTx) / panMaxX : 0
+    cropOffsetY: panMaxY > 0 ? (0 - panTy) / panMaxY : 0
   }
 
   @actions {
-    pickPhoto() {
-      busy = true
-      let src = await pickImageFile()
-      busy = false
-      if src != "" {
-        imageSrc = src
-        zoom = 1
-        panTx = 0
-        panTy = 0
-        dragBaseX = 0
-        dragBaseY = 0
-        cropOpen = true
-      }
+    // Restore a saved crop onto the current preview geometry. Offsets are
+    // stored normalised, so they survive a different zoom or a re-measure.
+    applyInitialCrop() {
+      zoom = initialZoom > 1 ? initialZoom : 1
+      let mx = (260 * zoom * (srcAspect > 0 ? srcAspect : 1) - 260) / 2
+      let my = (260 * zoom / (srcAspect > 0 ? srcAspect : 1) - 260) / 2
+      let usableX = srcAspect >= 1 ? mx : 0
+      let usableY = srcAspect >= 1 ? 0 : my
+      panTx = 0 - initialOffsetX * (usableX > 0 ? usableX : 0)
+      panTy = 0 - initialOffsetY * (usableY > 0 ? usableY : 0)
+      dragBaseX = panTx
+      dragBaseY = panTy
     }
 
-    cancelCrop() {
-      cropOpen = false
-      imageSrc = ""
+    resetCrop() {
       zoom = 1
       panTx = 0
       panTy = 0
       dragBaseX = 0
       dragBaseY = 0
+    }
+
+    pickPhoto() {
+      busy = true
+      let src = await pickImageFile()
+      if src == "" {
+        busy = false
+        return
+      }
+      // Shrink FIRST, then frame the shrunk copy — so what the user sees in
+      // the preview is exactly the pixels a later re-crop will have.
+      let small = await downscaleToDataUrl(src, sourceMaxDim, 0.85)
+      let a = await imageAspect(small)
+      busy = false
+      srcAspect = a > 0 ? a : 1
+      pickedSrc = small
+      imageSrc = small
+      resetCrop()
+      cropOpen = true
+    }
+
+    // Re-open the cropper on the image we already have — no re-upload.
+    adjustPhoto() {
+      if adjustSrc == "" { return }
+      busy = true
+      let a = await imageAspect(adjustSrc)
+      busy = false
+      srcAspect = a > 0 ? a : 1
+      imageSrc = adjustSrc
+      applyInitialCrop()
+      cropOpen = true
+    }
+
+    cancelCrop() {
+      cropOpen = false
+      imageSrc = ""
+      resetCrop()
     }
 
     applyCrop() {
@@ -63,25 +165,37 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
       let dataUrl = await cropAvatarToDataUrl(imageSrc, zoom, cropOffsetX, cropOffsetY, cropSize)
       busy = false
       cropOpen = false
+      // `source` is "" when re-framing a photo the caller already stored —
+      // that is the signal to keep the stored original rather than re-upload
+      // an identical copy of it.
+      emit("change", {
+        dataUrl: dataUrl,
+        source: pickedSrc,
+        zoom: zoom,
+        offsetX: cropOffsetX,
+        offsetY: cropOffsetY
+      })
       imageSrc = ""
-      zoom = 1
-      panTx = 0
-      panTy = 0
-      dragBaseX = 0
-      dragBaseY = 0
-      emit("change", dataUrl)
     }
 
     removePhoto() {
+      pickedSrc = ""
       emit("remove")
     }
 
     onZoom(v) {
-      zoom = v
-      // Re-clamp pan when zoom changes — slack shrinks at lower zoom.
-      let cap = v > 1 ? 130 * (v - 1) : 0
-      panTx = match panTx > cap { true -> cap, _ -> (match panTx < (0 - cap) { true -> (0 - cap), _ -> panTx }) }
-      panTy = match panTy > cap { true -> cap, _ -> (match panTy < (0 - cap) { true -> (0 - cap), _ -> panTy }) }
+      // `v` comes off the DOM as a string; `* 1` is exact Number().
+      let z = v * 1
+      zoom = z > 1 ? z : 1
+      // Re-clamp: slack shrinks as zoom drops, and a stale pan would push the
+      // crop outside the picture.
+      let a = srcAspect > 0 ? srcAspect : 1
+      let w = a >= 1 ? 260 * zoom * a : 260 * zoom
+      let h = a >= 1 ? 260 * zoom : 260 * zoom / a
+      let cx = (w - 260) / 2 > 0 ? (w - 260) / 2 : 0
+      let cy = (h - 260) / 2 > 0 ? (h - 260) / 2 : 0
+      panTx = match panTx > cx { true -> cx, _ -> (match panTx < (0 - cx) { true -> (0 - cx), _ -> panTx }) }
+      panTy = match panTy > cy { true -> cy, _ -> (match panTy < (0 - cy) { true -> (0 - cy), _ -> panTy }) }
       dragBaseX = panTx
       dragBaseY = panTy
     }
@@ -89,8 +203,8 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
     onPan(delta) {
       let nx = dragBaseX + delta.x
       let ny = dragBaseY + delta.y
-      panTx = match nx > panMaxAbs { true -> panMaxAbs, _ -> (match nx < panMaxNeg { true -> panMaxNeg, _ -> nx }) }
-      panTy = match ny > panMaxAbs { true -> panMaxAbs, _ -> (match ny < panMaxNeg { true -> panMaxNeg, _ -> ny }) }
+      panTx = match nx > panMaxX { true -> panMaxX, _ -> (match nx < (0 - panMaxX) { true -> (0 - panMaxX), _ -> nx }) }
+      panTy = match ny > panMaxY { true -> panMaxY, _ -> (match ny < (0 - panMaxY) { true -> (0 - panMaxY), _ -> ny }) }
     }
 
     onPanEnd(delta) {
@@ -102,6 +216,8 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
   block {
     layout: horizontal, gap: spacing.3, align: center
 
+    // The photo itself is the most obvious thing to tap when you want to
+    // re-frame it, so it opens Adjust when there is something to adjust.
     block {
       width: avatarPx
       height: avatarPx
@@ -109,6 +225,9 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
       overflow: hidden
       background: fallbackColor
       layout: horizontal, justify: center, align: center
+      cursor: canAdjust ? "pointer" : "default"
+      aria-label: canAdjust ? "Adjust your photo" : ""
+      on click: { if canAdjust { adjustPhoto() } }
 
       block {
         visibility: hasAvatar
@@ -146,6 +265,25 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
 
         text(pickLabel) {
           color: semantic.on-interactive
+          weight: 600
+          style: type.label-sm
+        }
+      }
+
+      // Only offered when there is an image to re-frame. Before this existed
+      // the ONLY route back into the cropper was uploading the photo again.
+      block {
+        visibility: adjustSrc != ""
+        cursor: "pointer"
+        padding-y: 6px
+        padding-x: 12px
+        border-radius: 8px
+        border: borders.default
+        layout: horizontal, justify: center
+        on click: adjustPhoto()
+
+        text("Adjust") {
+          color: semantic.text-secondary
           weight: 600
           style: type.label-sm
         }
@@ -201,10 +339,15 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
         padding-y: 16px
         padding-x: 16px
         border-bottom: borders.default
+        layout: vertical, gap: 2px
 
         text("Adjust your photo") {
           style: type.heading-sm
           color: semantic.text-primary
+        }
+        text("Drag to move it, and use the slider to zoom.") {
+          style: type.label-sm
+          color: semantic.text-tertiary
         }
       }
 
@@ -213,23 +356,33 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
         padding-x: 20px
         layout: vertical, gap: 16px, align: center
 
-        // Draggable preview — drag to pan, slider to zoom.
+        // Draggable preview. The image is ABSOLUTE rather than a flex child:
+        // a flex item shrinks to fit by default, which would undo the very
+        // overflow that makes panning possible.
         block {
           width: 260px
           height: 260px
           border-radius: 999px
           overflow: hidden
           background: "#000"
+          position: "relative"
           cursor: "grab"
           user-select: "none"
           on drag(delta): onPan(delta)
           on drag-end(delta): onPanEnd(delta)
 
-          image(imageSrc) {
-            width: 100%
-            height: 100%
-            object-fit: "cover"
-            transform: zoomTransform
+          block {
+            position: "absolute"
+            top: 50%
+            left: 50%
+            width: dispWPx
+            height: dispHPx
+            transform: previewTransform
+
+            image(imageSrc) {
+              width: 100%
+              height: 100%
+            }
           }
         }
 
@@ -247,7 +400,8 @@ component AvatarPicker(currentAvatarUrl: string = "", initials: string = "", fal
             max: 3
             step: 0.05
             grow: true
-            on change(v): onZoom(v)
+            aria-label: "Zoom"
+            on input(event): onZoom(event.target.value)
           }
         }
       }
