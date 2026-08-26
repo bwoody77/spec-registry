@@ -82,7 +82,37 @@ component Button(
   iconRight:    string  = "",
   iconOnly:     string  = "",
   loadingLabel: string  = "",
-  ariaLabel:    string  = ""
+  ariaLabel:    string  = "",
+  // Where the content sits along the button's own main axis:
+  // "start" | "center" | "end" | "between" | "around" | "evenly". Defaults to
+  // "center", which is what every Button rendered before this prop existed, so
+  // a call site that never mentions it does not move.
+  //
+  // It exists because a Button is not always the width of its label. The
+  // compiler dissolves a component root that wraps a single inert child to
+  // `display: contents`, and Button's root IS one `button {}` — so inside a
+  // `layout: vertical` block the <button> becomes the column's flex item and
+  // stretches to the container's full width. `justify: center` then parks the
+  // label dead centre of whatever width it got. That is right for a full-width
+  // CTA in a phone sheet and wrong for a dropdown menu, where four ghost
+  // buttons stacked in a 200px panel each centre their label and the menu
+  // stops reading as a list.
+  //
+  // The call site could not reach this. Spec has no style override on a
+  // component invocation, so the only escape was to wrap the Button in
+  // `block { layout: horizontal }` — which sizes the item to its label,
+  // correcting the alignment but also throwing away the full-width row, so a
+  // menu item ends up clickable only across its text. `justify: "start"` keeps
+  // the row and moves the label:
+  //
+  //     Button(label: 'Alert config', variant: 'ghost', justify: 'start')
+  //
+  // Named `justify`, not `align`, deliberately. It sets the MAIN axis of a
+  // horizontal row; `align:` is Spec's cross-axis word and still means what it
+  // always did. Stat carried an `align: string` prop that silently did nothing
+  // for exactly this class of confusion (see stat.spec's header) — that one
+  // also predated the compiler accepting an expression here at all.
+  justify:      string  = "center"
 ) {
   @computed {
     isIconOnly: iconOnly != ""
@@ -157,7 +187,13 @@ component Button(
     aria-label: accessibleName
     aria-pressed: ariaPressed
     aria-expanded: ariaExpanded
-    layout: horizontal, align: center, justify: center, gap: spacing.2
+    // `justify:` takes an expression (ast-to-ir.ts `buildMappedAlignment`),
+    // which lowers to a bindStyle carrying Spec's word→CSS table inline — so
+    // "start" reaches the element as `flex-start` and "between" as
+    // `space-between`, matching what a literal keyword emits. `align:` stays
+    // the static `center`: the cross axis of a one-line row has nothing to
+    // decide.
+    layout: horizontal, align: center, justify: justify, gap: spacing.2
     padding-x: padX
     padding-y: padY
     border-radius: radius
