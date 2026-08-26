@@ -763,9 +763,19 @@ component DataGrid(
   rowHeight: number = 0,
   blockSize: number = 100,
   overscan: number = 5,
-  // Bumped by the caller to drop the cache — needed because the grid cannot
-  // see a filter control that lives outside it.
-  dataVersion: number = 0,
+  // An opaque generation token, compared only for equality (the wire stringifies
+  // it). Changed by the caller to drop the cache — needed because the grid
+  // cannot see a filter control that lives outside it.
+  //
+  // `any`, not `number`, and deliberately so: a numeric type reads as an
+  // instruction to keep a counter, and a counter has to be advanced by a
+  // @watch. A @watch fires one cascade AFTER the @computed that produced the
+  // new rows, so the grid re-windows against the new `rowCount` while still
+  // holding the old generation, serves the previous filter's cached blocks, and
+  // only then invalidates — wrong rows, then skeletons. Vector's logbook shipped
+  // exactly that. A caller can now pass a same-cascade @computed instead: a
+  // join of the row keys is exact, cheap enough, and has no ordering hazard.
+  dataVersion: any = 0,
   // The shape a not-yet-arrived row takes. "avatar" is SkeletonRow — a 38px
   // circle, two stacked lines and a pill — which is right for a list of people
   // and reads as a PERSON in a dense table of figures. "bar" is a single

@@ -119,6 +119,13 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
     // from a warm cache nests one frame per block and the re-entrant recompute
     // would re-measure and re-push a window nothing has moved. The outer frame
     // is the one whose window is authoritative.
+    /**
+     * The clientHeight the last recompute was based on; -1 until one has run.
+     * Declared up here with the rest of the wire's state because `recomputeInner`
+     * writes it and runs during attach, which is before the settle section below
+     * is reached — a `let` down there would be in its temporal dead zone.
+     */
+    let measuredViewport = -1;
     let inRecompute = false;
     let pending = false;
     function recompute(force) {
@@ -192,9 +199,13 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
     }
     function recomputeInner(force) {
         const rowH = calibrate();
+        // Remembered so `settle` can tell a height this wire has ALREADY measured
+        // from one it has not. Without it the settle loop can only recognise the
+        // zero case, and a stale non-zero height looks identical to a correct one.
+        measuredViewport = scroller ? scroller.clientHeight : 0;
         const w = computeWindow({
             scrollTop: scroller ? scroller.scrollTop : 0,
-            viewportHeight: scroller ? scroller.clientHeight : 0,
+            viewportHeight: measuredViewport,
             rowHeight: rowH,
             totalCount: rowCount,
             overscan: opts.overscan,
@@ -298,7 +309,76 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         // The first measurement anyone can trust: until now viewportHeight was a
         // guess of 0.
         recompute(true);
+        // ...except it is not, quite, and this is the second one that is.
+        //
+        // A windowed grid's scroll container gets its height from the SPACERS —
+        // padTop/padBot are what stand in for the rows outside the window — and
+        // those spacers are only written by the `onWindow` push inside the
+        // recompute above. So at the moment that recompute measures, the scroller
+        // holds nothing yet: clientHeight is 0, `computeWindow` returns just the
+        // overscan, and the grid settles on a five-row window over a list of nine
+        // hundred. The spacers it then writes give the scroller its real height,
+        // one layout too late to be measured.
+        //
+        // The ResizeObserver above is supposed to catch exactly that, and usually
+        // does — which is why this went unnoticed: the bug is invisible wherever RO
+        // fires, and total wherever it does not. Measured 2026-08-26 on a
+        // 900-flight logbook in a context with RO throttled: clientHeight 530px,
+        // five rows rendered, and no scroll or resize ever correcting it.
+        //
+        // So this waits for the scroller to HAVE a height rather than for a fixed
+        // number of frames. One rAF is not enough: the caller writes the spacers
+        // through its own reactive layer, which batches, so the height can be two
+        // or three frames out — and a fixed count would be a guess that is wrong on
+        // a slow frame.
+        //
+        // Bounded, and it stops the moment it has something real to measure, so the
+        // normal case costs one extra recompute. `moved` makes it a no-op when the
+        // first measurement was already right.
+        scheduleSettle();
         return true;
+    }
+    /**
+     * Re-measure until the scroll container reports a height, or we run out of
+     * patience. See the note in tryAttach for why the first measurement cannot be
+     * trusted; this is what makes the second one honest without depending on a
+     * ResizeObserver that a throttled or offscreen context may never fire.
+     */
+    const SETTLE_FRAMES = 30;
+    let settleFrames = 0;
+    /** Arm the settle watch. Always looks at least one frame into the future. */
+    function scheduleSettle() {
+        settleFrames = 0;
+        if (typeof requestAnimationFrame === 'undefined')
+            return;
+        requestAnimationFrame(settle);
+    }
+    function settle() {
+        if (destroyed || !scroller)
+            return;
+        const h = scroller.clientHeight;
+        // A height nobody has measured yet. Two ways to get one, and the loop has
+        // to cover both:
+        //   0 -> real     the first attach, before any spacer has been written
+        //   real -> real  a generation change. The caller's filter shrank or grew
+        //                 the list, `invalidate` re-measured in the SAME layout,
+        //                 and the container still had its old height; the spacers
+        //                 that give it the new one are written a layout later.
+        // The second is why this compares against `measuredViewport` rather than
+        // testing `> 0`. Measured on a 900-flight logbook: deselecting an aircraft
+        // filter left the wire holding the filtered container's 98px and rendering
+        // one row into a 254px viewport, corrected only wherever RO happens to fire.
+        if (h !== measuredViewport) {
+            recompute(true);
+        }
+        else if (h > 0) {
+            return; // stable, and real: nothing left to wait for
+        }
+        if (settleFrames++ >= SETTLE_FRAMES)
+            return;
+        if (typeof requestAnimationFrame === 'undefined')
+            return;
+        requestAnimationFrame(settle);
     }
     /**
      * THE ONLY thing that re-arms the timer. `attach()` used to schedule itself
@@ -368,7 +448,9 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
             }
         },
         setRowCount(n) { rowCount = n; last = null; recompute(true); },
-        invalidate() { cache.invalidate(); last = null; recompute(true); },
+        // scheduleSettle because this recompute measures a container that is still
+        // the PREVIOUS row set's size — see the note in `settle`.
+        invalidate() { cache.invalidate(); last = null; recompute(true); scheduleSettle(); },
         refresh() { recompute(true); },
         // The FIRST key is adopted silently. There is nothing held to drop yet,
         // and invalidating here would burn a token before the opening request.
