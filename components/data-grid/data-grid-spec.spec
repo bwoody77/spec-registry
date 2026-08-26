@@ -1009,6 +1009,22 @@ component DataGrid(
       : "")))))
     guarded: guardMsg != ""
 
+    // The grid's OUTER box has to pass a caller-given height down, or windowing
+    // cannot bound anything.
+    //
+    // `height` is applied to the SCROLLER, several boxes below this one. Left
+    // `auto`, this block sizes to its content — the full unwindowed row stack —
+    // so a scroller asking for `height: 100%` resolves against a box as tall as
+    // the whole list, measures clientHeight == scrollHeight, and windows
+    // nothing. The caller sees a second scrollbar on the page and a grid that
+    // renders every row. Measured on a 900-flight logbook: the container was
+    // sized correctly at 478px and this box reported 29,815.
+    //
+    // Only when the caller actually gave a height. Without a height the grid is
+    // content-sized on purpose, and '100%' here would collapse it against an
+    // auto-height parent — which is every unwindowed call site.
+    outerHeight: height != "" ? '100%' : 'auto'
+
     // `!windowed` because windowed mode ignores the `rows` prop, leaving
     // displayRows permanently empty — so without this the empty state and the
     // first-load skeletons render UNDERNEATH every populated windowed grid.
@@ -1509,6 +1525,8 @@ component DataGrid(
     border: bordered ? borders.default : 'none'
     border-radius: bordered ? radius.md : '0'
     overflow: hidden
+    // 'auto' unless the caller gave a height — see outerHeight.
+    height: outerHeight
     role: "grid"
     tabindex: "0"
     data-grid-id: _gridId
