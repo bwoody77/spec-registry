@@ -54,8 +54,32 @@ function unwatchForDetach(w) {
     reaper = null;
 }
 export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
-    wires.get(gridId)?.destroy();
-    const cache = createBlockCache(opts.blockSize);
+    // Adopt the outgoing wire's cache rather than dropping it on the floor.
+    //
+    // wireGridWindow is called from a @computed BODY, so every re-evaluation of
+    // its deps builds a new wire — and at mount the deps settle in two steps
+    // under the `source` contract (source arriving is itself a dep change, and
+    // rowCount goes 0 -> total once the count probe answers). A fresh cache has
+    // an empty `held` and an empty `inflight`, so the second wire re-asked for
+    // block 0 while the first wire's request for it was still on the network:
+    // two full page fetches, 1ms apart, measured on Vector's /my-logbook as
+    // 45 KB of the page's 90 KB.
+    //
+    // Inheriting the same cache OBJECT is what makes the saving real rather than
+    // merely deferred: the in-flight request's token still matches, so the first
+    // fetch's response is accepted when it lands. The duplicate is not deduped,
+    // it is never issued.
+    //
+    // A rowCount change must NOT drop the cache — the blocks still describe the
+    // same rows, and surviving that change is the entire point. handOff() judges
+    // block size, which is the thing that would make them describe different
+    // rows.
+    const prev = wires.get(gridId);
+    const handed = prev ? prev.handOff(opts.blockSize) : null;
+    prev?.destroy();
+    const cache = handed ? handed.cache : createBlockCache(opts.blockSize);
+    // Unconditional: prev.destroy() above unregistered this id while it was
+    // still the live one, so even an adopted cache has to be put back.
     registerCache(gridId, cache);
     let rowCount = opts.rowCount;
     let last = null;
@@ -67,10 +91,15 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
     let destroyed = false;
     // What the caller's data currently IS — sort, filters, and the caller's own
     // `dataVersion`, flattened to one string. It lives on the wire rather than in
-    // a module map so it resets with the cache it describes: a `rowCount` change
-    // rebuilds both, and a generation remembered across that would compare the
-    // new cache's first key against a dead one's.
-    let generation = null;
+    // a module map so it stays PAIRED with the cache it describes — the two are
+    // inherited together by handOff() or not at all.
+    //
+    // (This used to say the pairing meant it "resets with the cache", back when a
+    // rowCount change rebuilt both. It now travels with the cache across that
+    // rebuild instead, which is the same invariant reaching the opposite
+    // conclusion: what must never happen is a generation outliving the cache it
+    // was measured against, in either direction.)
+    let generation = handed ? handed.generation : null;
     /**
      * Measures the two geometric facts `firstVisibleSlot` needs and hands them to
      * it. The arithmetic itself is pure and tested in grid-window-first-visible
@@ -464,6 +493,15 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
                 return;
             generation = key;
             handle.invalidate();
+        },
+        handOff(nextBlockSize) {
+            // A destroyed wire has already released its listeners and may have been
+            // reaped; its cache is not ours to lend.
+            if (destroyed)
+                return null;
+            if (nextBlockSize !== opts.blockSize)
+                return null;
+            return { cache, generation };
         },
     };
     // A wire that has not attached yet is PENDING, not detached — `attach` polls
