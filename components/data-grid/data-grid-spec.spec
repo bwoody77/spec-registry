@@ -1,7 +1,7 @@
 @extern { genGridId, wireColumnDrag, wireGroupDrag } from "@spec/components/data-grid-column-drag.js"
 @extern { gridDeriveGroupRows } from "@spec/components/grid-group-derive.js"
 @extern { wireGridWindow, gridDataGeneration, gridScrollRowIntoView, releaseGridWindow } from "@spec/components/grid-window-wire.js"
-@extern { retryBlock } from "@spec/components/grid-block-cache.js"
+@extern { retryBlock, deliverBlock } from "@spec/components/grid-block-cache.js"
 
 fn toggleSortState(sortState: list, colKey: string) -> list {
   let existing = sortState |> find(s => s.key == colKey)
@@ -562,7 +562,11 @@ fn gridKeyFromField(target: map) -> boolean {
 
 component DataGrid(
   columns: array,
-  rows: array,
+  // Defaulted so a source-fed grid can omit it entirely. Without a default it
+  // arrives undefined and the first `rows |> filter(...)` takes the grid down
+  // with "Cannot read properties of undefined" — which is a confusing way to
+  // learn that a prop you deliberately did not pass was mandatory.
+  rows: array = [],
   selection: string = "none",
   selected: array = [],
   sort: array = [],
@@ -759,6 +763,32 @@ component DataGrid(
   // source and block 0 is fetched like any other. A caller passing its first
   // page through `rows` and the rest through blocks would have two sources
   // that disagree the moment a filter changed.
+  // ─── The source contract ────────────────────────────────────────────────
+  // An ACTION the grid calls to get rows:
+  //
+  //     fetchPage(req) {                       // req: { offset, limit, sort, filters }
+  //       // limit == 0 means COUNT ONLY: return { rows: [], total: n }
+  //       let r = await apiGetSafe(url(req))
+  //       return { rows: r.body.rows, total: r.body.total }
+  //     }
+  //
+  //     DataGrid(columns: cols, source: fetchPage, height: '100%')
+  //
+  // It replaces `rows` + `rowCount` + `dataVersion` + `externalSort` +
+  // `externalFilter` + the `rangeNeeded` event and the deliverWindow dance the
+  // caller used to write. Those are not conveniences removed — every one of
+  // them was a way to be silently wrong, and between two consumers we were
+  // wrong four times in a week.
+  //
+  // `externalSort`/`externalFilter` are not merely defaulted here, they become
+  // STRUCTURAL: the source receives sort and filters in its request, so it
+  // cannot disagree with what the grid believes. That is the difference
+  // between a flag you promise to honour and a parameter you are handed.
+  //
+  // Passing an action as a prop is pinned by callback-props.test.ts in the
+  // compiler — nothing else in this library does it, so it is tested where a
+  // change would break it rather than where it would surface.
+  source: any = null,
   rowCount: number = 0,
   rowHeight: number = 0,
   blockSize: number = 100,
@@ -826,6 +856,16 @@ component DataGrid(
     sortState: sort
     selectedSet: selected
     filters: []
+
+    // ─── Source-fed windowing ───────────────────────────────────────────────
+    // The row total, learned from the source rather than told by the caller.
+    // Zero until the first response, which is what keeps `windowed` false and
+    // the wire uncreated until there is something to window.
+    srcTotal: 0
+    // Bumped when the source's ANSWER changes shape (a new total), which is
+    // the grid's own dataVersion: same cascade as the rows it describes,
+    // because it is set in the same action that received them.
+    srcGen: 0
     // -1 = nothing focused yet. Starting at 0,0 painted a focus tint on the
     // first cell of every freshly-rendered grid, which reads as a selection the
     // user did not make. Arrow-key navigation moves off -1 on the first press.
@@ -857,6 +897,20 @@ component DataGrid(
   }
 
   @watch {
+    // IMMEDIATE (`source!:`), because it must also run at construction with the
+    // value the caller passed and not only on a later change. A plain @watch
+    // fires on a CHANGE, so a grid born with its source already set would never
+    // bootstrap, never learn a total, never window, and sit empty — the same
+    // shape as the five dialogs that shipped permanently unopenable when Modal
+    // made this mistake.
+    source!: { bootstrapSource() }
+
+    // A different sort or filter set is a different list with a different
+    // total, so the count has to be re-learned rather than re-used.
+    sortState: { resetSource() }
+    filters: { resetSource() }
+
+
     // A caller recomputing its group set (paging, filtering) re-seeds the open
     // state. Without this the seed happened once at mount, so a group that
     // first APPEARED after mount was absent from openGroups and rendered
@@ -975,7 +1029,11 @@ component DataGrid(
     // computeds: @computed evaluates in declaration order and a forward
     // reference throws at runtime, rendering the whole grid blank. It depends
     // only on props, so it is free to sit anywhere above its readers.
-    windowed: rowHeight > 0 && rowCount > 0
+    // Told by the caller, or learned from the source. A source-fed grid ignores
+    // the `rowCount` prop entirely: the total is whatever the last response
+    // said, which is the only number that can be consistent with the rows.
+    effRowCount: source != null ? srcTotal : rowCount
+    windowed: rowHeight > 0 && effRowCount > 0
 
     // ─── The loud refusal ───────────────────────────────────────────────────
     // Four prop combinations cannot be windowed, and every one of them fails
@@ -996,8 +1054,12 @@ component DataGrid(
     guardMsg: !windowed ? ""
       : (groupBy != "" ? "DataGrid: rowHeight cannot be combined with groupBy - grouped rows have no fixed pitch, so a window cannot be sized."
       : (expandable ? "DataGrid: rowHeight cannot be combined with expandable - an open detail panel has no fixed pitch, so a window cannot be sized."
-      : (!externalSort ? "DataGrid: rowHeight (windowed mode) requires externalSort - a client sort would order only the rows currently loaded."
-      : (!externalFilter ? "DataGrid: rowHeight (windowed mode) requires externalFilter - a client filter would match only the rows currently loaded."
+      // A source receives `sort` and `filters` in its request, so it cannot
+      // disagree with the grid about them — the flags are satisfied by
+      // construction and demanding them as well would be asking a caller to
+      // promise something the contract already guarantees.
+      : (source == null && !externalSort ? "DataGrid: rowHeight (windowed mode) requires externalSort - a client sort would order only the rows currently loaded."
+      : (source == null && !externalFilter ? "DataGrid: rowHeight (windowed mode) requires externalFilter - a client filter would match only the rows currently loaded."
       // Measured in a browser, 2026-08-13: without `height` the scroll
       // container is unbounded, so clientHeight == scrollHeight, the window
       // spans every row, and the grid renders all 1,043 of them. Windowing is
@@ -1266,7 +1328,7 @@ component DataGrid(
     // as zero-height, and asks for block 0 regardless — making the caller
     // fetch a hundred rows to feed a cache that nothing on screen reads.
     _windowTeardown: windowed && !guarded
-      ? wireGridWindow(_gridId, { rowHeight: rowHeight, overscan: overscan, blockSize: blockSize, rowCount: rowCount, stickyHeader: stickyHeader }, applyWindow, emitRangeNeeded)
+      ? wireGridWindow(_gridId, { rowHeight: rowHeight, overscan: overscan, blockSize: blockSize, rowCount: effRowCount, stickyHeader: stickyHeader }, applyWindow, requestRows)
       // NOT `null`. wireGridWindow destroys the previous wire for this id, so
       // the truthy arm cleans up after itself — but this arm is taken whenever
       // windowing switches OFF (a filter returning zero rows, a caller
@@ -1289,7 +1351,11 @@ component DataGrid(
     // Declared AFTER _windowTeardown because it needs the wire that computed
     // creates; the first key is adopted without invalidating.
     _windowGeneration: windowed && !guarded
-      ? gridDataGeneration(_gridId, dataVersion, sortState, filters)
+      // `srcGen` under a source, `dataVersion` otherwise. The difference is
+      // where it is set: srcGen moves in the same action that received the
+      // rows it describes, so there is no cascade between them for a caller to
+      // get wrong — which is the whole class of bug dataVersion invited.
+      ? gridDataGeneration(_gridId, source != null ? srcGen : dataVersion, sortState, filters)
       : null
   }
 
@@ -1530,8 +1596,79 @@ component DataGrid(
       padTopPx = s.topPad
       padBotPx = s.botPad
     }
-    emitRangeNeeded(reqs) {
-      emit("rangeNeeded", reqs)
+    // The wire's only way to ask for rows. Either the caller answers the event
+    // — the original contract, still supported and unchanged for the 15 grids
+    // that use it — or the grid fetches them itself from `source`.
+    requestRows(reqs) {
+      if source == null {
+        emit("rangeNeeded", reqs)
+        return
+      }
+      if reqs == null { return }
+      for r in reqs {
+        fetchBlock(r)
+      }
+    }
+
+    // One block, from the source.
+    //
+    // The token is carried through untouched: it is what lets deliverBlock drop
+    // a response that describes a filter the user has already left, and a
+    // source is exactly where that race lives — the answer arrives whenever the
+    // network says so, which may be long after the generation moved.
+    fetchBlock(r) {
+      let res = await source({ offset: r.start, limit: blockSize, sort: sortState, filters: filters })
+      if res == null { return }
+      // The response's `total` is deliberately IGNORED here.
+      //
+      // Comparing it against srcTotal to notice a list that changed underneath
+      // sounds right and is a trap: this action runs from the wire's callback,
+      // inside a @computed chain, where a @state read is one cascade stale. So
+      // srcTotal reads 0, every block looks like a total change, the generation
+      // bumps, the block just delivered is invalidated, and it is fetched again
+      // — measured as block 0 arriving twice on every mount.
+      //
+      // The total is learned by the count probe and re-learned whenever the
+      // sort or filters change, which are the cases that actually alter it. A
+      // list growing under a stationary window waits for the next reset.
+      deliverBlock(_gridId, r.blockIndex, res.rows != null ? res.rows : [], r.token)
+    }
+
+    // Learn the total before there is a window. `windowed` is false until
+    // srcTotal is non-zero, so without this the wire is never created and
+    // nothing ever asks for a row: the grid would sit empty forever.
+    bootstrapSource() {
+      if source == null { return }
+      if srcTotal > 0 { return }
+      // `limit: 0` means COUNT ONLY — answer with the total and no rows.
+      //
+      // The first version kept the bootstrap's rows and served block 0 from
+      // them, to save a request. It does not work: this action runs from the
+      // wire's callback, inside a @computed chain, where a read of another
+      // @state is one cascade stale — so the stash always looked empty and the
+      // grid fetched block 0 twice anyway. A count-only probe has nothing to
+      // read back, so there is nothing to be stale.
+      let res = await source({ offset: 0, limit: 0, sort: sortState, filters: filters })
+      if res == null { return }
+      srcTotal = res.total != null ? res.total : 0
+      // NO generation bump here, deliberately. Learning the total for the first
+      // time is what CREATES the wire — `windowed` is false until srcTotal is
+      // non-zero — and the wire adopts its first generation silently. Bumping
+      // would invalidate the block that was just served from srcFirst and send
+      // the grid straight back to the network for rows it already had: two
+      // fetches on every mount, which is the thing srcFirst exists to prevent.
+      //
+      // resetSource does not need one either: it drops srcTotal to 0, which
+      // tears the wire down and releases the cache, so the rebuilt one starts
+      // empty by construction.
+    }
+
+    // Re-ask from scratch: a new sort or a new filter set describes a different
+    // list, so the total is a different number and every held block is stale.
+    resetSource() {
+      if source == null { return }
+      srcTotal = 0
+      bootstrapSource()
     }
   }
 

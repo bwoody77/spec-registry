@@ -23,14 +23,55 @@
 // block is never re-requested. Monotonic across the module, so no token is
 // ever reused by anything.
 let nextToken = 1;
-export function createBlockCache(blockSize) {
+/**
+ * How many delivered blocks a cache keeps. At the default blockSize of 100 that
+ * is 2,400 rows held for a window that shows a few dozen.
+ *
+ * Without a cap `held` only ever grows: it is cleared on invalidate and never
+ * otherwise, so scrolling a 100,000-row list holds 100,000 rows. The DOM has
+ * been bounded since windowing landed; the data never was, and this is the one
+ * part of that no caller can fix from outside the component.
+ *
+ * Generous on purpose. Eviction costs a refetch when the user scrolls back, so
+ * the cap wants to be far above any plausible window and far below "the whole
+ * table" — this is roughly a hundred screens.
+ */
+const MAX_HELD_BLOCKS = 24;
+export function createBlockCache(blockSize, maxBlocks = MAX_HELD_BLOCKS) {
     const held = new Map();
     const inflight = new Set();
     const failed = new Set();
     let token = nextToken++;
     let changed = null;
+    // The block range the most recent window asked about — the anchor eviction
+    // measures distance from.
+    let winFirst = 0;
+    let winLast = 0;
     const notify = () => { if (changed)
         changed(); };
+    /**
+     * Drop the blocks furthest from the window until we are back under the cap.
+     *
+     * Distance from the WINDOW, not least-recently-used: a reader scrolling up
+     * and down a page wants the blocks either side of them kept, and LRU by clock
+     * would evict the one they are about to scroll back into. A block inside the
+     * window is never evicted at any size — that would thrash, since the very
+     * next recompute re-requests it, and the rows it holds are on screen.
+     */
+    const evictFar = () => {
+        if (held.size <= maxBlocks)
+            return;
+        const ranked = Array.from(held.keys())
+            .map((b) => ({ b, d: b < winFirst ? winFirst - b : b > winLast ? b - winLast : 0 }))
+            .sort((x, y) => y.d - x.d);
+        for (const { b, d } of ranked) {
+            if (held.size <= maxBlocks)
+                break;
+            if (d === 0)
+                break;
+            held.delete(b);
+        }
+    };
     return {
         blockSize,
         requestBlocksFor(start, end) {
@@ -39,6 +80,10 @@ export function createBlockCache(blockSize) {
                 return out;
             const first = Math.floor(start / blockSize);
             const last = Math.floor((end - 1) / blockSize);
+            // Remembered for evictFar. Recorded even when every block is already
+            // held, because that is exactly the scroll that moves the window.
+            winFirst = first;
+            winLast = last;
             for (let b = first; b <= last; b++) {
                 if (held.has(b) || inflight.has(b) || failed.has(b))
                     continue;
@@ -55,6 +100,7 @@ export function createBlockCache(blockSize) {
             inflight.delete(blockIndex);
             failed.delete(blockIndex);
             held.set(blockIndex, rows);
+            evictFar();
             notify();
             return true;
         },
