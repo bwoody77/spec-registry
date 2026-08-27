@@ -131,6 +131,80 @@ export function deliverBlock(gridId, blockIndex, rows, token) {
     }
     return c.accept(blockIndex, rows, token);
 }
+/**
+ * Answer as many of a windowed grid's outstanding requests as `rows` can, and
+ * return the ones that must be HELD until more rows arrive.
+ *
+ * This exists because both of Vector's windowed grids hand-rolled it and both
+ * got it wrong, in different ways, on lists the other one never sees. Three
+ * things have to be true at once and none of them is obvious from the request:
+ *
+ * 1. `req.end` is the block's NOMINAL end — `(blockIndex + 1) * blockSize` —
+ *    and it is emitted UNCLAMPED. On any list shorter than one block it is
+ *    larger than the list will ever be, so a `rows.length >= req.end` guard is
+ *    never satisfied and the only block is held forever. Symptom: a 12-row
+ *    logbook, and a 20-user roster, sitting on a full screen of skeletons.
+ *    The fix is to stop guarding on it — NOT to clamp the slice, which
+ *    `Array.slice` does anyway.
+ *
+ * 2. Clamping alone is not enough either. On a filter change the caller's
+ *    `rows` can still be the PREVIOUS list while `rowCount` already describes
+ *    the new one, and a clamped slice of the stale list is accepted happily —
+ *    wrong rows, cemented, because a delivered block is never re-requested.
+ *    `rows.length === rowCount` is the honest test that they describe the same
+ *    list; it is cheap, and it is the only signal available here.
+ *
+ * 3. An unanswerable request must be HELD, not dropped. It has already been
+ *    marked in flight, so nothing asks again once the rows land, and the grid
+ *    keeps the skeletons instead of showing wrong data — a quieter failure but
+ *    a permanent one. Callers re-drain from a @watch on their rows.
+ *
+ * A short FINAL block is correct and is delivered: when `rowCount` is the
+ * number of rows the caller holds, a block ending at the last row is whole.
+ */
+export function deliverWindow(reqs, rows, rowCount) {
+    const list = Array.isArray(reqs) ? reqs : [];
+    if (!Array.isArray(rows) || rows.length !== rowCount)
+        return list;
+    const held = [];
+    for (const r of list) {
+        if (!r)
+            continue;
+        // NOT clamped by hand: `Array.slice` already stops at the end of the array,
+        // so `slice(0, 100)` of a 20-row list is those 20 rows. The unclamped
+        // `req.end` was never the thing that broke — the callers' `rows.length >=
+        // req.end` GUARD was, by refusing to deliver at all. Writing the clamp out
+        // longhand here reads as though it is load-bearing; a mutation test proved
+        // it is not, so it is gone and this note is in its place.
+        if (r.start < rows.length) {
+            deliverBlock(r.gridId, r.blockIndex, rows.slice(r.start, r.end), r.token);
+        }
+        else {
+            // A start past the end of the list would slice to nothing, and an empty
+            // delivery still marks the block held — the block would never be asked
+            // for again and those rows would stay skeletons.
+            held.push(r);
+        }
+    }
+    return held;
+}
+/**
+ * Whether any of these requests reaches the end of the rows the caller holds.
+ *
+ * This is the infinite-scroll trigger for a caller that pages: it means the
+ * window has arrived at the last loaded row, so the next page is worth
+ * fetching. Deliberately separate from deliverWindow — whether to prefetch is
+ * the caller's policy, and a caller holding its whole list wants no part of it.
+ */
+export function windowReachedEnd(reqs, rowCount) {
+    if (!Array.isArray(reqs))
+        return false;
+    for (const r of reqs) {
+        if (r && r.end >= rowCount)
+            return true;
+    }
+    return false;
+}
 export function failBlock(gridId, blockIndex, token) {
     const c = caches.get(gridId);
     return c ? c.fail(blockIndex, token) : false;
