@@ -909,6 +909,19 @@ component DataGrid(
     // total, so the count has to be re-learned rather than re-used.
     sortState: { resetSource() }
     filters: { resetSource() }
+    // The OUTSIDE filter control. `filters` above is the grid's own @state, so
+    // it only ever fires for the built-in column filters — a chip row or a
+    // search box living on the page is invisible to it. `dataVersion` is the
+    // prop that already exists to say "my inputs changed"; before this it fed
+    // only the generation token, and under a source the token reads `srcGen`
+    // instead (see gridDataGeneration), so an external filter change reached
+    // the grid through NOTHING. Vector's logbook clicked Solo and got all 900
+    // rows back, with the unfiltered total still in the footer.
+    //
+    // Safe for the 16 callers that pass no source: resetSource() returns
+    // immediately when source == null, so their dataVersion keeps meaning
+    // exactly what it meant.
+    dataVersion: { resetSource() }
 
 
     // A caller recomputing its group set (paging, filtering) re-seeds the open
