@@ -1189,6 +1189,22 @@ component DataGrid(
     // check-kit-duplication cannot see it, because it compares ACROSS files.
     renderRows: windowed ? winDisplayRows : displayRows
 
+    // Grid-level, and that is the entire point. The two row controls further
+    // down are gated per CELL, so on a grid with neither feature they were
+    // still BUILT in every cell of every row and hidden — 32 elements per row
+    // on an 8-column grid, measured on Vector's /pilots.
+    //
+    // They cannot be `match`ed on their own condition: it reads the `row` and
+    // `col` LOOP VARIABLES, which are not signals, so the match compiles to a
+    // computed with no dependencies and throws `deps is not iterable` at mount
+    // — it takes the whole grid down. A grid-level signal HAS real deps, so the
+    // outer arm can be a match and the per-row test stays a `visibility:`
+    // inside it. Feature off => nothing is built; on => exactly as before.
+    //
+    // Derived from the rows, not from `groupBy`: a caller can hand in
+    // `_kind: 'group'` rows without ever setting groupBy.
+    hasAnyGroupRow: renderRows |> some(r => gridRowKind(r) == "group")
+
     // ─── Selection identity ─────────────────────────────────────────────────
     // Declared HERE rather than up with the other selection computeds because
     // it reads `renderRows`, and @computed evaluates in DECLARATION ORDER: a
@@ -2243,22 +2259,27 @@ component DataGrid(
                 layout: horizontal, gap: spacing.1, align: center, justify: col._col.align != null ? col._col.align : "start"
                 // Group rows carry the expand/collapse control: the open state
                 // is the grid's, so the caller's cell slot cannot own it.
-                button {
-                  visibility: gridRowKind(row) == "group"
-                  background: 'transparent'
-                  border: borders.default
-                  border-radius: radius.sm
-                  width: ctrlPx
-                  height: ctrlPx
-                  cursor: 'pointer'
-                  layout: horizontal, justify: center, align: center
-                  aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
-                  on click: toggleGroupRow(row)
-                  text(groupRowIsOpen(row) ? "\u25be" : "\u25b8") {
-                    style: type.label-xs
-                    font-size: ctrlFont
-                    color: semantic.text-secondary
-                  }
+                match hasAnyGroupRow {
+                  true -> {
+                    button {
+                      visibility: gridRowKind(row) == "group"
+                      background: 'transparent'
+                      border: borders.default
+                      border-radius: radius.sm
+                      width: ctrlPx
+                      height: ctrlPx
+                      cursor: 'pointer'
+                      layout: horizontal, justify: center, align: center
+                      aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
+                      on click: toggleGroupRow(row)
+                      text(groupRowIsOpen(row) ? "\u25be" : "\u25b8") {
+                        style: type.label-xs
+                        font-size: ctrlFont
+                        color: semantic.text-secondary
+                      }
+                    }
+                  },
+                  _ -> {}
                 }
                 // A DERIVED group row has no caller cell content \u2014 the grid
                 // made it \u2014 so it names itself. A structural group row still
@@ -2285,24 +2306,29 @@ component DataGrid(
                 // drawing its own caret in the cell slot would have nothing to
                 // toggle. A real `button`, not a clickable block \u2014 it is an
                 // action, and it has to be keyboard-reachable.
-                button {
-                  visibility: hasExpandControl && gridRowKind(row) == "row" && col._col.key == expandColKey
-                  data-grid-expand: "toggle"
-                  background: 'transparent'
-                  border: borders.default
-                  border-radius: radius.sm
-                  width: ctrlPx
-                  height: ctrlPx
-                  cursor: 'pointer'
-                  layout: horizontal, justify: center, align: center
-                  aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
-                  aria-label: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "Collapse row" : "Expand row"
-                  on click(event): caretToggle(event, row)
-                  text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
-                    style: type.label-xs
-                    font-size: ctrlFont
-                    color: semantic.text-secondary
-                  }
+                match hasExpandControl {
+                  true -> {
+                    button {
+                      visibility: gridRowKind(row) == "row" && col._col.key == expandColKey
+                      data-grid-expand: "toggle"
+                      background: 'transparent'
+                      border: borders.default
+                      border-radius: radius.sm
+                      width: ctrlPx
+                      height: ctrlPx
+                      cursor: 'pointer'
+                      layout: horizontal, justify: center, align: center
+                      aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
+                      aria-label: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "Collapse row" : "Expand row"
+                      on click(event): caretToggle(event, row)
+                      text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
+                        style: type.label-xs
+                        font-size: ctrlFont
+                        color: semantic.text-secondary
+                      }
+                    }
+                  },
+                  _ -> {}
                 }
                 // The cell's content fills the cell. Without this the slot's own
                 // wrapper is a `flex: 0 1 auto` item in this row and shrink-fits
@@ -2386,22 +2412,27 @@ component DataGrid(
                 data-grid-cell-content: col._col.key
                 layout: horizontal, gap: spacing.1, align: center, justify: col._col.align != null ? col._col.align : "start"
                 // Same control for an unpinned grid, where column 0 is here.
-                button {
-                  visibility: gridRowKind(row) == "group" && colIdx == 0 && !pinFirst
-                  background: 'transparent'
-                  border: borders.default
-                  border-radius: radius.sm
-                  width: ctrlPx
-                  height: ctrlPx
-                  cursor: 'pointer'
-                  layout: horizontal, justify: center, align: center
-                  aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
-                  on click: toggleGroupRow(row)
-                  text(groupRowIsOpen(row) ? "\u25be" : "\u25b8") {
-                    style: type.label-xs
-                    font-size: ctrlFont
-                    color: semantic.text-secondary
-                  }
+                match hasAnyGroupRow {
+                  true -> {
+                    button {
+                      visibility: gridRowKind(row) == "group" && colIdx == 0 && !pinFirst
+                      background: 'transparent'
+                      border: borders.default
+                      border-radius: radius.sm
+                      width: ctrlPx
+                      height: ctrlPx
+                      cursor: 'pointer'
+                      layout: horizontal, justify: center, align: center
+                      aria-label: row._toggleLabel != null ? row._toggleLabel : "Toggle group"
+                      on click: toggleGroupRow(row)
+                      text(groupRowIsOpen(row) ? "\u25be" : "\u25b8") {
+                        style: type.label-xs
+                        font-size: ctrlFont
+                        color: semantic.text-secondary
+                      }
+                    }
+                  },
+                  _ -> {}
                 }
                 // A DERIVED group row has no caller cell content \u2014 the grid
                 // made it \u2014 so it names itself. A structural group row still
@@ -2431,24 +2462,29 @@ component DataGrid(
                 // Matching on the key rather than on colIdx is what makes the
                 // two sites mutually exclusive without needing to agree on
                 // which columns are pinned.
-                button {
-                  visibility: hasExpandControl && gridRowKind(row) == "row" && col._col.key == expandColKey
-                  data-grid-expand: "toggle"
-                  background: 'transparent'
-                  border: borders.default
-                  border-radius: radius.sm
-                  width: ctrlPx
-                  height: ctrlPx
-                  cursor: 'pointer'
-                  layout: horizontal, justify: center, align: center
-                  aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
-                  aria-label: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "Collapse row" : "Expand row"
-                  on click(event): caretToggle(event, row)
-                  text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
-                    style: type.label-xs
-                    font-size: ctrlFont
-                    color: semantic.text-secondary
-                  }
+                match hasExpandControl {
+                  true -> {
+                    button {
+                      visibility: gridRowKind(row) == "row" && col._col.key == expandColKey
+                      data-grid-expand: "toggle"
+                      background: 'transparent'
+                      border: borders.default
+                      border-radius: radius.sm
+                      width: ctrlPx
+                      height: ctrlPx
+                      cursor: 'pointer'
+                      layout: horizontal, justify: center, align: center
+                      aria-expanded: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "true" : "false"
+                      aria-label: gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "Collapse row" : "Expand row"
+                      on click(event): caretToggle(event, row)
+                      text(gridRowIsExpanded(expandedSet, row[rowKeyField]) ? "\u25be" : "\u25b8") {
+                        style: type.label-xs
+                        font-size: ctrlFont
+                        color: semantic.text-secondary
+                      }
+                    }
+                  },
+                  _ -> {}
                 }
                 // The cell's content fills the cell. Without this the slot's own
                 // wrapper is a `flex: 0 1 auto` item in this row and shrink-fits
