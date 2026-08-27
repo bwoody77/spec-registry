@@ -1,7 +1,7 @@
 @extern { genGridId, wireColumnDrag, wireGroupDrag } from "@spec/components/data-grid-column-drag.js"
 @extern { gridDeriveGroupRows } from "@spec/components/grid-group-derive.js"
 @extern { wireGridWindow, gridDataGeneration, gridScrollRowIntoView, releaseGridWindow } from "@spec/components/grid-window-wire.js"
-@extern { retryBlock, deliverBlock } from "@spec/components/grid-block-cache.js"
+@extern { retryBlock, deliverBlock, failBlock } from "@spec/components/grid-block-cache.js"
 
 fn toggleSortState(sortState: list, colKey: string) -> list {
   let existing = sortState |> find(s => s.key == colKey)
@@ -1631,7 +1631,22 @@ component DataGrid(
     // network says so, which may be long after the generation moved.
     fetchBlock(r) {
       let res = await source({ offset: r.start, limit: blockSize, sort: sortState, filters: filters })
-      if res == null { return }
+      // A source that returns null FAILED. Returning here instead left the
+      // block inflight forever: requestBlocksFor skips anything already
+      // inflight, so it was never re-asked and the rows stayed skeletons for
+      // the life of the page — a failure that looked exactly like a slow
+      // network, permanently.
+      //
+      // The grid already had the whole other half of this — `winFailed`, the
+      // per-block message, the Retry button, the live-region announcement —
+      // and nothing under a source could reach it. Callers should return null
+      // (not an empty page) when the request fails: an empty page is a claim
+      // that the list is empty, which is how a page tells someone their
+      // filters matched nothing when really the server was down.
+      if res == null {
+        failBlock(_gridId, r.blockIndex, r.token)
+        return
+      }
       // The response's `total` is deliberately IGNORED here.
       //
       // Comparing it against srcTotal to notice a list that changed underneath
