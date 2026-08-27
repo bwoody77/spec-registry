@@ -626,6 +626,17 @@ component DataGrid(
   // Empty = the default surface token, resolved at the use site: a token cannot
   // be a prop default.
   pinBackground: string = "",
+  // The grid's OWN background — the outer box, behind header, rows and the
+  // empty space under a short list. Empty = `semantic.surface`, resolved at the
+  // use site like the three above (a token cannot be a prop default).
+  //
+  // The outer box used to be transparent and content-sized, so the page only
+  // showed through OUTSIDE the border. Since 1.10.2 a caller-given `height`
+  // is passed through this box, and a grid taller than its rows exposed the
+  // page's grey inside its own frame — every windowed roster in Vector went
+  // grey below the last row, and a transparent ordinary row showed the same
+  // grey behind its text. A grid is a surface; it paints one.
+  background: string = "",
   // Backing for group / total rows. Empty = the platform's raised surface;
   // `semantic.surface-sunken` is not a platform token, so it cannot be assumed.
   groupBackground: string = "",
@@ -1189,6 +1200,7 @@ component DataGrid(
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
       _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
     pinBg: pinBackground != "" ? pinBackground : semantic.surface
+    gridBg: background != "" ? background : semantic.surface
     groupBg: groupBackground != "" ? groupBackground : semantic.surface-raised
     stripeBg: stripeBackground != "" ? stripeBackground : semantic.surface
     pad: cellPadding != "" ? cellPadding : spacing.2
@@ -1706,6 +1718,8 @@ component DataGrid(
     border: bordered ? borders.default : 'none'
     border-radius: bordered ? radius.md : '0'
     overflow: hidden
+    // See the `background` prop: the grid paints its own surface.
+    background: gridBg
     // 'auto' unless the caller gave a height — see outerHeight.
     height: outerHeight
     role: "grid"
