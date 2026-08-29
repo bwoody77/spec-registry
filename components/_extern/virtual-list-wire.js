@@ -136,18 +136,18 @@ export function wireVirtualList(listId, onHeight) {
             return;
         if (tryAttach())
             return;
-        if (attempts++ >= ATTACH_ATTEMPTS)
-            return; // bounded: an unmounted list stops asking
+        if (attempts++ >= ATTACH_ATTEMPTS) {
+            // Bounded — an unmounted list stops asking. And it TEARS DOWN rather than
+            // merely stopping: a wire that gives up still sat in `wires` and `live`
+            // with `isDetached()` permanently false (its scroller is null), so the
+            // document-wide MutationObserver reaper it registered was kept alive for
+            // the rest of the session with nothing left to reap. Given this package's
+            // history with per-mount listeners that are never released, giving up has
+            // to mean giving up completely.
+            wire.destroy();
+            return;
+        }
         timer = setTimeout(pollAttach, 16);
-    }
-    // Mount is synchronous, so the microtask queue is normally all it takes; the
-    // bounded poll is the fallback for a container appended a frame late.
-    if (!tryAttach()) {
-        if (typeof queueMicrotask === 'function')
-            queueMicrotask(() => { if (!scroller)
-                pollAttach(); });
-        else
-            pollAttach();
     }
     const wire = {
         isDetached: () => !!scroller && !scroller.isConnected,
@@ -171,6 +171,17 @@ export function wireVirtualList(listId, onHeight) {
     };
     wires.set(listId, wire);
     watchForDetach(wire);
+    // AFTER `wire` exists, because pollAttach() calls wire.destroy() when it
+    // gives up and `const` bindings are in the temporal dead zone until then.
+    // Mount is synchronous, so the microtask queue is normally all it takes; the
+    // bounded poll is the fallback for a container appended a frame late.
+    if (!tryAttach()) {
+        if (typeof queueMicrotask === 'function')
+            queueMicrotask(() => { if (!scroller && !destroyed)
+                pollAttach(); });
+        else
+            pollAttach();
+    }
     return wire.destroy;
 }
 /**

@@ -135,6 +135,25 @@ component VirtualList(
       measuredHeight = h
       emit("range", { start: visStart, end: visEnd })
     }
+
+    // Same reason, for the other input that can arrive late.
+    //
+    // On a cold load the wire measures within a microtask, while `totalCount`
+    // is still 0 — computeWindow returns EMPTY for a zero count, so that first
+    // emit tells the caller its range is [0, 0) and overwrites whatever it had
+    // seeded. When the real count lands there is no scroll and no resize, so
+    // nothing asks again and the list renders nothing at all.
+    //
+    // It survived review because removing a loading placeholder happens to
+    // resize the scroller and trip the ResizeObserver; a caller whose
+    // placeholder is styled differently gets an empty list.
+    onCountChange() {
+      emit("range", { start: visStart, end: visEnd })
+    }
+  }
+
+  @watch {
+    totalCount: { onCountChange() }
   }
 
   block {
