@@ -22,11 +22,12 @@
  * the element is in the document, whatever the spacers say. That makes this a
  * genuinely smaller problem rather than a second copy of a solved one.
  *
- * The corollary is a REQUIREMENT on the caller, and it is why `height` defaults
- * to a pixel value rather than '100%': give VirtualList a parent with a
- * resolvable height. Hand it `height: 'auto'` inside an unsized box and its
+ * The corollary is a REQUIREMENT on the caller: give VirtualList a parent with
+ * a resolvable height. Hand it `height: 'auto'` inside an unsized box and its
  * clientHeight becomes content-derived, at which point you are in DataGrid's
- * world and this module is not enough.
+ * world and this module is not enough. There is no safe default to fall back
+ * on — `height` defaults to `""` and the pixel fallback is `0px` — which is why
+ * `useFixedHeight` below shouts when neither sizing prop was supplied.
  *
  * Everything else — the window arithmetic — stays in grid-window.ts, pure and
  * shared with DataGrid. Nothing here computes a window.
@@ -137,6 +138,17 @@ export function wireVirtualList(listId, onHeight) {
         if (tryAttach())
             return;
         if (attempts++ >= ATTACH_ATTEMPTS) {
+            // SAY SO. DataGrid's identical branch logs, and its comment explains why:
+            // "Silence here is what made this so hard to see." A list that never
+            // attaches renders the overscan and nothing else — five rows of a
+            // thousand, with a correct-looking scrollbar — and there is no path back,
+            // because the component's wire computed depends only on `height` and the
+            // id, both stable. Without this line the symptom is a short list and no
+            // evidence at all.
+            // eslint-disable-next-line no-console
+            console.error(`[VirtualList] never found its scroll container [data-virtual-list="${listId}"] `
+                + `after ${ATTACH_ATTEMPTS} attempts (~2s). The list will render only its overscan. `
+                + 'This usually means the element was never mounted.');
             // Bounded — an unmounted list stops asking. And it TEARS DOWN rather than
             // merely stopping: a wire that gives up still sat in `wires` and `live`
             // with `isDetached()` permanently false (its scroller is null), so the
@@ -196,6 +208,30 @@ export function releaseVirtualList(listId) {
     if (w)
         w.destroy();
     return null;
+}
+/**
+ * The falsy arm of VirtualList's wire computed: this list is sized by the
+ * legacy pixel prop, not by CSS. Releases any wire and checks the pixel height
+ * is usable.
+ *
+ * The check exists because giving `viewportHeight` a default of 0 (so that a
+ * `height`-only caller need not pass it) silently removed the compiler's
+ * "VirtualList requires prop 'viewportHeight'" error. `VirtualList(totalCount:
+ * n, rowHeight: 30)` now compiles with no error and no warning and renders
+ * `height: 0px` — an invisible list with nothing to diagnose it by. Under
+ * 0.3.0 that call did not build.
+ *
+ * A runtime error is a poor substitute for the build-time one, but it is the
+ * one available: the default cannot be removed without breaking the CSS-sized
+ * form this version exists to enable.
+ */
+export function useFixedHeight(listId, viewportHeight) {
+    if (!(viewportHeight > 0)) {
+        // eslint-disable-next-line no-console
+        console.error('[VirtualList] no usable height: pass `height` (a CSS length, preferred) '
+            + 'or a positive `viewportHeight`. The list will render 0px tall.');
+    }
+    return releaseVirtualList(listId);
 }
 let seq = 0;
 /** A DOM-unique id for one VirtualList instance, minted in `@state`. */

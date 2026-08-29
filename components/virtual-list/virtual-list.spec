@@ -1,5 +1,5 @@
 @extern { computeWindow } from "@spec/components/grid-window.js"
-@extern { wireVirtualList, releaseVirtualList, genVirtualListId } from "@spec/components/virtual-list-wire.js"
+@extern { wireVirtualList, useFixedHeight, genVirtualListId } from "@spec/components/virtual-list-wire.js"
 
 // VirtualList — virtualized scroll container for very large lists.
 //
@@ -82,16 +82,19 @@ component VirtualList(
     // Identity in the DOM, so the wire can find this instance's scroller.
     // Minted once per mount, exactly as DataGrid mints its grid id.
     _vlId: genVirtualListId()
-    // The last height the wire reported. 0 means "not measured yet", which is
-    // why `effHeight` falls back rather than trusting it.
-    measuredHeight: 0
+    // The last height the wire reported. -1, NOT 0, because 0 is a real answer
+    // — a display:none ancestor, a collapsed section, an iOS keyboard — and the
+    // wire deliberately reports it. With 0 as the sentinel, a genuinely
+    // zero-height list fell back to the `viewportHeight` seed and windowed a
+    // screenful of rows into a box nobody can see.
+    measuredHeight: -1
   }
 
   @computed {
     // Measured wins once there is one; `viewportHeight` is the seed that keeps
     // the first frame from being empty. A caller using the legacy pixel prop
     // alone never measures, and this resolves to exactly what they passed.
-    effHeight: measuredHeight > 0 ? measuredHeight : viewportHeight
+    effHeight: measuredHeight >= 0 ? measuredHeight : viewportHeight
 
     // The scroller's CSS height: the caller's `height` when given, otherwise
     // the legacy pixel prop rendered as one.
@@ -106,7 +109,7 @@ component VirtualList(
     // wire with its ResizeObserver still attached.
     _vlTeardown: height != ''
       ? wireVirtualList(_vlId, onMeasuredHeight)
-      : releaseVirtualList(_vlId)
+      : useFixedHeight(_vlId, viewportHeight)
 
     // The window calculation lives in grid-window.js, shared with DataGrid.
     // Two components computing the same thing is how they drift.
@@ -150,10 +153,31 @@ component VirtualList(
     onCountChange() {
       emit("range", { start: visStart, end: visEnd })
     }
+
+    // Sizing by CSS again after a spell on the pixel prop. The measurement from
+    // last time is stale and must not be believed: without this the window
+    // stayed pinned to it forever, because nothing else ever writes
+    // `measuredHeight` down. A caller toggling `height: ready ? '100%' : ''`
+    // could never get `viewportHeight` back.
+    onHeightModeChange() {
+      measuredHeight = -1
+    }
   }
 
   @watch {
+    // EVERY input computeWindow takes, not just the count.
+    //
+    // `computeWindow` reads scrollTop, viewportHeight, rowHeight, totalCount
+    // and overscan. Scroll and the measured height already emit; these three
+    // are the rest, and they move the window exactly as much. Measured at 1043
+    // rows in a 600px viewport, `rowHeight` 30 -> 15 widened the window from
+    // [0,25) to [0,45) and halved the bottom spacer — while emitting nothing,
+    // so the caller kept rendering 25 rows into space reserved for 45 and left
+    // ~300px blank under a perfectly correct scrollbar.
     totalCount: { onCountChange() }
+    rowHeight: { onCountChange() }
+    overscan: { onCountChange() }
+    height: { onHeightModeChange() }
   }
 
   block {
