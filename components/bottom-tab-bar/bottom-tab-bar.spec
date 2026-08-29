@@ -2,7 +2,20 @@ component BottomTabBar(
   tabs: array = [],
   activeTab: string = "",
   showLabels: boolean = true,
-  ariaLabel: string = ""
+  ariaLabel: string = "",
+  // The id of ONE tab to render as a raised circular disc standing proud of the
+  // bar, instead of a flat icon. "" (the default) is every bar that shipped
+  // before this prop existed, byte for byte.
+  //
+  // It names a TAB ID rather than an index, on purpose. A bar's tab set is
+  // usually role- or config-driven, so the middle slot is not a stable place;
+  // binding the treatment to the id means the disc follows its button when the
+  // set is reordered, instead of promoting whatever happens to land in the
+  // centre.
+  //
+  // An id not present in `tabs` is a no-op, so a caller may pass one
+  // unconditionally for a bar that only sometimes contains that tab.
+  raisedTabId: string = ""
 ) {
   @actions {
     selectTab(tabId) {
@@ -56,8 +69,47 @@ component BottomTabBar(
           background: semantic.surface-raised
         }
 
-        // Icon
-        Icon(name: tab.icon, size: "22px", color: activeTab == tab.id ? semantic.accent : semantic.text-tertiary)
+        // ── Icon, in one of two forms ────────────────────────────────────
+        //
+        // The raised test is repeated at each site rather than hoisted, because
+        // `@computed` cannot see `tab` — it is the `each` binding. It is still
+        // REACTIVE: the expression NAMES the `raisedTabId` signal, and
+        // collectSignalDeps walks binaries, so a subscription is emitted. Same
+        // shape as the `activeTab == tab.id` comparisons this component already
+        // uses for colour and for aria-current.
+        //
+        // Two sibling blocks rather than one Icon with conditional sizing: the
+        // raised form needs a WRAPPER (the disc), and `visibility:` is silently
+        // ignored on a bare component call — so the Icon sits inside a block
+        // either way.
+
+        // Raised: a 56px disc pulled up out of the bar, ringed in the bar's own
+        // surface colour so it reads as sitting ON the bar rather than in it.
+        // The bar declares no `overflow`, so the overhang is not clipped.
+        //
+        // Every token here is a platform one. `semantic.surface-sunken` would
+        // have been the natural inactive fill and is deliberately NOT used — it
+        // is not guaranteed to exist on every platform (see data-grid-spec's
+        // `groupBackground` note), and a registry component may not assume it.
+        block {
+          visibility: raisedTabId != "" && raisedTabId == tab.id
+          width: 56px
+          height: 56px
+          margin-top: -26px
+          border-radius: 999px
+          background: activeTab == tab.id ? semantic.accent : semantic.surface-hover
+          border: "3px solid " + semantic.surface
+          shadow: activeTab == tab.id ? elevation.floating : elevation.raised
+          layout: horizontal, justify: center, align: center
+          Icon(name: tab.icon, size: "26px", color: activeTab == tab.id ? semantic.on-interactive : semantic.text-tertiary)
+        }
+
+        // Flat: every other tab, and every tab on a bar that passes no
+        // raisedTabId. Byte-identical to what this component rendered before.
+        block {
+          visibility: !(raisedTabId != "" && raisedTabId == tab.id)
+          Icon(name: tab.icon, size: "22px", color: activeTab == tab.id ? semantic.accent : semantic.text-tertiary)
+        }
 
         // Label
         text(tab.label) {
@@ -66,9 +118,11 @@ component BottomTabBar(
           color: activeTab == tab.id ? semantic.accent : semantic.text-tertiary
         }
 
-        // Active indicator
+        // Active indicator. Suppressed on the raised tab: the disc's own fill
+        // already carries the active state, and a 2px bar pinned to `top: 0`
+        // would cut across the middle of a disc that overhangs that very edge.
         block {
-          visibility: activeTab == tab.id
+          visibility: activeTab == tab.id && !(raisedTabId != "" && raisedTabId == tab.id)
           width: 24px
           height: 2px
           border-radius: 1px
