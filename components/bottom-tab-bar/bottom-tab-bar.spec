@@ -28,6 +28,24 @@ component BottomTabBar(
   // would assert a controls-relationship that does not exist. The state that
   // fits a set of destinations is aria-current="page".
   block {
+    // `position` is what makes the `z-index` below mean anything. A static,
+    // non-flex-item element takes no z-index at all, and this bar's parent is
+    // whatever the host app wraps it in — usually a plain `display: block`
+    // div, which makes the bar a plain block child. So the declaration below
+    // was inert from the day it was written, and stayed invisible for as long
+    // as nothing overlapped the bar.
+    //
+    // `raisedTabId` is what made it visible. The disc overhangs the bar's top
+    // edge by 17px, and with no stacking context the overhang paints in normal
+    // flow order — below the inline/replaced and positioned content of
+    // whatever sits above the bar. Vector 2026-08-29: on /dashboard at 390px a
+    // chart `<canvas>` painted straight over the top third of the Book disc,
+    // which reads exactly like the disc is being clipped by the bar.
+    //
+    // `relative` with no offsets moves nothing; it only creates the stacking
+    // context, so every bar that shipped before this line renders byte for
+    // byte as it did.
+    position: "relative"
     z-index: 900
     background: semantic.surface
     border-top: borders.default
@@ -52,6 +70,18 @@ component BottomTabBar(
       // padding, and this bar sizes its tabs purely by `grow`.
       button {
         grow: true
+        // The containing block for the active indicator at the bottom of this
+        // button. Without it the indicator's nearest positioned ancestor is the
+        // initial containing block, so `top: 0; left: 50%` put it at the top of
+        // the VIEWPORT, horizontally centred on the page — a stray 24x2 accent
+        // bar above the app header on every route, measured on Vector's
+        // /dashboard at 390px (indicator top 0 / left 183, its button top
+        // 786.3 / left 0, offsetParent BODY).
+        //
+        // The bar's root going `relative` does not cover this: the indicator
+        // would then anchor to the ROOT and sit centred on the whole bar rather
+        // than over its own tab. The containing block has to be the tab.
+        position: "relative"
         padding-top: spacing.2
         padding-bottom: spacing.1
         padding-left: 0px
@@ -85,7 +115,10 @@ component BottomTabBar(
 
         // Raised: a 56px disc pulled up out of the bar, ringed in the bar's own
         // surface colour so it reads as sitting ON the bar rather than in it.
-        // The bar declares no `overflow`, so the overhang is not clipped.
+        // The bar declares no `overflow`, so the overhang is not clipped — but
+        // "not clipped" is not "visible". Keeping the overhang on screen is the
+        // root's `position: relative`, without which it paints UNDER the page
+        // content it overlaps; see the note there.
         //
         // Every token here is a platform one. `semantic.surface-sunken` would
         // have been the natural inactive fill and is deliberately NOT used — it
