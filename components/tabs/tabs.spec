@@ -10,16 +10,11 @@
 // variant:  'pill' (filled chip, carded strip) | 'underline' (2px indicator)
 // overflow: 'wrap' (grid auto-fill) | 'scroll' (single row, auto-scroll)
 //           | 'grow' (equal-width columns filling the row)
-// tabMinWidth: the 'wrap' grid's column floor. Every tab is at least this
-//           wide, which is what keeps a wrapped strip reading as a grid
-//           rather than a ragged run of chips. The cost is that a strip of
-//           MANY short tabs pays the floor on every one of them: on a
-//           thirteen-tab strip at ~1220px, ten tabs sat at the 110px floor
-//           while needing 63-100px, and the four that did not fit wrapped
-//           onto a second and third line. Lower it (e.g. '96px') when a
-//           caller has more tabs than the floor can fit on one line, and
-//           leave it alone otherwise. Inert under 'scroll' and 'grow', whose
-//           templates do not use it.
+//
+// 'wrap' gives every tab a 110px minimum so the wrapped rows line up as a
+// grid. When a strip has MANY tabs of uneven length that floor stops paying
+// for itself — see `PackedTabs` further down this file, which sizes each tab
+// to its own label and separates them with a rule instead.
 // countTone: how a tab's `count` badge is coloured.
 //           'state'  (default) — tinted with the tab's own active/inactive
 //                    state, so the count reads as part of that tab.
@@ -113,7 +108,7 @@ fn _tabCells(items: array) -> array {
 // deals toolbar against its own mockup, which draws the segment at 28px. Same
 // prop, same two values, as Select and Button.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
-               countTone: string = "state", size: string = "md", tabMinWidth: string = "110px") {
+               countTone: string = "state", size: string = "md") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -131,7 +126,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
                    ? ('repeat(' + (cells.length + '') + ', 1fr)')
                    : (overflow == 'scroll'
                        ? ('repeat(' + (cells.length + '') + ', max-content)')
-                       : ('repeat(auto-fill, minmax(' + tabMinWidth + ', max-content))'))
+                       : 'repeat(auto-fill, minmax(110px, max-content))')
     scrollMode:  overflow == 'scroll' ? 'auto' : 'visible'
     // Strip chrome differs by variant.
     stripBg:        variant == 'pill' ? semantic.surface : 'transparent'
@@ -339,6 +334,132 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
   }
 }
 
+// PackedTabs — the same tab strip, sized to its labels.
+//
+//   PackedTabs(tabs: myTabs, activeTab: active) {
+//     on change(id): setActive(id)
+//   }
+//
+// `Tabs(overflow: 'wrap')` lays the strip out as a grid of
+// `minmax(110px, max-content)` columns. Uniform columns are what make a
+// wrapped strip read as a grid rather than a ragged run of chips, and the
+// price is that EVERY tab pays the floor: measured on Vector's aircraft page
+// at a 1224px strip, Oil needed 68px, W&B 81px, Rates 83px and Meters 92px,
+// and all four were drawn 110px wide. Thirteen tabs then needed three lines
+// with roughly 300px of the strip spent on nothing.
+//
+// PackedTabs is the other answer: each tab is exactly as wide as its own
+// label, tabs are separated by a 1px rule instead of a 4px gap, and a tab that
+// does not fit moves to the next line whole. Same page, same width: eleven
+// tabs on the first line, two on the second, every label on one line, and the
+// strip 96px tall against 117px.
+//
+// It is a SEPARATE component rather than another `overflow` mode because the
+// two need different CSS display modes, and `layout:` is static in the
+// compiler — `columns:` takes a binding, `display` does not (ir-to-js emits it
+// from `layout.mode` as a literal). Free flow is flex-wrap and there is no
+// grid template that reproduces it: `minmax(0, max-content)` gives natural
+// widths but shrinks them to fit ONE row instead of wrapping, and every
+// intrinsic minimum (`min-content`, bare `max-content`) is invalid under
+// `auto-fill`. Both were measured in a browser before this component existed.
+//
+// Which to reach for: `Tabs` when the strip is short enough that uniform
+// columns cost nothing, or when the tab labels are of similar length.
+// PackedTabs when there are MANY tabs of uneven length — the case where the
+// floor stops being alignment and starts being wasted row.
+//
+// Not supported here, deliberately: `overflow` (a packed strip always wraps —
+// use Tabs for a scrolling or an equal-width strip), the `tabAdornment` slot
+// and `group`. Those exist to structure a GRID of tabs; a packed strip has no
+// columns for them to line up with. They can be added if a caller needs them.
+component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pill",
+                     countTone: string = "state", size: string = "md") {
+  @state {
+    // Which tab currently holds DOM focus — empty until the user arrows into
+    // the strip, so `focus:` never steals focus on mount. Same contract as Tabs.
+    focusedId: ''
+  }
+
+  @computed {
+    // Strip chrome, identical to Tabs so the two are interchangeable at a
+    // glance: only what is INSIDE the strip differs.
+    stripBg:        variant == 'pill' ? semantic.surface : 'transparent'
+    stripBorder:    variant == 'pill' ? borders.default : '1px solid transparent'
+    stripBorderBot: variant == 'pill' ? borders.default : ('1px solid ' + semantic.border)
+    stripRadius:    variant == 'pill' ? 12px : 0px
+    stripPad:       variant == 'pill' ? 6px : 0px
+
+    // Roving tabindex — one tab in the page tab order, the rest on the arrows.
+    tabStopId: focusedId != '' ? focusedId : activeTab
+    tabCount:  tabs.length
+
+    // The last tab wears no rule: a trailing divider at the end of the strip
+    // draws a line against the strip's own padding and reads as an empty
+    // fourteenth tab. A rule at a WRAP boundary is left in place on purpose —
+    // it is the only thing marking where the row ended.
+    lastId: tabCount > 0 ? tabs[tabCount - 1].id : ''
+  }
+
+  @actions {
+    // MANUAL activation, exactly as in Tabs: the arrows move focus, Enter and
+    // Space select. Vector's tabs each own a @source and fetch on mount, so
+    // automatic activation would fire a load per tab arrowed past.
+    moveFocus(delta) {
+      if tabCount > 0 {
+        let currentId = focusedId != '' ? focusedId : activeTab
+        let from = _tabIndexOfId(tabs, currentId)
+        focusedId = tabs[_tabWrap(from, delta, tabCount)].id
+      }
+    }
+    focusEdge(last) {
+      if tabCount > 0 {
+        focusedId = last ? tabs[tabCount - 1].id : tabs[0].id
+      }
+    }
+    pickTab(id) {
+      focusedId = id
+      emit("change", id)
+    }
+  }
+
+  block {
+    role: "tablist"
+    on key-down(event): match event.key {
+      "ArrowRight" -> moveFocus(1),
+      "ArrowLeft"  -> moveFocus(-1),
+      "Home"       -> focusEdge(false),
+      "End"        -> focusEdge(true),
+      _ -> {}
+    }
+    // The whole difference from Tabs is this line. `wrap` is the bare layout
+    // flag (not `wrap: true`, which does not parse), and `gap: 0px` is what
+    // lets the per-tab rule below be the separator — a gap plus a rule would
+    // leave the line floating between two tabs instead of dividing them.
+    layout: horizontal, gap: 0px, align: center, wrap
+    background: stripBg
+    border: stripBorder
+    border-bottom: stripBorderBot
+    border-radius: stripRadius
+    padding: stripPad
+
+    each tabs as tab (tab.id) {
+      TabsItem(
+        tab: tab
+        active: tab.id == activeTab
+        variant: variant
+        tabStop: tab.id == tabStopId
+        focused: tab.id == focusedId
+        countTone: countTone
+        size: size
+        fillColumn: false
+        divider: tab.id != lastId
+      ) {
+        on change(id): pickTab(id)
+      }
+    }
+  }
+}
+
 // One tab button. Styling that depends on `active` (which changes at runtime)
 // lives in @computed so it re-evaluates reactively — inline ternaries on a
 // changing prop get stuck stale (see pilot-detail.spec PilotTab note).
@@ -352,7 +473,8 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // `style.fontFamily = 'inherit'` for buttons, so typography is unaffected.
 component TabsItem(tab: object, active: boolean = false, variant: string = "pill",
                    tabStop: boolean = true, focused: boolean = false,
-                   countTone: string = "state", size: string = "md") {
+                   countTone: string = "state", size: string = "md",
+                   fillColumn: boolean = true, divider: boolean = false) {
   @computed {
     // The ONLY thing size changes. The radius, the borders and the count badge
     // are untouched, so a small strip is the same control drawn tighter rather
@@ -405,6 +527,20 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // Conditional attribute values must be named computeds, not inline
     // ternaries at the property.
     tabStopOrder: tabStop ? '0' : '-1'
+
+    // `width: 100%` is what makes a tab fill its grid column — a <button> does
+    // not stretch on its own. In a PACKED strip there is no column to fill:
+    // the tab IS its label, and 100% would resolve against the flex container
+    // and hand every tab the whole row. Defaults true, so Tabs is unchanged.
+    itemWidth: fillColumn ? '100%' : 'auto'
+
+    // The packed strip separates tabs with a rule instead of a gap. Written as
+    // a full border shorthand rather than a colour, because `none` has to be
+    // expressible: a transparent 1px would still widen every tab in every
+    // existing strip by 1px, which is exactly the silent reflow the fillColumn
+    // default above is avoiding. Declared AFTER `border` / `border-bottom`
+    // below — a reactive border shorthand clobbers longhands written under it.
+    itemBorderRight: divider ? ('1px solid ' + semantic.border) : 'none'
   }
 
   button {
@@ -424,14 +560,15 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     cursor: 'pointer'
     // The button's own chrome, zeroed so the styling below is the only thing
     // that paints. width:100% keeps a grid item filling its column exactly as
-    // the div did (a button does not stretch on its own).
-    width: 100%
+    // the div did (a button does not stretch on its own) — see itemWidth.
+    width: itemWidth
     padding-y: padY
     padding-x: padX
     border-radius: itemRadius
     background: itemBg
     border: itemBorder
     border-bottom: itemBorderBot
+    border-right: itemBorderRight
     on click: emit("change", tab.id)
     on hover {
       background: hoverBg
