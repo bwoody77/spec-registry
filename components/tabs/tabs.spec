@@ -10,6 +10,16 @@
 // variant:  'pill' (filled chip, carded strip) | 'underline' (2px indicator)
 // overflow: 'wrap' (grid auto-fill) | 'scroll' (single row, auto-scroll)
 //           | 'grow' (equal-width columns filling the row)
+// tabMinWidth: the 'wrap' grid's column floor. Every tab is at least this
+//           wide, which is what keeps a wrapped strip reading as a grid
+//           rather than a ragged run of chips. The cost is that a strip of
+//           MANY short tabs pays the floor on every one of them: on a
+//           thirteen-tab strip at ~1220px, ten tabs sat at the 110px floor
+//           while needing 63-100px, and the four that did not fit wrapped
+//           onto a second and third line. Lower it (e.g. '96px') when a
+//           caller has more tabs than the floor can fit on one line, and
+//           leave it alone otherwise. Inert under 'scroll' and 'grow', whose
+//           templates do not use it.
 // countTone: how a tab's `count` badge is coloured.
 //           'state'  (default) — tinted with the tab's own active/inactive
 //                    state, so the count reads as part of that tab.
@@ -103,7 +113,7 @@ fn _tabCells(items: array) -> array {
 // deals toolbar against its own mockup, which draws the segment at 28px. Same
 // prop, same two values, as Select and Button.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
-               countTone: string = "state", size: string = "md") {
+               countTone: string = "state", size: string = "md", tabMinWidth: string = "110px") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -121,7 +131,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
                    ? ('repeat(' + (cells.length + '') + ', 1fr)')
                    : (overflow == 'scroll'
                        ? ('repeat(' + (cells.length + '') + ', max-content)')
-                       : 'repeat(auto-fill, minmax(110px, max-content))')
+                       : ('repeat(auto-fill, minmax(' + tabMinWidth + ', max-content))'))
     scrollMode:  overflow == 'scroll' ? 'auto' : 'visible'
     // Strip chrome differs by variant.
     stripBg:        variant == 'pill' ? semantic.surface : 'transparent'
