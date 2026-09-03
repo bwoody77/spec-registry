@@ -51,7 +51,14 @@ component AvatarPicker(
   // Longest edge of the original handed back on `change`. 1024 is comfortably
   // more than re-cropping can ever show (cropSize x maxZoom = 768px) and about
   // 100 KB, against 3-5 MB for the raw phone photo.
-  sourceMaxDim: number = 1024
+  sourceMaxDim: number = 1024,
+  // Show the photo and nothing else: no Change/Adjust/Remove, and the chip is
+  // inert. For a profile page whose viewer may not edit this person's photo,
+  // so the SAME component renders both the editor and the read-only chip —
+  // callers used to keep a second, hand-rolled avatar for this case, and the
+  // two drifted (Vector's desktop profile shipped without the cropper for a
+  // week while the phone had it). 0.6.0.
+  readOnly: boolean = false
 ) {
   @state {
     cropOpen: false
@@ -75,7 +82,10 @@ component AvatarPicker(
     hasAvatar: currentAvatarUrl != ""
     // Something to re-frame: either this session's pick or a stored original.
     adjustSrc: pickedSrc != "" ? pickedSrc : sourceUrl
-    canAdjust: adjustSrc != "" && !busy
+    canAdjust: adjustSrc != "" && !busy && !readOnly
+    // What the chip button announces. Read-only it is a picture, not an
+    // affordance, so it must not promise an adjustment that cannot happen.
+    chipLabel: readOnly ? "Profile photo" : "Adjust your photo"
     pickLabel: buttonLabel != "" ? buttonLabel : (hasAvatar ? "Change photo" : "Add photo")
     avatarPx: size + "px"
 
@@ -258,7 +268,7 @@ component AvatarPicker(
       layout: horizontal, justify: center, align: center
       cursor: canAdjust ? "pointer" : "default"
       disabled: !canAdjust
-      aria-label: "Adjust your photo"
+      aria-label: chipLabel
       on click: { if canAdjust { adjustPhoto() } }
 
       block {
@@ -283,7 +293,10 @@ component AvatarPicker(
       }
     }
 
+    // The action column. Absent entirely in read-only mode — a viewer who may
+    // not change this photo gets the picture and no buttons, not disabled ones.
     block {
+      visibility: !readOnly
       layout: vertical, gap: spacing.2
 
       button {
