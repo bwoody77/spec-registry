@@ -262,6 +262,7 @@ component AvatarPicker(
       height: avatarPx
       border-radius: 999px
       overflow: hidden
+      position: "relative"
       border: 'none'
       padding: 0px
       background: fallbackColor
@@ -271,24 +272,35 @@ component AvatarPicker(
       aria-label: chipLabel
       on click: { if canAdjust { adjustPhoto() } }
 
+      // The monogram sits BEHIND the photo, always. Until the image paints
+      // (a stored avatar on a slow connection, R2 in production) the disc
+      // shows the initials rather than a blank coloured circle — the symptom
+      // Vector's #423 was filed for, and which its hand-rolled chips fixed
+      // with a spinner layer that this component did not carry (0.6.1). A
+      // saved crop is an opaque JPEG, so once it lands the monogram is gone.
+      block {
+        position: "absolute"
+        top: 0px
+        left: 0px
+        right: 0px
+        bottom: 0px
+        layout: horizontal, justify: center, align: center
+        text(initials) {
+          color: "#ffffff"
+          weight: 700
+          style: type.body-md
+        }
+      }
+
       block {
         visibility: hasAvatar
+        position: "relative"
         width: 100%
         height: 100%
         image(currentAvatarUrl) {
           width: 100%
           height: 100%
           object-fit: "cover"
-        }
-      }
-
-      block {
-        visibility: !hasAvatar
-        layout: horizontal, justify: center, align: center
-        text(initials) {
-          color: "#ffffff"
-          weight: 700
-          style: type.body-md
         }
       }
     }
