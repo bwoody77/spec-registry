@@ -1,6 +1,6 @@
 [package]
 name = "avatar-picker"
-version = "0.6.1"
+version = "0.6.2"
 category = "components"
 description = "User avatar uploader with circular crop preview, zoom and pan"
 license = "MIT"

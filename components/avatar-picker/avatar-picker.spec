@@ -431,6 +431,13 @@ component AvatarPicker(
           on drag(delta): onPan(delta)
           on drag-end(delta): onPanEnd(delta)
 
+          // The picture must not receive the press. An <img> is draggable by
+          // default, so a mouse-down that lands on it starts a native HTML5
+          // image drag — the not-allowed cursor, a ghost of the photo — and
+          // the browser fires pointercancel on the container, which ends the
+          // pan before it moved a pixel. Touch never saw it: the touch path
+          // preventDefaults on move and no native drag begins. Found on the
+          // desktop profile 2026-09-05: zoom worked, pan did nothing (0.6.2).
           block {
             position: "absolute"
             top: 50%
@@ -438,6 +445,7 @@ component AvatarPicker(
             width: dispWPx
             height: dispHPx
             transform: previewTransform
+            pointer-events: "none"
 
             image(imageSrc) {
               width: 100%
