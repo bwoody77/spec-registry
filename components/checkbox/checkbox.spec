@@ -91,10 +91,30 @@ component Checkbox(
       }
     }
 
+    // `text-align: start` is load-bearing, and its absence was invisible for
+    // the life of this component.
+    //
+    // The root is a <button>, and the UA stylesheet gives every button
+    // `text-align: center`. That inherits down into this label. While the
+    // button shrink-wraps its two children the box hugs the glyphs, so there
+    // is no room to centre in and nothing looks wrong — which is why ~44 call
+    // sites shipped without noticing.
+    //
+    // It appears the moment the label box is WIDER than the text: a checkbox
+    // stretched by a `layout: vertical` parent, or — the common one — a label
+    // long enough to WRAP. Measured in Vector at 390px on a two-line label:
+    // line 1 inset 30px on both sides of a 257px box, line 2 ("closeout")
+    // 60px wide with 98px on each side, dead centre under the first. A form
+    // control whose text drifts to the middle reads as a rendering fault.
+    //
+    // The property cannot go on the `button` itself — Spec rejects it there —
+    // and only logical values are accepted, so `left` is an error. Vector's
+    // ToggleRow carries the identical two lines for the identical reason.
     text(label) {
       style: labelType
       weight: 500
       color: semantic.text-secondary
+      text-align: start
     }
   }
 }
