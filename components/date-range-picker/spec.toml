@@ -1,0 +1,13 @@
+[package]
+name = "date-range-picker"
+version = "0.1.0"
+category = "components"
+description = "A start and an end picked on one calendar: presets, two months side by side (one on a phone), a suggested end for fixed-length periods, an optional ruler of bands such as pay periods, typed Start / Through fields, and Apply / Cancel."
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "date-range-picker.spec"
