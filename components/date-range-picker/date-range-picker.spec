@@ -111,7 +111,7 @@ component DateRangePicker(start: string = "", end: string = "",
       hover = ""
       problem = ""
       pendingClose = false
-      let v = drpViewFor(start, end, todayIso)
+      let v = drpViewFor(start, end, todayIso, months)
       viewYear = v.year
       viewMonth = v.month
       focusIso = start != "" ? start : todayIso
@@ -250,7 +250,7 @@ component DateRangePicker(start: string = "", end: string = "",
         picking = true
         endText = se != "" ? isoToOutput(se, format) : ""
       }
-      let nv = drpViewFor(iso, draftEnd, todayIso)
+      let nv = drpViewFor(iso, draftEnd, todayIso, months)
       viewYear = nv.year
       viewMonth = nv.month
       focusIso = iso

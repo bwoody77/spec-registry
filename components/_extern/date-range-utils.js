@@ -256,18 +256,31 @@ export function drpShiftView(year, month, n) {
     return { year: y, month: total - y * 12 };
 }
 /**
- * Which month opens on the LEFT. A range's start month — unless the whole
- * range (or, with none, today) sits in one month, in which case that month goes
- * on the RIGHT: reports look back, so the month before is the useful neighbour.
+ * Which month opens on the LEFT of `months` visible months (1 on a phone).
+ *
+ *   • One month: the start's month (today's with no start). 0.1.2 used the
+ *     two-month rule here too, so a phone showed an empty July for an August
+ *     range — the range off screen and focus on a day that was not there.
+ *   • Two months, a range spanning months: the start's month.
+ *   • Two months, a range inside one month (or no range): that month on the
+ *     left and the next on the right — unless it is TODAY's month, which goes
+ *     on the right so last month shows beside it (reports look back).
  */
-export function drpViewFor(start, end, today) {
+export function drpViewFor(start, end, today, months = 2) {
     const zs = drpToDay(start);
     const ze = drpToDay(end);
-    const anchor = zs ?? drpToDay(today) ?? 0;
+    const zt = drpToDay(today);
+    const anchor = zs ?? zt ?? 0;
     const a = new Date(anchor * DAY_MS);
+    if (months <= 1)
+        return drpShiftView(a.getUTCFullYear(), a.getUTCMonth(), 0);
     const b = new Date((ze ?? anchor) * DAY_MS);
     const sameMonth = a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
-    return drpShiftView(a.getUTCFullYear(), a.getUTCMonth(), sameMonth ? -1 : 0);
+    if (!sameMonth)
+        return drpShiftView(a.getUTCFullYear(), a.getUTCMonth(), 0);
+    const t = new Date((zt ?? anchor) * DAY_MS);
+    const todaysMonth = t.getUTCFullYear() === a.getUTCFullYear() && t.getUTCMonth() === a.getUTCMonth();
+    return drpShiftView(a.getUTCFullYear(), a.getUTCMonth(), todaysMonth ? -1 : 0);
 }
 /** Is `iso` in one of the `months` months shown from {year, month}? */
 export function drpInView(iso, year, month, months) {
