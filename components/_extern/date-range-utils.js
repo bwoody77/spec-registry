@@ -22,7 +22,7 @@ const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
 const WEEKDAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 /** Epoch day for a REAL calendar date, or null ('2026-02-30' → null). */
-export function rangeToDay(iso) {
+export function drpToDay(iso) {
     if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso))
         return null;
     const y = Number(iso.slice(0, 4));
@@ -34,7 +34,7 @@ export function rangeToDay(iso) {
         return null;
     return Math.round(t / DAY_MS);
 }
-export function rangeFromDay(z) {
+export function drpFromDay(z) {
     return new Date(z * DAY_MS).toISOString().slice(0, 10);
 }
 function dow(z) {
@@ -43,22 +43,22 @@ function dow(z) {
 function daysIn(year, month) {
     return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 }
-export function rangeAddDays(iso, n) {
-    const z = rangeToDay(iso);
-    return z === null ? '' : rangeFromDay(z + n);
+export function drpAddDays(iso, n) {
+    const z = drpToDay(iso);
+    return z === null ? '' : drpFromDay(z + n);
 }
 /** Days in a range, BOTH ends counted; 0 when either end is missing or it runs backwards. */
-export function rangeDays(start, end) {
-    const a = rangeToDay(start);
-    const b = rangeToDay(end);
+export function drpDays(start, end) {
+    const a = drpToDay(start);
+    const b = drpToDay(end);
     if (a === null || b === null || b < a)
         return 0;
     return b - a + 1;
 }
 /** 'Aug 30 – Sep 12, 2026' · 'Sep 13 – 26, 2026' · 'Dec 27, 2026 – Jan 9, 2027' · 'Sep 13, 2026'. */
-export function rangeLabel(start, end) {
-    const a = rangeToDay(start);
-    const b = rangeToDay(end);
+export function drpLabel(start, end) {
+    const a = drpToDay(start);
+    const b = drpToDay(end);
     if (a === null || b === null)
         return '';
     const da = new Date(a * DAY_MS);
@@ -76,23 +76,23 @@ export function rangeLabel(start, end) {
     return `${ma} ${da.getUTCDate()} – ${mb} ${db.getUTCDate()}, ${yb}`;
 }
 /** 'Sunday, September 13, 2026'. */
-export function rangeLongDate(iso) {
-    const z = rangeToDay(iso);
+export function drpLongDate(iso) {
+    const z = drpToDay(iso);
     if (z === null)
         return '';
     const d = new Date(z * DAY_MS);
     return `${WEEKDAYS_LONG[d.getUTCDay()]}, ${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }
-export function rangeMonthTitle(year, month) {
-    const v = rangeShiftView(year, month, 0);
+export function drpMonthTitle(year, month) {
+    const v = drpShiftView(year, month, 0);
     return `${MONTHS_LONG[v.month]} ${v.year}`;
 }
 function bandIndexOf(z, bands) {
     if (!Array.isArray(bands))
         return -1;
     for (let i = 0; i < bands.length; i++) {
-        const s = rangeToDay(bands[i]?.start);
-        const e = rangeToDay(bands[i]?.end);
+        const s = drpToDay(bands[i]?.start);
+        const e = drpToDay(bands[i]?.end);
         if (s !== null && e !== null && s <= z && z <= e)
             return i;
     }
@@ -103,27 +103,27 @@ function bandIndexOf(z, bands) {
  * (start + periodDays − 1, since both ends count), else the end of the band the
  * start falls in, else '' — no suggestion.
  */
-export function rangeSuggestEnd(start, periodDays, bands) {
-    const z = rangeToDay(start);
+export function drpSuggestEnd(start, periodDays, bands) {
+    const z = drpToDay(start);
     if (z === null)
         return '';
     if (Number.isFinite(periodDays) && periodDays > 0)
-        return rangeFromDay(z + Math.floor(periodDays) - 1);
+        return drpFromDay(z + Math.floor(periodDays) - 1);
     const i = bandIndexOf(z, bands);
     if (i < 0)
         return '';
     return bands[i].end;
 }
 /** One click on `day`. Returns the next selection state. */
-export function rangePick(start, end, picking, day, periodDays, bands) {
-    const zd = rangeToDay(day);
+export function drpPick(start, end, picking, day, periodDays, bands) {
+    const zd = drpToDay(day);
     if (zd === null)
         return { start, end, picking, suggested: false };
-    const zs = rangeToDay(start);
+    const zs = drpToDay(start);
     if (picking && zs !== null && zd >= zs) {
         return { start, end: day, picking: false, suggested: false };
     }
-    const suggestedEnd = rangeSuggestEnd(day, periodDays, bands);
+    const suggestedEnd = drpSuggestEnd(day, periodDays, bands);
     return { start: day, end: suggestedEnd, picking: true, suggested: suggestedEnd !== '' };
 }
 /**
@@ -132,14 +132,14 @@ export function rangePick(start, end, picking, day, periodDays, bands) {
  * While `picking` with a `hover` on or after the start, the hover previews the
  * end; otherwise the start..end on record is drawn, tentative when `suggested`.
  */
-export function rangeMonthCells(year, month, start, end, hover, picking, suggested, bands, today) {
-    const v = rangeShiftView(year, month, 0);
+export function drpMonthCells(year, month, start, end, hover, picking, suggested, bands, today) {
+    const v = drpShiftView(year, month, 0);
     const first = Math.round(Date.UTC(v.year, v.month, 1) / DAY_MS);
     const count = daysIn(v.year, v.month);
-    const zs = rangeToDay(start);
-    const ze = rangeToDay(end);
-    const zh = rangeToDay(hover);
-    const zt = rangeToDay(today);
+    const zs = drpToDay(start);
+    const ze = drpToDay(end);
+    const zh = drpToDay(hover);
+    const zt = drpToDay(today);
     let lo = null;
     let hi = null;
     let tentative = false;
@@ -166,13 +166,13 @@ export function rangeMonthCells(year, month, start, end, hover, picking, suggest
         cells.push(blank());
     for (let d = 1; d <= count; d++) {
         const z = first + d - 1;
-        const iso = rangeFromDay(z);
+        const iso = drpFromDay(z);
         const inRange = lo !== null && hi !== null && z >= lo && z <= hi;
         const isStart = lo !== null && z === lo;
         const isEnd = hi !== null && z === hi && inRange;
         const bi = bandIndexOf(z, bands);
         const band = bi >= 0 ? bands[bi] : null;
-        let label = rangeLongDate(iso);
+        let label = drpLongDate(iso);
         if (z === zt)
             label += ', today';
         // A start still waiting for its end is drawn as a one-day span, but it is
@@ -201,7 +201,7 @@ export function rangeMonthCells(year, month, start, end, hover, picking, suggest
     return cells;
 }
 /** Normalized {year, month} after moving `n` months. */
-export function rangeShiftView(year, month, n) {
+export function drpShiftView(year, month, n) {
     const total = year * 12 + month + n;
     const y = Math.floor(total / 12);
     return { year: y, month: total - y * 12 };
@@ -211,23 +211,23 @@ export function rangeShiftView(year, month, n) {
  * range (or, with none, today) sits in one month, in which case that month goes
  * on the RIGHT: reports look back, so the month before is the useful neighbour.
  */
-export function rangeViewFor(start, end, today) {
-    const zs = rangeToDay(start);
-    const ze = rangeToDay(end);
-    const anchor = zs ?? rangeToDay(today) ?? 0;
+export function drpViewFor(start, end, today) {
+    const zs = drpToDay(start);
+    const ze = drpToDay(end);
+    const anchor = zs ?? drpToDay(today) ?? 0;
     const a = new Date(anchor * DAY_MS);
     const b = new Date((ze ?? anchor) * DAY_MS);
     const sameMonth = a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
-    return rangeShiftView(a.getUTCFullYear(), a.getUTCMonth(), sameMonth ? -1 : 0);
+    return drpShiftView(a.getUTCFullYear(), a.getUTCMonth(), sameMonth ? -1 : 0);
 }
 /** Is `iso` in one of the `months` months shown from {year, month}? */
-export function rangeInView(iso, year, month, months) {
-    const z = rangeToDay(iso);
+export function drpInView(iso, year, month, months) {
+    const z = drpToDay(iso);
     if (z === null)
         return false;
-    const v = rangeShiftView(year, month, 0);
+    const v = drpShiftView(year, month, 0);
     const lo = Math.round(Date.UTC(v.year, v.month, 1) / DAY_MS);
-    const end = rangeShiftView(v.year, v.month, Math.max(1, months));
+    const end = drpShiftView(v.year, v.month, Math.max(1, months));
     const hi = Math.round(Date.UTC(end.year, end.month, 1) / DAY_MS) - 1;
     return z >= lo && z <= hi;
 }
@@ -236,43 +236,43 @@ export function rangeInView(iso, year, month, months) {
  * by day / week, Home / End to the week's ends, PageUp / PageDown by month with
  * the day clamped to the target month. Any other key returns the date unchanged.
  */
-export function rangeMoveFocus(iso, key) {
-    const z = rangeToDay(iso);
+export function drpMoveFocus(iso, key) {
+    const z = drpToDay(iso);
     if (z === null)
         return iso;
     switch (key) {
-        case 'ArrowLeft': return rangeFromDay(z - 1);
-        case 'ArrowRight': return rangeFromDay(z + 1);
-        case 'ArrowUp': return rangeFromDay(z - 7);
-        case 'ArrowDown': return rangeFromDay(z + 7);
-        case 'Home': return rangeFromDay(z - dow(z));
-        case 'End': return rangeFromDay(z + (6 - dow(z)));
+        case 'ArrowLeft': return drpFromDay(z - 1);
+        case 'ArrowRight': return drpFromDay(z + 1);
+        case 'ArrowUp': return drpFromDay(z - 7);
+        case 'ArrowDown': return drpFromDay(z + 7);
+        case 'Home': return drpFromDay(z - dow(z));
+        case 'End': return drpFromDay(z + (6 - dow(z)));
         case 'PageUp':
         case 'PageDown': {
             const d = new Date(z * DAY_MS);
-            const v = rangeShiftView(d.getUTCFullYear(), d.getUTCMonth(), key === 'PageUp' ? -1 : 1);
+            const v = drpShiftView(d.getUTCFullYear(), d.getUTCMonth(), key === 'PageUp' ? -1 : 1);
             const day = Math.min(d.getUTCDate(), daysIn(v.year, v.month));
-            return rangeFromDay(Math.round(Date.UTC(v.year, v.month, day) / DAY_MS));
+            return drpFromDay(Math.round(Date.UTC(v.year, v.month, day) / DAY_MS));
         }
         default: return iso;
     }
 }
 /** What a screen reader hears after each step — and what the footer says. */
-export function rangePrompt(start, end, picking, suggested) {
-    if (rangeToDay(start) === null)
+export function drpPrompt(start, end, picking, suggested) {
+    if (drpToDay(start) === null)
         return 'Pick a start date.';
-    if (picking && suggested && rangeToDay(end) !== null) {
-        return `Start ${rangeLongDate(start)}. End suggested: ${rangeLongDate(end)}. Pick another day to change it, or Apply.`;
+    if (picking && suggested && drpToDay(end) !== null) {
+        return `Start ${drpLongDate(start)}. End suggested: ${drpLongDate(end)}. Pick another day to change it, or Apply.`;
     }
     if (picking)
-        return `Start ${rangeLongDate(start)}. Now pick the end date.`;
-    const n = rangeDays(start, end);
+        return `Start ${drpLongDate(start)}. Now pick the end date.`;
+    const n = drpDays(start, end);
     if (n === 0)
         return 'Pick an end date.';
-    return `${rangeLabel(start, end)} — ${n} ${n === 1 ? 'day' : 'days'}.`;
+    return `${drpLabel(start, end)} — ${n} ${n === 1 ? 'day' : 'days'}.`;
 }
 /** Do two ranges name exactly the same days? */
-export function rangeSame(aStart, aEnd, bStart, bEnd) {
-    return rangeToDay(aStart) !== null && aStart === bStart && aEnd === bEnd;
+export function drpSame(aStart, aEnd, bStart, bEnd) {
+    return drpToDay(aStart) !== null && aStart === bStart && aEnd === bEnd;
 }
 //# sourceMappingURL=date-range-utils.js.map

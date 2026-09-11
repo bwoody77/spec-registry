@@ -1,4 +1,4 @@
-@extern { rangeMonthCells, rangePick, rangeViewFor, rangeShiftView, rangeMonthTitle, rangeMoveFocus, rangeInView, rangeLabel, rangeDays, rangePrompt, rangeSame, rangeSuggestEnd } from "@spec/components/date-range-utils.js"
+@extern { drpMonthCells, drpPick, drpViewFor, drpShiftView, drpMonthTitle, drpMoveFocus, drpInView, drpLabel, drpDays, drpPrompt, drpSame, drpSuggestEnd } from "@spec/components/date-range-utils.js"
 @extern { toISODate, isoToOutput, todayStr } from "@spec/components/date-utils.js"
 
 // DateRangePicker — a start and an end picked on ONE calendar.
@@ -71,17 +71,17 @@ component DateRangePicker(start: string = "", end: string = "",
   @computed {
     todayIso: today != "" ? today : todayStr()
     months: wide ? 2 : 1
-    rightView: rangeShiftView(viewYear, viewMonth, 1)
-    leftCells: rangeMonthCells(viewYear, viewMonth, draftStart, draftEnd, hover, picking, suggested, bands, todayIso)
-    rightCells: rangeMonthCells(rightView.year, rightView.month, draftStart, draftEnd, hover, picking, suggested, bands, todayIso)
-    leftTitle: rangeMonthTitle(viewYear, viewMonth)
-    rightTitle: rangeMonthTitle(rightView.year, rightView.month)
+    rightView: drpShiftView(viewYear, viewMonth, 1)
+    leftCells: drpMonthCells(viewYear, viewMonth, draftStart, draftEnd, hover, picking, suggested, bands, todayIso)
+    rightCells: drpMonthCells(rightView.year, rightView.month, draftStart, draftEnd, hover, picking, suggested, bands, todayIso)
+    leftTitle: drpMonthTitle(viewYear, viewMonth)
+    rightTitle: drpMonthTitle(rightView.year, rightView.month)
     hasValue: start != "" && end != ""
-    triggerText: hasValue ? rangeLabel(start, end) : placeholder
-    valueDays: rangeDays(start, end)
+    triggerText: hasValue ? drpLabel(start, end) : placeholder
+    valueDays: drpDays(start, end)
     triggerMeta: valueDays == 0 ? "" : (valueDays == 1 ? "1 day" : valueDays + " days")
     triggerName: (label != "" ? label : "Date range") + ": " + triggerText
-    prompt: rangePrompt(draftStart, draftEnd, picking, suggested)
+    prompt: drpPrompt(draftStart, draftEnd, picking, suggested)
     hasPresets: presets.length > 0
     showBandsKey: bands.length > 0 && bandsLabel != ""
     popWidth: wide ? (hasPresets ? "780px" : "600px") : "320px"
@@ -103,7 +103,7 @@ component DateRangePicker(start: string = "", end: string = "",
       hover = ""
       problem = ""
       pendingClose = false
-      let v = rangeViewFor(start, end, todayIso)
+      let v = drpViewFor(start, end, todayIso)
       viewYear = v.year
       viewMonth = v.month
       focusIso = start != "" ? start : todayIso
@@ -132,7 +132,7 @@ component DateRangePicker(start: string = "", end: string = "",
     // below feeds the computeds the next line would otherwise read.
     pickDay(iso) {
       if iso == "" { return }
-      let r = rangePick(draftStart, draftEnd, picking, iso, periodDays, bands)
+      let r = drpPick(draftStart, draftEnd, picking, iso, periodDays, bands)
       draftStart = r.start
       draftEnd = r.end
       picking = r.picking
@@ -147,7 +147,7 @@ component DateRangePicker(start: string = "", end: string = "",
     }
     clearHover() { hover = "" }
     shiftView(n) {
-      let v = rangeShiftView(viewYear, viewMonth, n)
+      let v = drpShiftView(viewYear, viewMonth, n)
       viewYear = v.year
       viewMonth = v.month
     }
@@ -155,8 +155,8 @@ component DateRangePicker(start: string = "", end: string = "",
     nextMonth() { shiftView(1) }
     moveFocus(key) {
       let from = focusIso != "" ? focusIso : todayIso
-      let next = rangeMoveFocus(from, key)
-      if rangeInView(next, viewYear, viewMonth, months) == false {
+      let next = drpMoveFocus(from, key)
+      if drpInView(next, viewYear, viewMonth, months) == false {
         if next < from {
           shiftView(-1)
         } else {
@@ -219,14 +219,14 @@ component DateRangePicker(start: string = "", end: string = "",
       draftStart = iso
       problem = ""
       if draftEnd == "" || suggested {
-        let se = rangeSuggestEnd(iso, periodDays, bands)
+        let se = drpSuggestEnd(iso, periodDays, bands)
         if se != "" {
           draftEnd = se
           suggested = true
           endText = isoToOutput(se, format)
         }
       }
-      let nv = rangeViewFor(iso, draftEnd, todayIso)
+      let nv = drpViewFor(iso, draftEnd, todayIso)
       viewYear = nv.year
       viewMonth = nv.month
       focusIso = iso
@@ -330,7 +330,7 @@ component DateRangePicker(start: string = "", end: string = "",
           button {
             width: 100%
             border: "none"
-            background: rangeSame(draftStart, draftEnd, p.start, p.end) ? semantic.interactive-bg : "transparent"
+            background: drpSame(draftStart, draftEnd, p.start, p.end) ? semantic.interactive-bg : "transparent"
             layout: vertical, gap: 2px
             padding: spacing.2
             border-radius: radius.sm
@@ -338,7 +338,7 @@ component DateRangePicker(start: string = "", end: string = "",
             on hover { background: semantic.surface-raised }
             on click: applyPreset(p.start, p.end)
             text(p.label) { style: type.body-sm, weight: 600, color: semantic.text-primary, text-align: start }
-            text(rangeLabel(p.start, p.end)) { style: type.caption, color: semantic.text-tertiary, text-align: start }
+            text(drpLabel(p.start, p.end)) { style: type.caption, color: semantic.text-tertiary, text-align: start }
           }
         }
       }
@@ -359,7 +359,7 @@ component DateRangePicker(start: string = "", end: string = "",
           each presets as p {
             button {
               border: borders.default
-              background: rangeSame(draftStart, draftEnd, p.start, p.end) ? semantic.interactive-bg : "transparent"
+              background: drpSame(draftStart, draftEnd, p.start, p.end) ? semantic.interactive-bg : "transparent"
               padding: spacing.1
               border-radius: radius.sm
               cursor: "pointer"
