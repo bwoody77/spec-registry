@@ -1,4 +1,4 @@
-@extern { drpMonthCells, drpPick, drpViewFor, drpShiftView, drpMonthTitle, drpMoveFocus, drpInView, drpLabel, drpDays, drpPrompt, drpSame, drpSuggestEnd } from "@spec/components/date-range-utils.js"
+@extern { drpMonthGrid, drpSpan, drpIn, drpCellLabel, drpPick, drpViewFor, drpShiftView, drpMonthTitle, drpMoveFocus, drpInView, drpLabel, drpDays, drpPrompt, drpSame, drpSuggestEnd } from "@spec/components/date-range-utils.js"
 @extern { toISODate, isoToOutput, todayStr } from "@spec/components/date-utils.js"
 
 // DateRangePicker — a start and an end picked on ONE calendar.
@@ -56,6 +56,9 @@ component DateRangePicker(start: string = "", end: string = "",
     picking: false
     // draftEnd was filled in, not picked — drawn dashed until confirmed.
     suggested: false
+    // The user typed or picked an end in this session, so a typed start
+    // keeps it (see typeStart).
+    endTouched: false
     hover: ""
     focusIso: ""
     startText: ""
@@ -72,8 +75,12 @@ component DateRangePicker(start: string = "", end: string = "",
     todayIso: today != "" ? today : todayStr()
     months: wide ? 2 : 1
     rightView: drpShiftView(viewYear, viewMonth, 1)
-    leftCells: drpMonthCells(viewYear, viewMonth, draftStart, draftEnd, hover, picking, suggested, bands, todayIso)
-    rightCells: drpMonthCells(rightView.year, rightView.month, draftStart, draftEnd, hover, picking, suggested, bands, todayIso)
+    // The day lists change only with the month, the bands and today — never
+    // with a hover or a pick — so their buttons are never rebuilt under the
+    // keyboard. The selection is `span`, and each cell compares itself to it.
+    leftCells: drpMonthGrid(viewYear, viewMonth, bands, todayIso)
+    rightCells: drpMonthGrid(rightView.year, rightView.month, bands, todayIso)
+    span: drpSpan(draftStart, draftEnd, hover, picking, suggested)
     leftTitle: drpMonthTitle(viewYear, viewMonth)
     rightTitle: drpMonthTitle(rightView.year, rightView.month)
     hasValue: start != "" && end != ""
@@ -100,6 +107,7 @@ component DateRangePicker(start: string = "", end: string = "",
       draftEnd = end
       picking = false
       suggested = false
+      endTouched = false
       hover = ""
       problem = ""
       pendingClose = false
@@ -137,6 +145,9 @@ component DateRangePicker(start: string = "", end: string = "",
       draftEnd = r.end
       picking = r.picking
       suggested = r.suggested
+      // A click that completes a range chose its end; one that starts a range
+      // has not chosen one yet.
+      endTouched = r.picking == false
       hover = ""
       focusIso = iso
       problem = ""
@@ -216,15 +227,28 @@ component DateRangePicker(start: string = "", end: string = "",
       if v.length != format.length { return }
       let iso = toISODate(v, format)
       if iso == "" { return }
-      draftStart = iso
       problem = ""
-      if draftEnd == "" || suggested {
+      // A typed start BEGINS a range, exactly as a clicked one does: the end is
+      // suggested (or awaited) and stays tentative until Apply or a second
+      // pick. The one end it keeps is one the user typed or picked in THIS
+      // session that still follows the new start.
+      //
+      // 0.1.1 kept whatever end the draft held — which, on opening, is the
+      // range already applied. Typing Mar 17 over an applied Aug 16 – 29
+      // therefore kept Aug 29, Apply refused "The end is before the start",
+      // and nothing reached the page (Vector e2e PPR3). It also left `picking`
+      // false, so a suggestion read as a confirmed range (PPR2).
+      if endTouched && draftEnd != "" && draftEnd >= iso {
+        draftStart = iso
+        picking = false
+        suggested = false
+      } else {
         let se = drpSuggestEnd(iso, periodDays, bands)
-        if se != "" {
-          draftEnd = se
-          suggested = true
-          endText = isoToOutput(se, format)
-        }
+        draftStart = iso
+        draftEnd = se
+        suggested = se != ""
+        picking = true
+        endText = se != "" ? isoToOutput(se, format) : ""
       }
       let nv = drpViewFor(iso, draftEnd, todayIso)
       viewYear = nv.year
@@ -239,6 +263,7 @@ component DateRangePicker(start: string = "", end: string = "",
       draftEnd = iso
       suggested = false
       picking = false
+      endTouched = true
       problem = ""
     }
     // Escape closes the popover and is CONSUMED — stopPropagation too, since a
@@ -433,11 +458,13 @@ component DateRangePicker(start: string = "", end: string = "",
                   _ -> {}
                 }
               }
-              each leftCells as cell {
+              // Keyed, so a day's button survives a hover or pick and keeps
+              // keyboard focus; see RangeCell.key.
+              each leftCells as cell (cell.key) {
                 block {
                   layout: horizontal, justify: center, align: center
                   min-height: 38px
-                  background: cell.inRange && cell.isStart == false && cell.isEnd == false ? semantic.interactive-bg : "transparent"
+                  background: drpIn(cell.iso, span) && cell.iso != span.lo && cell.iso != span.hi ? semantic.interactive-bg : "transparent"
                   border-bottom: cell.bandParity == 0 ? "3px solid " + semantic.border-strong : (cell.bandParity == 1 ? "3px solid " + semantic.border : "3px solid transparent")
                   button {
                     visibility: cell.blank == false
@@ -445,18 +472,18 @@ component DateRangePicker(start: string = "", end: string = "",
                     min-height: 32px
                     border-radius: radius.sm
                     cursor: "pointer"
-                    aria-label: cell.label
-                    border: cell.isEnd && cell.tentative && cell.isStart == false ? "2px dashed " + semantic.interactive : "2px solid transparent"
-                    background: cell.isStart || (cell.isEnd && cell.tentative == false) ? semantic.interactive : "transparent"
+                    aria-label: drpCellLabel(cell.iso, span, todayIso)
+                    border: cell.iso == span.hi && span.tentative && cell.iso != span.lo ? "2px dashed " + semantic.interactive : "2px solid transparent"
+                    background: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.interactive : "transparent"
                     tabindex: cell.iso == focusIso ? "0" : "-1"
                     focus: cell.iso == focusIso && open
-                    on hover { background: cell.isStart || (cell.isEnd && cell.tentative == false) ? semantic.interactive-hover : semantic.surface-raised }
+                    on hover { background: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.interactive-hover : semantic.surface-raised }
                     on mouse-enter: hoverDay(cell.iso)
                     on click: pickDay(cell.iso)
                     text(cell.day + "") {
                       style: type.body-sm
                       weight: cell.today ? 700 : 400
-                      color: cell.isStart || (cell.isEnd && cell.tentative == false) ? semantic.surface : semantic.text-primary
+                      color: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.surface : semantic.text-primary
                     }
                   }
                 }
@@ -510,11 +537,11 @@ component DateRangePicker(start: string = "", end: string = "",
                   _ -> {}
                 }
               }
-              each rightCells as cell {
+              each rightCells as cell (cell.key) {
                 block {
                   layout: horizontal, justify: center, align: center
                   min-height: 38px
-                  background: cell.inRange && cell.isStart == false && cell.isEnd == false ? semantic.interactive-bg : "transparent"
+                  background: drpIn(cell.iso, span) && cell.iso != span.lo && cell.iso != span.hi ? semantic.interactive-bg : "transparent"
                   border-bottom: cell.bandParity == 0 ? "3px solid " + semantic.border-strong : (cell.bandParity == 1 ? "3px solid " + semantic.border : "3px solid transparent")
                   button {
                     visibility: cell.blank == false
@@ -522,18 +549,18 @@ component DateRangePicker(start: string = "", end: string = "",
                     min-height: 32px
                     border-radius: radius.sm
                     cursor: "pointer"
-                    aria-label: cell.label
-                    border: cell.isEnd && cell.tentative && cell.isStart == false ? "2px dashed " + semantic.interactive : "2px solid transparent"
-                    background: cell.isStart || (cell.isEnd && cell.tentative == false) ? semantic.interactive : "transparent"
+                    aria-label: drpCellLabel(cell.iso, span, todayIso)
+                    border: cell.iso == span.hi && span.tentative && cell.iso != span.lo ? "2px dashed " + semantic.interactive : "2px solid transparent"
+                    background: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.interactive : "transparent"
                     tabindex: cell.iso == focusIso ? "0" : "-1"
                     focus: cell.iso == focusIso && open
-                    on hover { background: cell.isStart || (cell.isEnd && cell.tentative == false) ? semantic.interactive-hover : semantic.surface-raised }
+                    on hover { background: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.interactive-hover : semantic.surface-raised }
                     on mouse-enter: hoverDay(cell.iso)
                     on click: pickDay(cell.iso)
                     text(cell.day + "") {
                       style: type.body-sm
                       weight: cell.today ? 700 : 400
-                      color: cell.isStart || (cell.isEnd && cell.tentative == false) ? semantic.surface : semantic.text-primary
+                      color: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.surface : semantic.text-primary
                     }
                   }
                 }

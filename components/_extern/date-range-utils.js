@@ -157,13 +157,14 @@ export function drpMonthCells(year, month, start, end, hover, picking, suggested
         lo = zs;
         hi = zs;
     }
-    const blank = () => ({
+    const blank = (i) => ({
+        key: `blank-${i}`,
         iso: '', day: 0, blank: true, inRange: false, isStart: false, isEnd: false,
         tentative: false, today: false, bandParity: -1, bandStart: false, bandEnd: false, label: '',
     });
     const cells = [];
     for (let i = 0; i < dow(first); i++)
-        cells.push(blank());
+        cells.push(blank(cells.length));
     for (let d = 1; d <= count; d++) {
         const z = first + d - 1;
         const iso = drpFromDay(z);
@@ -187,6 +188,7 @@ export function drpMonthCells(year, month, start, end, hover, picking, suggested
         else if (inRange)
             label += ', in range';
         cells.push({
+            key: iso,
             iso, day: d, blank: false, inRange, isStart, isEnd,
             tentative: inRange && tentative,
             today: z === zt,
@@ -197,8 +199,55 @@ export function drpMonthCells(year, month, start, end, hover, picking, suggested
         });
     }
     while (cells.length % 7 !== 0)
-        cells.push(blank());
+        cells.push(blank(cells.length));
     return cells;
+}
+/** A month's cells, carrying only what does NOT change while a range is picked. */
+export function drpMonthGrid(year, month, bands, today) {
+    return drpMonthCells(year, month, '', '', '', false, false, bands, today).map((c) => ({
+        key: c.key, iso: c.iso, day: c.day, blank: c.blank, today: c.today,
+        bandParity: c.bandParity, bandStart: c.bandStart, bandEnd: c.bandEnd,
+    }));
+}
+/** What to draw for the current selection — the rules drpMonthCells applies, once. */
+export function drpSpan(start, end, hover, picking, suggested) {
+    const zs = drpToDay(start);
+    const ze = drpToDay(end);
+    const zh = drpToDay(hover);
+    const awaitingEnd = picking && ze === null;
+    if (picking && zs !== null && zh !== null && zh >= zs)
+        return { lo: start, hi: hover, tentative: true, awaitingEnd };
+    if (zs !== null && ze !== null && ze >= zs)
+        return { lo: start, hi: end, tentative: suggested, awaitingEnd };
+    if (zs !== null)
+        return { lo: start, hi: start, tentative: false, awaitingEnd };
+    return { lo: '', hi: '', tentative: false, awaitingEnd: false };
+}
+/** Is a cell's ISO date inside the span? False for a blank cell or an empty span. */
+export function drpIn(iso, span) {
+    if (!iso || !span || !span.lo)
+        return false;
+    return iso >= span.lo && iso <= span.hi;
+}
+/** A cell's whole accessible name, exactly as drpMonthCells builds it. */
+export function drpCellLabel(iso, span, today) {
+    if (!iso)
+        return '';
+    let label = drpLongDate(iso);
+    if (iso === today)
+        label += ', today';
+    const inRange = drpIn(iso, span);
+    const isStart = inRange && iso === span.lo;
+    const isEnd = inRange && iso === span.hi;
+    if (isStart && isEnd && !span.awaitingEnd)
+        label += ', selected';
+    else if (isStart)
+        label += ', start';
+    else if (isEnd)
+        label += span.tentative ? ', suggested end' : ', end';
+    else if (inRange)
+        label += ', in range';
+    return label;
 }
 /** Normalized {year, month} after moving `n` months. */
 export function drpShiftView(year, month, n) {
