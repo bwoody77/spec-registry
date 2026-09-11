@@ -2,7 +2,8 @@
 //
 // Renders the `button` primitive (compiler emits <button>). Accepts:
 //   label          text label (or aria-label when iconOnly is set)
-//   variant        primary | secondary | ghost | destructive | link | warning
+//   variant        primary | secondary | ghost | destructive | destructive-outline
+//                  | link | warning
 //   size           sm | md | lg
 //   shape          rect | pill
 //   disabled       disables interaction
@@ -47,6 +48,16 @@
 // ariaLabel: 'Open documents (opens in a new tab)')` renders the short label and
 // announces the long one. Leave it empty and the accessible name is the visible
 // label, exactly as before.
+//
+// DESTRUCTIVE-OUTLINE IS THE QUIET DESTRUCTIVE.
+//   The surface fill of a `secondary`, with `semantic.destructive` on its
+//   border, label and icon. It is for a row that OFFERS a destructive act
+//   beside a filled primary — "Cancel reservation" next to "Open flight page".
+//   Two filled buttons side by side read as two primaries, and the loud one is
+//   the one you least want clicked by accident. Keep the solid `destructive`
+//   for the confirm step that actually does it ("Cancel this reservation?" →
+//   the button that cancels). Only default tokens are read, so it needs no
+//   palette role an app might not declare.
 //
 // Color tokens:
 //   The Button reads its colors from the app's `semantic.*` palette
@@ -141,6 +152,7 @@ component Button(
       variant == "secondary"   ? semantic.text-primary :
       variant == "ghost"       ? semantic.text-secondary :
       variant == "destructive" ? semantic.on-destructive :
+      variant == "destructive-outline" ? semantic.destructive :
       variant == "warning"     ? semantic.warning-text :
       variant == "link"        ? semantic.interactive-text :
       semantic.on-interactive
@@ -157,6 +169,11 @@ component Button(
     padY:
       variant == "link" ? 0 :
       (size == "xs" ? spacing.1 : (size == "sm" ? spacing.1 : (size == "lg" ? spacing.3 : token.btn-paddingV)))
+
+    // destructive-outline's border — built here because a `match` arm takes a
+    // value, and this one is a concatenation (same shape as tabs.spec's
+    // `'1px solid ' + semantic.border`).
+    outlineBorder: "1px solid " + semantic.destructive
 
     // The label style, which used to be type.label-md unconditionally.
     // Only "xs" reads anything else, so sm/md/lg are byte-identical to what
@@ -225,6 +242,7 @@ component Button(
         "secondary" -> semantic.surface-hover,
         "ghost" -> semantic.surface-hover,
         "destructive" -> semantic.destructive-hover,
+        "destructive-outline" -> semantic.destructive-bg,
         "warning" -> semantic.warning-hover,
         "link" -> "transparent",
         _ -> semantic.interactive-hover
@@ -234,6 +252,7 @@ component Button(
         "secondary" -> semantic.surface,
         "ghost" -> "transparent",
         "destructive" -> semantic.destructive,
+        "destructive-outline" -> semantic.surface,
         "warning" -> semantic.warning-bg,
         "link" -> "transparent",
         _ -> semantic.interactive
@@ -241,6 +260,7 @@ component Button(
     }
     border: match variant {
       "secondary" -> borders.default,
+      "destructive-outline" -> outlineBorder,
       "warning"   -> borders.warning,
       _ -> "none"
     }
@@ -251,6 +271,7 @@ component Button(
         "secondary" -> semantic.surface-hover,
         "ghost" -> semantic.surface-hover,
         "destructive" -> semantic.destructive-hover,
+        "destructive-outline" -> semantic.destructive-bg,
         "warning" -> semantic.warning-hover,
         "link" -> "transparent",
         _ -> semantic.interactive-hover
@@ -298,6 +319,7 @@ component Button(
           "secondary" -> semantic.text-primary,
           "ghost" -> semantic.text-secondary,
           "destructive" -> semantic.on-destructive,
+          "destructive-outline" -> semantic.destructive,
           "warning" -> semantic.warning-text,
           "link" -> semantic.interactive-text,
           _ -> semantic.on-interactive
