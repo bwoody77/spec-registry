@@ -8,7 +8,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
 // visible label is somewhere the compiler can't see, or when the control needs
 // a longer name than the one on screen.
-component Select(options: array = [], value: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "", autoFocus: boolean = false, size: string = "md") {
+component Select(options: array = [], value: string = "", highlight: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "", autoFocus: boolean = false, size: string = "md") {
   @state {
     open: false
     query: ""
@@ -73,6 +73,21 @@ component Select(options: array = [], value: string = "", placeholder: string = 
     // dropdown highlights it — the `scroll-to: idx == highlightIndex` binding
     // below then scrolls the selected value into view instead of the top.
     selectedIndex: selectedOption != null ? safeOptions.findIndex(o => o.value == value) : 0
+    // Where the list OPENS, which is not always where the selection is.
+    //
+    // `highlight` is for the two cases a selection cannot express: a field with
+    // NO value that still knows roughly where the user is headed, and a value
+    // that is not one of the options at all. Both are the same downstream
+    // control — a half-hour time list, which opens on 12:00 AM when empty, and
+    // whose 11:12 is in no half-hour grid. Naming a row to open on costs the
+    // caller one prop and leaves every other caller exactly as it was.
+    //
+    // It outranks the selection deliberately: a caller that passes both is
+    // saying "I know what is selected, open here anyway".
+    highlightOption: highlight != "" ? safeOptions.find(o => o.value == highlight) : null
+    openIndex: highlightOption != null
+                 ? safeOptions.findIndex(o => o.value == highlight)
+                 : selectedIndex
   }
 
   @actions {
@@ -80,14 +95,14 @@ component Select(options: array = [], value: string = "", placeholder: string = 
       if disabled == false {
         open = open == false
         query = ""
-        highlightIndex = selectedIndex
+        highlightIndex = openIndex
       }
     }
     openDropdown() {
       if disabled == false && open == false {
         open = true
         query = ""
-        highlightIndex = selectedIndex
+        highlightIndex = openIndex
       }
     }
     closeDropdown() {
