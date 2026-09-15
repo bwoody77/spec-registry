@@ -44,7 +44,10 @@ component AvatarPicker(
   initialOffsetY: number = 0,
   initials: string = "",
   fallbackColor: string = "#7585a0",
+  // Retired in 0.7.0: the chip replaced the button this labeled. Kept so
+  // existing call sites still compile; it has no effect.
   buttonLabel: string = "",
+  // Offer Delete photo in the editor when a photo exists.
   removable: boolean = true,
   cropSize: number = 256,
   size: number = 64,
@@ -62,6 +65,13 @@ component AvatarPicker(
 ) {
   @state {
     cropOpen: false
+    // 0.7.0: while true, the editor's footer is swapped for a one-line
+    // confirm. Delete also discards the stored original, so it asks once.
+    confirmDelete: false
+    // False when the editor opened on a photo with no stored original. The
+    // dialog still offers Replace and Delete, but the only picture to re-crop
+    // is the already-cropped JPEG, so pan, zoom and Save are off.
+    framing: true
     imageSrc: ""
     // The original for THIS session's pick, kept so Save can hand it back and
     // so Adjust works before the caller has stored anything.
@@ -82,11 +92,15 @@ component AvatarPicker(
     hasAvatar: currentAvatarUrl != ""
     // Something to re-frame: either this session's pick or a stored original.
     adjustSrc: pickedSrc != "" ? pickedSrc : sourceUrl
-    canAdjust: adjustSrc != "" && !busy && !readOnly
-    // What the chip button announces. Read-only it is a picture, not an
-    // affordance, so it must not promise an adjustment that cannot happen.
-    chipLabel: readOnly ? "Profile photo" : "Adjust your photo"
-    pickLabel: buttonLabel != "" ? buttonLabel : (hasAvatar ? "Change photo" : "Add photo")
+    // What the chip announces (0.7.0). The chip is the whole editable surface
+    // now, so its name says what tapping it does. Read-only it is a picture,
+    // not an affordance, and must not promise anything.
+    chipLabel: readOnly ? "Profile photo" : (hasAvatar ? "Edit your photo" : "Add a photo")
+    chipDisabled: readOnly || busy
+    dialogHint: framing ? "Drag to move it, and use the slider to zoom." : "Replace it to reframe."
+    closeLabel: framing ? "Cancel" : "Close"
+    previewCursor: framing ? "grab" : "default"
+    canDelete: removable && hasAvatar
     avatarPx: size + "px"
 
     // ── Preview geometry (mirrors avatar-picker-math.ts previewFit) ─────────
@@ -160,27 +174,55 @@ component AvatarPicker(
       pickedSrc = small
       imageSrc = small
       resetCrop()
+      framing = true
+      confirmDelete = false
       cropOpen = true
     }
 
-    // Re-open the cropper on the image we already have — no re-upload.
-    adjustPhoto() {
-      if adjustSrc == "" { return }
+    // The chip's one gesture (0.7.0): no photo, pick one; a photo, edit it.
+    onChipTap() {
+      if readOnly { return }
+      if hasAvatar {
+        openEditor()
+        return
+      }
+      pickPhoto()
+    }
+
+    // Open the editor on the photo we already have, with no re-upload. With a
+    // stored original (or this session's pick) the framing is live. Without
+    // one the editor still opens, so Replace and Delete stay reachable, and it
+    // shows the stored crop with framing off.
+    openEditor() {
       cropError = ""
+      confirmDelete = false
+      if adjustSrc == "" {
+        srcAspect = 1
+        imageSrc = currentAvatarUrl
+        framing = false
+        resetCrop()
+        cropOpen = true
+        return
+      }
       busy = true
       let a = await imageAspect(adjustSrc)
       busy = false
       srcAspect = a > 0 ? a : 1
       imageSrc = adjustSrc
+      framing = true
       applyInitialCrop()
       cropOpen = true
     }
 
     cancelCrop() {
       cropOpen = false
+      confirmDelete = false
       imageSrc = ""
       resetCrop()
     }
+
+    askDelete() { confirmDelete = true }
+    keepPhoto() { confirmDelete = false }
 
     // cropAvatarToDataUrl RESOLVES "" on failure rather than rejecting, and
     // that is deliberate: Spec actions have no try/catch, so a rejection would
@@ -190,6 +232,7 @@ component AvatarPicker(
     // original is served from R2 — a tainted-canvas SecurityError when the
     // bucket sends no CORS header.) Same rule as Vector's Safe api variants.
     applyCrop() {
+      if !framing { return }
       cropError = ""
       busy = true
       let dataUrl = await cropAvatarToDataUrl(imageSrc, zoom, cropOffsetX, cropOffsetY, cropSize)
@@ -212,8 +255,14 @@ component AvatarPicker(
       imageSrc = ""
     }
 
+    // Confirmed from the editor's footer. Closes the editor, since there is
+    // nothing left in it to frame.
     removePhoto() {
+      confirmDelete = false
+      cropOpen = false
+      imageSrc = ""
       pickedSrc = ""
+      resetCrop()
       emit("remove")
     }
 
@@ -235,6 +284,7 @@ component AvatarPicker(
     }
 
     onPan(delta) {
+      if !framing { return }
       let nx = dragBaseX + delta.x
       let ny = dragBaseY + delta.y
       panTx = match nx > panMaxX { true -> panMaxX, _ -> (match nx < (0 - panMaxX) { true -> (0 - panMaxX), _ -> nx }) }
@@ -249,14 +299,22 @@ component AvatarPicker(
 
   block {
     layout: horizontal, gap: spacing.3, align: center
+    // The frame the badge is placed against. Sized to the chip, because the
+    // chip clips its own contents (overflow: hidden) and would cut the badge
+    // off if the badge sat inside it.
+    position: "relative"
+    width: avatarPx
+    height: avatarPx
 
-    // The photo itself is the most obvious thing to tap when you want to
-    // re-frame it, so it opens Adjust when there is something to adjust.
+    // The photo IS the control (0.7.0). With no photo, tapping it picks one.
+    // With a photo, tapping it opens the editor, which holds framing, Replace
+    // and Delete. There is no button column beside it any more. One gesture on
+    // every surface, phone and desktop alike.
     // A real <button>, not a div with an onclick: a div cannot be tabbed to and
     // does not answer Enter/Space, and pairing one with an aria-label is the
-    // worst of both — it ANNOUNCES as interactive and then cannot be reached.
-    // `disabled` carries the not-yet-adjustable state to assistive tech
-    // instead of only to the cursor.
+    // worst of both. It ANNOUNCES as interactive and then cannot be reached.
+    // `disabled` carries read-only (and busy) to assistive tech instead of
+    // only to the cursor.
     button {
       width: avatarPx
       height: avatarPx
@@ -267,10 +325,10 @@ component AvatarPicker(
       padding: 0px
       background: fallbackColor
       layout: horizontal, justify: center, align: center
-      cursor: canAdjust ? "pointer" : "default"
-      disabled: !canAdjust
+      cursor: readOnly ? "default" : "pointer"
+      disabled: chipDisabled
       aria-label: chipLabel
-      on click: { if canAdjust { adjustPhoto() } }
+      on click: onChipTap()
 
       // The monogram sits BEHIND the photo, always. Until the image paints
       // (a stored avatar on a slow connection, R2 in production) the disc
@@ -305,65 +363,37 @@ component AvatarPicker(
       }
     }
 
-    // The action column. Absent entirely in read-only mode — a viewer who may
-    // not change this photo gets the picture and no buttons, not disabled ones.
+    // 0.7.0 retired the action column (Add/Change photo, Adjust, Remove) that
+    // sat here. Everything it did is reached by tapping the chip.
+
+    // The badge says "this picture is a control", which a bare circle does
+    // not. "+" with no photo, a camera with one. Absent when read-only, where
+    // the chip is only a picture. `pointer-events: none` so a tap on the badge
+    // lands on the chip underneath. Two literal icons rather than a computed
+    // name: a host's icon build can only include names it can see.
     block {
+      data-avatar-badge: '1'
       visibility: !readOnly
-      layout: vertical, gap: spacing.2
+      position: "absolute"
+      right: 0px
+      bottom: 0px
+      width: 22px
+      height: 22px
+      border-radius: 999px
+      background: semantic.interactive
+      border: '2px solid ' + semantic.surface
+      pointer-events: "none"
+      layout: horizontal, justify: center, align: center
 
-      button {
-        cursor: "pointer"
-        padding-y: 6px
-        padding-x: 12px
-        border-radius: 8px
-        border: 'none'
-        background: semantic.interactive
-        layout: horizontal, justify: center
-        on click: pickPhoto()
-
-        text(pickLabel) {
-          color: semantic.on-interactive
-          weight: 600
-          style: type.label-sm
-        }
+      block {
+        visibility: !hasAvatar
+        layout: horizontal, justify: center, align: center
+        Icon(name: "plus", size: 12, color: semantic.on-interactive)
       }
-
-      // Only offered when there is an image to re-frame. Before this existed
-      // the ONLY route back into the cropper was uploading the photo again.
-      button {
-        visibility: adjustSrc != ""
-        cursor: "pointer"
-        padding-y: 6px
-        padding-x: 12px
-        border-radius: 8px
-        border: borders.default
-        background: 'transparent'
-        layout: horizontal, justify: center
-        on click: adjustPhoto()
-
-        text("Adjust") {
-          color: semantic.text-secondary
-          weight: 600
-          style: type.label-sm
-        }
-      }
-
-      button {
-        visibility: removable && hasAvatar
-        cursor: "pointer"
-        padding-y: 6px
-        padding-x: 12px
-        border-radius: 8px
-        border: borders.default
-        background: 'transparent'
-        layout: horizontal, justify: center
-        on click: removePhoto()
-
-        text("Remove") {
-          color: semantic.text-secondary
-          weight: 600
-          style: type.label-sm
-        }
+      block {
+        visibility: hasAvatar
+        layout: horizontal, justify: center, align: center
+        Icon(name: "camera", size: 12, color: semantic.on-interactive)
       }
     }
   }
@@ -401,11 +431,11 @@ component AvatarPicker(
         border-bottom: borders.default
         layout: vertical, gap: 2px
 
-        text("Adjust your photo") {
+        text("Edit your photo") {
           style: type.heading-sm
           color: semantic.text-primary
         }
-        text("Drag to move it, and use the slider to zoom.") {
+        text(dialogHint) {
           style: type.label-sm
           color: semantic.text-tertiary
         }
@@ -426,7 +456,7 @@ component AvatarPicker(
           overflow: hidden
           background: "#000"
           position: "relative"
-          cursor: "grab"
+          cursor: previewCursor
           user-select: "none"
           on drag(delta): onPan(delta)
           on drag-end(delta): onPanEnd(delta)
@@ -454,6 +484,23 @@ component AvatarPicker(
           }
         }
 
+        // A photo saved without its original can be replaced or deleted, but
+        // not re-framed. Say so rather than leave a slider that does nothing.
+        block {
+          visibility: !framing
+          width: 100%
+          padding-y: 8px
+          padding-x: 10px
+          border-radius: 8px
+          background: semantic.surface-sunken
+          layout: horizontal, justify: center
+          text("This photo was saved before reframing was available.") {
+            style: type.label-sm
+            color: semantic.text-secondary
+            text-align: center
+          }
+        }
+
         block {
           width: 100%
           layout: horizontal, gap: 10px, align: center
@@ -467,6 +514,7 @@ component AvatarPicker(
             min: 1
             max: 3
             step: 0.05
+            disabled: !framing
             grow: true
             aria-label: "Zoom"
             on input(event): onZoom(event.target.value)
@@ -485,41 +533,147 @@ component AvatarPicker(
         }
       }
 
+      // Footer (0.7.0). Two rows so four buttons fit a 360px dialog: what to
+      // do with the photo (Replace, Delete) above how to leave (Cancel, Save).
       block {
+        visibility: !confirmDelete
         padding-y: 12px
         padding-x: 16px
         border-top: borders.default
-        layout: horizontal, gap: spacing.2, justify: end
+        layout: vertical, gap: spacing.2
 
-        button {
-          cursor: "pointer"
-          padding-y: 8px
-          padding-x: 14px
-          border-radius: 8px
-          border: borders.default
-          background: 'transparent'
-          on click: cancelCrop()
+        block {
+          layout: horizontal, gap: spacing.2, align: center
 
-          text("Cancel") {
-            color: semantic.text-secondary
+          button {
+            cursor: "pointer"
+            padding-y: 8px
+            padding-x: 14px
+            border-radius: 8px
+            border: borders.default
+            background: 'transparent'
+            disabled: busy
+            on click: pickPhoto()
+
+            text("Replace photo") {
+              color: semantic.text-secondary
+              weight: 600
+              style: type.label-sm
+            }
+          }
+
+          // Offers the delete; the confirm below does it (solid red there).
+          button {
+            visibility: canDelete
+            cursor: "pointer"
+            padding-y: 8px
+            padding-x: 14px
+            border-radius: 8px
+            border: '1px solid ' + semantic.destructive
+            background: 'transparent'
+            on click: askDelete()
+
+            text("Delete photo") {
+              color: semantic.destructive
+              weight: 600
+              style: type.label-sm
+            }
+          }
+        }
+
+        block {
+          layout: horizontal, gap: spacing.2, justify: end
+
+          button {
+            cursor: "pointer"
+            padding-y: 8px
+            padding-x: 14px
+            border-radius: 8px
+            border: borders.default
+            background: 'transparent'
+            on click: cancelCrop()
+
+            text(closeLabel) {
+              color: semantic.text-secondary
+              weight: 600
+              style: type.label-sm
+            }
+          }
+
+          button {
+            visibility: framing
+            cursor: "pointer"
+            padding-y: 8px
+            padding-x: 14px
+            border-radius: 8px
+            border: 'none'
+            background: semantic.interactive
+            on click: applyCrop()
+
+            text("Save") {
+              color: semantic.on-interactive
+              weight: 600
+              style: type.label-sm
+            }
+          }
+        }
+      }
+
+      // The delete confirm replaces the footer in place, so the question sits
+      // where the button was pressed.
+      block {
+        visibility: confirmDelete
+        padding-y: 12px
+        padding-x: 16px
+        border-top: borders.default
+        layout: vertical, gap: spacing.2
+
+        block {
+          layout: vertical, gap: 2px
+          text("Delete this photo?") {
+            color: semantic.text-primary
             weight: 600
+            style: type.label-sm
+          }
+          text("Your initials will show instead.") {
+            color: semantic.text-tertiary
             style: type.label-sm
           }
         }
 
-        button {
-          cursor: "pointer"
-          padding-y: 8px
-          padding-x: 14px
-          border-radius: 8px
-          border: 'none'
-          background: semantic.interactive
-          on click: applyCrop()
+        block {
+          layout: horizontal, gap: spacing.2, justify: end
 
-          text("Save") {
-            color: semantic.on-interactive
-            weight: 600
-            style: type.label-sm
+          button {
+            cursor: "pointer"
+            padding-y: 8px
+            padding-x: 14px
+            border-radius: 8px
+            border: borders.default
+            background: 'transparent'
+            on click: keepPhoto()
+
+            text("Keep photo") {
+              color: semantic.text-secondary
+              weight: 600
+              style: type.label-sm
+            }
+          }
+
+          button {
+            cursor: "pointer"
+            padding-y: 8px
+            padding-x: 14px
+            border-radius: 8px
+            border: 'none'
+            background: semantic.destructive
+            on click: removePhoto()
+
+            text("Delete") {
+              color: semantic.on-interactive
+              weight: 600
+              style: type.label-sm
+            }
           }
         }
       }
