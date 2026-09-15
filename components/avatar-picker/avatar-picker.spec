@@ -43,6 +43,10 @@ component AvatarPicker(
   initialOffsetX: number = 0,
   initialOffsetY: number = 0,
   initials: string = "",
+  // Whose photo this is, for the chip's accessible name when the viewer is
+  // NOT the person pictured ("Edit Avery Pilot's photo"). Empty means the
+  // viewer's own photo, and the chip says "your". 0.7.1.
+  subjectName: string = "",
   fallbackColor: string = "#7585a0",
   // Retired in 0.7.0: the chip replaced the button this labeled. Kept so
   // existing call sites still compile; it has no effect.
@@ -76,6 +80,10 @@ component AvatarPicker(
     // The original for THIS session's pick, kept so Save can hand it back and
     // so Adjust works before the caller has stored anything.
     pickedSrc: ""
+    // The pick that was last SAVED. Cancel restores pickedSrc to this, so a
+    // Replace the user backed out of cannot become the next edit's picture,
+    // or be uploaded as the original by the next Save. 0.7.1.
+    committedPick: ""
     srcAspect: 1
     zoom: 1
     // Pan offset of the preview image in CSS px. dragBase{X,Y} hold the
@@ -95,7 +103,10 @@ component AvatarPicker(
     // What the chip announces (0.7.0). The chip is the whole editable surface
     // now, so its name says what tapping it does. Read-only it is a picture,
     // not an affordance, and must not promise anything.
-    chipLabel: readOnly ? "Profile photo" : (hasAvatar ? "Edit your photo" : "Add a photo")
+    chipLabel: readOnly ? "Profile photo"
+      : (hasAvatar
+        ? (subjectName != "" ? "Edit " + subjectName + "'s photo" : "Edit your photo")
+        : (subjectName != "" ? "Add a photo of " + subjectName : "Add a photo"))
     chipDisabled: readOnly || busy
     dialogHint: framing ? "Drag to move it, and use the slider to zoom." : "Replace it to reframe."
     closeLabel: framing ? "Cancel" : "Close"
@@ -125,7 +136,25 @@ component AvatarPicker(
     cropOffsetY: panMaxY > 0 ? (0 - panTy) / panMaxY : 0
   }
 
+  // The host may load the original AFTER the user tapped the chip: Vector's
+  // ProfileAvatar fetches it asynchronously. An editor that opened with
+  // framing off for want of it switches framing on when it lands, rather than
+  // go on saying the photo predates reframing. 0.7.1.
+  @watch {
+    sourceUrl: {
+      onSourceArrived()
+    }
+  }
+
   @actions {
+    onSourceArrived() {
+      if !cropOpen { return }
+      if framing { return }
+      if confirmDelete { return }
+      if adjustSrc == "" { return }
+      openEditor()
+    }
+
     // Restore a saved crop onto the current preview geometry. Offsets are
     // stored normalised, so they survive a different zoom or a re-measure.
     //
@@ -217,6 +246,7 @@ component AvatarPicker(
     cancelCrop() {
       cropOpen = false
       confirmDelete = false
+      pickedSrc = committedPick
       imageSrc = ""
       resetCrop()
     }
@@ -242,6 +272,7 @@ component AvatarPicker(
         return
       }
       cropOpen = false
+      committedPick = pickedSrc
       // `source` is "" when re-framing a photo the caller already stored —
       // that is the signal to keep the stored original rather than re-upload
       // an identical copy of it.
@@ -262,6 +293,7 @@ component AvatarPicker(
       cropOpen = false
       imageSrc = ""
       pickedSrc = ""
+      committedPick = ""
       resetCrop()
       emit("remove")
     }
