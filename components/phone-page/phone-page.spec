@@ -23,6 +23,16 @@
 // The three blocks live inside a root `block {}` rather than directly in the
 // component body: a component body takes statements, not style declarations,
 // so `width:` at that level is a parse error.
+//
+// The BARS own their inset too (0.2.0). `barPadX` / `barPadTop` /
+// `barPadBottom` pad the top bar and `bottomPad` pads the bottom one, and all
+// four default to the values Vector's `my-students-mobile` renders — 14px
+// across, 10px above the field and 12px below it, 12px around the bottom
+// bar — so adopting them changes nothing visually. 0.1.0 supplied the bars'
+// background, border and position but no padding, which left every calling
+// page to wrap its slot content in a padding block of its own: nineteen
+// identical wrappers waiting to be written, and identical only until one of
+// them drifted.
 component PhonePage(
   topBar: string = "sticky",
   bottomBar: string = "pinned",
@@ -31,7 +41,11 @@ component PhonePage(
   gap: string = "12px",
   padX: string = "14px",
   padTop: string = "14px",
-  padBottom: string = "24px"
+  padBottom: string = "24px",
+  barPadX: string = "14px",
+  barPadTop: string = "10px",
+  barPadBottom: string = "12px",
+  bottomPad: string = "12px"
 ) {
   block {
     width: 100%
@@ -47,6 +61,9 @@ component PhonePage(
       z-index: 5
       background: semantic.surface
       border-bottom: borders.default
+      padding-x: barPadX
+      padding-top: barPadTop
+      padding-bottom: barPadBottom
       @slot("topBar")
     }
 
@@ -70,7 +87,7 @@ component PhonePage(
       z-index: 5
       background: semantic.surface
       border-top: borders.default
-      padding: 12px
+      padding: bottomPad
       @slot("bottomBar")
     }
   }
