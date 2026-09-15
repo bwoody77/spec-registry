@@ -1240,6 +1240,9 @@ component DataGrid(
     // neither prop keeps every byte of its previous rendering.
     padTop: padTopPx + 'px'
     padBot: padBotPx + 'px'
+    // (Scroll anchoring is turned off for a windowed grid, but not from here:
+    // the compiler has no `overflow-anchor` block property, and the wire is
+    // built only for a windowed grid anyway. See grid-window-wire.ts.)
     // The pitch a placeholder row has to hold. A skeleton or a failed-block row
     // that sized itself to its content would make the rendered rows a different
     // height from the ones the spacers are standing in for, and the scrollbar

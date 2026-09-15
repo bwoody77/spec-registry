@@ -212,19 +212,65 @@ export function createDragSession(opts) {
             startDrag(srcEl, srcId, e.clientX, e.clientY);
         }
     }
+    /** Put a prefixed property back, removing it when there was nothing there.
+     *  `setProperty(name, '')` is the documented way to clear, but going through
+     *  removeProperty keeps the attribute clean rather than leaving `name: ;`. */
+    function restoreProp(el, name, value) {
+        if (value)
+            el.style.setProperty(name, value);
+        else
+            el.style.removeProperty(name);
+    }
     function attach(srcEl) {
         if (attached.has(srcEl))
             return;
         const handler = (e) => onPointerDown(srcEl, e);
         srcEl.addEventListener('pointerdown', handler);
-        // touch-action: none on the source disables native scrolling/zoom on
-        // the draggable. This is what lets us preventDefault on pointermove
-        // for touch drags. Saved via inline style so detach() can restore it.
-        const prevTouchAction = srcEl.style.touchAction;
+        // A drag source has to refuse TWO native gestures, and they are separate
+        // mechanisms that are easy to mistake for one:
+        //
+        //   touch-action: none   the compositor may not claim the press as a
+        //                        scroll or a zoom. This is what lets us
+        //                        preventDefault on pointermove for a touch drag.
+        //   user-select: none    a press-and-drag may not paint a text selection.
+        //
+        // Only the first was ever set here, so every pointer-mode drag was a press
+        // held on selectable content. On a mouse that highlights the row instead of
+        // moving it; on touch, Chrome's long-press-to-select fires at roughly 500ms
+        // while DRAG_TOUCH_HOLD_MS is well under it, so a gesture that pauses
+        // before it moves — which is what a press-and-hold IS — loses the race and
+        // comes up with a selection painted across the surface. Reported downstream
+        // in Vector, 2026-09-03: "the browser seems to try to select rows as if I
+        // were trying to select text in the document."
+        //
+        // `-webkit-touch-callout` is a third, distinct thing: the magnifier/share
+        // sheet iOS raises on a long press. It fires on a source with no text at
+        // all, so `user-select` does not cover it.
+        //
+        // All of it goes through inline style, saved and restored by detach(),
+        // because these are ordinary page elements that outlive the session — a
+        // torn-down drag surface must not leave the page unselectable. Restoring
+        // the PREVIOUS value rather than clearing keeps a caller's deliberate
+        // `user-select: text` intact.
+        const prev = {
+            touchAction: srcEl.style.touchAction,
+            userSelect: srcEl.style.userSelect,
+            webkitUserSelect: srcEl.style.getPropertyValue('-webkit-user-select'),
+            touchCallout: srcEl.style.getPropertyValue('-webkit-touch-callout'),
+        };
         srcEl.style.touchAction = 'none';
+        srcEl.style.userSelect = 'none';
+        // setProperty for the prefixed pair: the camelCase aliases are not mapped
+        // by every DOM implementation, and a silent no-op here is exactly the kind
+        // of gap this change exists to close.
+        srcEl.style.setProperty('-webkit-user-select', 'none');
+        srcEl.style.setProperty('-webkit-touch-callout', 'none');
         attached.set(srcEl, () => {
             srcEl.removeEventListener('pointerdown', handler);
-            srcEl.style.touchAction = prevTouchAction;
+            srcEl.style.touchAction = prev.touchAction;
+            srcEl.style.userSelect = prev.userSelect;
+            restoreProp(srcEl, '-webkit-user-select', prev.webkitUserSelect);
+            restoreProp(srcEl, '-webkit-touch-callout', prev.touchCallout);
         });
     }
     function detach(srcEl) {

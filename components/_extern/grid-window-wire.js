@@ -269,7 +269,45 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         last = w;
         lastFirstVisible = fv;
         const reqs = cache.requestBlocksFor(w.start, w.end);
+        // ── THE KEYBOARD MUST SURVIVE A MOUSE SCROLL ─────────────────────────────
+        // `on key-down` is bound to the grid ROOT, and clicking a row puts focus on
+        // an element INSIDE it, so keys bubble up and the arrows work. This push is
+        // what makes the caller recycle those rows — and a focused element leaving
+        // the DOM drops focus to <body>, after which the root never sees another
+        // keystroke. Arrows, PageDown and Home all stop working, silently, until
+        // the user clicks a row again.
+        //
+        // Measured in a real browser on Vector's maintenance history (8,200 rows):
+        //   click a row, 25x ArrowDown  -> the list moves      (keys live)
+        //   wheel away, 25x ArrowDown   -> nothing, focus BODY (keys dead)
+        //   focus the grid root, 25x    -> the list moves      (keys live again)
+        //
+        // Checked AFTER the caller has rendered, not before: only then is it known
+        // whether the focused row actually went away. A microtask is the beat the
+        // reactive callers here render on; if a caller ever renders later than
+        // that, this simply does not fire and the keyboard behaves as it does
+        // today — the repair cannot make anything worse by being early.
+        //
+        // preventScroll is load-bearing. Focusing an element scrolls it into view
+        // by default, and a repair that moved the viewport would be the very class
+        // of bug `anchorMode` was added to stop.
+        const hadFocusInside = !!(scroller && document.activeElement && scroller.contains(document.activeElement));
         onWindow(project(w, fv));
+        if (hadFocusInside) {
+            queueMicrotask(() => {
+                if (destroyed)
+                    return;
+                const root = document.querySelector(`[data-grid-id="${gridId}"]`);
+                if (!root)
+                    return;
+                // Still inside the grid: the row survived, or the caller moved focus
+                // itself. Either way it is not ours to take.
+                const active = document.activeElement;
+                if (active && root.contains(active))
+                    return;
+                root.focus({ preventScroll: true });
+            });
+        }
         // Stamped with the grid id, because deliverBlock(gridId, …) needs one and
         // the request is the only thing the caller receives. Without it a caller
         // can only scrape [data-grid-id] out of the DOM, and a page with two
@@ -328,6 +366,27 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         scroller = document.querySelector(`[data-grid-id="${gridId}"] [data-grid-scroll]`);
         if (!scroller)
             return false;
+        // ── SCROLL ANCHORING IS WRONG FOR A WINDOWED LIST ────────────────────────
+        // The browser adjusts scrollTop when content ABOVE the viewport changes
+        // size, so what you are reading stays put. That serves an article whose
+        // images finish loading; it fights this component, whose entire mechanism
+        // is rewriting the rows and BOTH spacers above the viewport as you scroll —
+        // the browser then "corrects" the positions this wire deliberately chose.
+        //
+        // Reported on Vector's maintenance history (8,165 visits): the list moved
+        // +502px and then -433px with no input, netting back to where the reader
+        // started, both times with 76 skeleton rows on screen — i.e. while arriving
+        // blocks were replacing rows above the fold.
+        //
+        // HERE rather than in the .spec for two reasons. The compiler has no such
+        // block property ("Unknown property 'overflow-anchor' on block — hyphenated
+        // CSS props aren't supported"), and this wire is built ONLY for a windowed
+        // grid, so an unwindowed consumer never reaches this line and keeps every
+        // byte of its previous rendering without a conditional.
+        //
+        // setProperty, not `style.overflowAnchor`: the typed CSSStyleDeclaration
+        // does not carry every property, and happy-dom models fewer still.
+        scroller.style.setProperty('overflow-anchor', 'none');
         scroller.addEventListener('scroll', onScroll, { passive: true });
         // The grid's height can change without a scroll — a sibling panel opening,
         // the window resizing — and a stale viewportHeight renders too few rows.
