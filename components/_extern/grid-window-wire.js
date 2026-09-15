@@ -294,19 +294,34 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         const hadFocusInside = !!(scroller && document.activeElement && scroller.contains(document.activeElement));
         onWindow(project(w, fv));
         if (hadFocusInside) {
-            queueMicrotask(() => {
+            // TWO BEATS, and both are load-bearing. A caller that renders
+            // synchronously inside onWindow has already dropped the row by the
+            // microtask. Spec's reactive layer BATCHES and lands a frame later, so a
+            // microtask-only check finds the row still focused, concludes "still
+            // ours", and the keyboard dies anyway — which is exactly what happened:
+            // three unit tests passed against a synchronous fake caller while the
+            // browser test measured 0px of travel and named it "arrows are dead
+            // after a mouse scroll". Idempotent, so running on both beats is free.
+            const tryRestore = () => {
                 if (destroyed)
                     return;
                 const root = document.querySelector(`[data-grid-id="${gridId}"]`);
                 if (!root)
                     return;
+                const active = document.activeElement;
                 // Still inside the grid: the row survived, or the caller moved focus
                 // itself. Either way it is not ours to take.
-                const active = document.activeElement;
                 if (active && root.contains(active))
                     return;
+                // Focus went somewhere deliberate — a search box, another control.
+                // Only the fall back to <body> means the focused node was removed.
+                if (active && active !== document.body)
+                    return;
                 root.focus({ preventScroll: true });
-            });
+            };
+            queueMicrotask(tryRestore);
+            if (typeof requestAnimationFrame !== 'undefined')
+                requestAnimationFrame(tryRestore);
         }
         // Stamped with the grid id, because deliverBlock(gridId, …) needs one and
         // the request is the only thing the caller receives. Without it a caller
