@@ -1,0 +1,13 @@
+[package]
+name = "phone-page"
+version = "0.1.0"
+category = "components"
+description = "Phone page layout with optional sticky top and bottom bars around a scrolling body"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "phone-page.spec"
