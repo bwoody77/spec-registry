@@ -106,6 +106,11 @@ component Autocomplete(
   disabled: boolean = false,
   freeText: boolean = false,
   openOnFocus: boolean = false,
+  // The option value the panel opens on. Empty (the default) means "open on
+  // the value, as Select does" — see openIndex. It exists for the case a bound
+  // value cannot express: an EMPTY field that still knows roughly where the
+  // user is going, and a value that is not one of the options at all.
+  highlight: string = "",
   // Supplied by the compiler from the adjacent visible label; forwarded
   // to the wrapped TextInput, which is the element that needs the name.
   ariaLabel: string = ""
@@ -175,6 +180,24 @@ component Autocomplete(
 
     matchLen:       filteredOptions.length
     safeIndex:      matchLen > 0 && highlightIndex < matchLen ? highlightIndex : 0
+
+    // WHERE THE PANEL OPENS — `highlight` if the caller named a row, else the
+    // option matching `value`, else the first one.
+    //
+    // The middle term is parity with Select, which has opened on its selection
+    // since `selectedIndex` landed. This component instead reset the highlight
+    // to 0 on every focus, and the panel scrolls to whatever is highlighted —
+    // so an openOnFocus field opened on its FIRST option no matter how long the
+    // list was or what the field already held. On a 48-slot half-hour time list
+    // that is 12:00 AM, every time, on a booking form schedulers live in.
+    //
+    // Used on FOCUS only. `handleInput` still resets to 0, because once the
+    // user types, the right row is the top of what they typed — in freeText the
+    // caller has re-ranked `options` around it — not wherever the panel opened.
+    highlightOption: highlight != "" ? safeOptions.find(o => o.value == highlight) : null
+    openIndex:      highlightOption != null
+                      ? safeOptions.findIndex(o => o.value == highlight)
+                      : (selectedOption != null ? safeOptions.findIndex(o => o.value == value) : 0)
     // The floating panel is shown when there are matches to list OR a typed
     // query yielded none (so the "no matches" hint can render). Both the
     // options list and the empty hint live inside this single anchored panel.
@@ -193,7 +216,10 @@ component Autocomplete(
         // so all options are visible on focus.
         typing = false
         query = ""
-        highlightIndex = 0
+        // NOT 0 — see openIndex. `userHighlighted` stays false, so opening ON a
+        // row still does not let Enter commit it: the phantom-6:00-AM guard is
+        // about whether the USER chose the row, which opening somewhere is not.
+        highlightIndex = openIndex
         userHighlighted = false
       }
     }
@@ -213,6 +239,10 @@ component Autocomplete(
     }
     pickOption(opt) {
       emit("change", opt.value)
+      // A pick is also a commit — see the `commit` note on handleBlur. A
+      // wrapper that normalizes typed text has to hear about the picked row
+      // too, or it normalizes only half the ways a value can arrive.
+      emit("commit", opt.value)
       query = ""
       typing = false
       open = false
@@ -273,6 +303,13 @@ component Autocomplete(
       }
       // No user-chosen highlight, no exact match, no sole match: don't snap to
       // the default option. freeText keeps the typed value; both modes close.
+      //
+      // It is still a COMMIT, though — the user pressed Enter, which is how a
+      // person says they are done. Nothing is picked; the text stands. This is
+      // the signal a wrapper normalizes on ("930" -> "09:30"), and it is why
+      // commit cannot live in closeDropdown(): escapeKey() routes through there
+      // and Escape CANCELS. Same keystroke count, opposite meanings.
+      emit("commit", inputValue)
       closeDropdown()
     }
     closeDropdown() {
@@ -312,6 +349,10 @@ component Autocomplete(
     handleTabAway() {
       if !typing { return }
       if freeText {
+        // Tabbing out of a typed field finishes it, exactly as Enter does.
+        // (The strict branch below commits through pickOption when the text
+        // resolves to an option, and otherwise reverts — nothing to commit.)
+        emit("commit", inputValue)
         closeDropdown()
       } else {
         let q = query.trim().toLowerCase()
@@ -322,6 +363,20 @@ component Autocomplete(
           closeDropdown()
         }
       }
+    }
+    // The field lost focus, so whatever is in it is what the user meant.
+    //
+    // `change` fires per keystroke in freeText mode and says nothing about when
+    // the typing STOPPED, so a wrapper that normalizes or validates a finished
+    // value had nowhere to do it: TextInput emits `blur` and this component
+    // swallowed it.
+    //
+    // It deliberately does NOT close the panel. Blur fires before a row's
+    // click (mousedown -> blur -> click), so closing here would tear the panel
+    // down mid-pick and the click would land on nothing. Dismissal stays with
+    // the host's outside-click helper, which is where it already lived.
+    handleBlur() {
+      emit("commit", inputValue)
     }
   }
 
@@ -348,6 +403,7 @@ component Autocomplete(
         TextInput(value: inputValue, placeholder: placeholder, error: error, errorMessage: errorMessage, disabled: disabled, ariaLabel: ariaLabel, trailingIcon: caretIcon) {
           on change(v): handleInput(v)
           on focus: handleFocus()
+          on blur: handleBlur()
         }
       }
 
