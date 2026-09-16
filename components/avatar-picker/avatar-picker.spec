@@ -29,6 +29,11 @@
 // SAVED avatar quietly ignored the zoom the user had chosen. `slider(zoom)`
 // already writes the value itself; `on input(event)` only has to re-clamp the
 // pan and coerce the string to a number.
+//
+// ── WHEEL AND PINCH (0.8.0) ─────────────────────────────────────────────────
+// Scrolling or pinching over the circle zooms toward the cursor or the
+// fingers, through pzZoomAt from pan-zoom.spec, so the crop editor and the
+// PanZoom viewer share one piece of geometry.
 
 component AvatarPicker(
   currentAvatarUrl: string = "",
@@ -108,7 +113,7 @@ component AvatarPicker(
         ? (subjectName != "" ? "Edit " + subjectName + "'s photo" : "Edit your photo")
         : (subjectName != "" ? "Add a photo of " + subjectName : "Add a photo"))
     chipDisabled: readOnly || busy
-    dialogHint: framing ? "Drag to move it, and use the slider to zoom." : "Replace it to reframe."
+    dialogHint: framing ? "Drag to move it. Scroll, pinch or use the slider to zoom." : "Replace it to reframe."
     closeLabel: framing ? "Cancel" : "Close"
     previewCursor: framing ? "grab" : "default"
     canDelete: removable && hasAvatar
@@ -327,6 +332,27 @@ component AvatarPicker(
       dragBaseX = panTx
       dragBaseY = panTy
     }
+
+    // 0.8.0: wheel and pinch. Same model as PanZoom — a 260px viewport, the
+    // cover-fit size at zoom 1 (the dispW/dispH above at zoomSafe 1), pan
+    // measured from the center — so the shared pzZoomAt does the focal-point
+    // math and the clamp is the panMaxX/panMaxY bound the slider and drag
+    // already obey. The slider is bound to `zoom`, so it follows.
+    //
+    // The drag base is re-synced because `on drag` resumes after a pinch with
+    // its travel restarting at zero: a stale base would jump the picture back.
+    onPinch(g) {
+      if !framing { return }
+      let a = srcAspect > 0 ? srcAspect : 1
+      let fw = a >= 1 ? 260 * a : 260
+      let fh = a >= 1 ? 260 : 260 / a
+      let v = pzZoomAt(zoom, panTx + g.panX, panTy + g.panY, g.factor, g.x, g.y, 260, 260, fw, fh, 3)
+      zoom = v.s
+      panTx = v.tx
+      panTy = v.ty
+      dragBaseX = v.tx
+      dragBaseY = v.ty
+    }
   }
 
   block {
@@ -490,8 +516,10 @@ component AvatarPicker(
           position: "relative"
           cursor: previewCursor
           user-select: "none"
+          data-avatar-preview: "true"
           on drag(delta): onPan(delta)
           on drag-end(delta): onPanEnd(delta)
+          on zoom(g): onPinch(g)
 
           // The picture must not receive the press. An <img> is draggable by
           // default, so a mouse-down that lands on it starts a native HTML5
