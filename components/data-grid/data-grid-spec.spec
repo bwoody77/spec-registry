@@ -1581,6 +1581,12 @@ component DataGrid(
       // side effect: swap `visibility:` for an opacity or a pointer-events
       // rule, or reach this programmatically, and the sentinel would go out.
       if row._unloaded == true { return }
+      // Nor is a group header or a total. The cursor has said so all along
+      // (pointer only on `gridRowKind(row) == "row"`), and the event now
+      // agrees: a consumer navigating on rowClick opened the header as if it
+      // were a member — /fleet sent a collapse to /aircraft/undefined,
+      // because the group caret's click bubbles here.
+      if gridRowKind(row) != "row" { return }
       selectRow(row)
       emit("rowClick", row, idx)
     }
