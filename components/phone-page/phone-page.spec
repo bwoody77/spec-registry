@@ -33,9 +33,23 @@
 // page to wrap its slot content in a padding block of its own: nineteen
 // identical wrappers waiting to be written, and identical only until one of
 // them drifted.
+//
+// A bar is drawn when its slot EXISTS and its show flag is true (0.3.0).
+// `hasSlot` alone was not enough, and the difference is not academic:
+// `hasSlot` is answered once at mount from the CALL SITE's source, so a page
+// that writes `slot("bottomBar")` at all has it true forever. A page whose
+// button only applies in one of its states therefore has to move its own
+// `visibility:` inside the slot — and the bar's background, border-top and
+// padding stay, painting an empty bordered strip across the bottom of every
+// other state. Vector's checkout page shipped exactly that on four of them
+// (bad deep link, loading, not authorized, issued). `showTopBar` /
+// `showBottomBar` gate the BAR, not its contents, and both default to true,
+// so a page written against 0.1.0 or 0.2.0 renders identically.
 component PhonePage(
   topBar: string = "sticky",
   bottomBar: string = "pinned",
+  showTopBar: boolean = true,
+  showBottomBar: boolean = true,
   topOffset: string = "0px",
   bottomOffset: string = "0px",
   gap: string = "12px",
@@ -54,7 +68,7 @@ component PhonePage(
     background: semantic.background
 
     block {
-      visibility: hasSlot("topBar")
+      visibility: hasSlot("topBar") && showTopBar
       data-page-top-bar: topBar
       position: topBar == "sticky" ? "sticky" : "static"
       top: topOffset
@@ -80,7 +94,7 @@ component PhonePage(
     }
 
     block {
-      visibility: hasSlot("bottomBar")
+      visibility: hasSlot("bottomBar") && showBottomBar
       data-page-bottom-bar: bottomBar
       position: bottomBar == "pinned" ? "sticky" : "static"
       bottom: bottomOffset
