@@ -75,6 +75,11 @@ export function gridDeriveGroupRows(rows, groupBy, counts) {
         if (prev === null || k !== prev) {
             out.push({
                 _kind: 'group',
+                // Marks the header as the GRID's, not the caller's. DataGrid names a
+                // derived header itself and skips the caller's `cell` slot for it; a
+                // structural group row, which the caller labels through that slot,
+                // carries no such mark and keeps it.
+                _derived: true,
                 _group: k,
                 _groupValue: value === undefined ? null : value,
                 _groupLabel: k === '' ? '—' : k,

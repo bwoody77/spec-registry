@@ -314,6 +314,17 @@ fn gridRowKind(row: map) -> string {
   return 'row'
 }
 
+// A group header the GRID made from `groupBy` (gridDeriveGroupRows stamps
+// `_derived`), as opposed to a structural one the caller supplied. The grid
+// names a derived header itself, once, and never runs the caller's `cell` slot
+// on it: that slot is written for member rows, so on a header it drew member
+// cell furniture (an icon box, a dash) in every column of a row that has no
+// member. A structural header is the caller's to label, through that same
+// slot, so it keeps it.
+fn gridIsDerivedGroup(row: map) -> boolean {
+  return row._kind == 'group' && row._derived == true
+}
+
 // Window-relative loop index → absolute row index. Identity when windowing is
 // off, which is what keeps the 16 existing consumers byte-identical. Task 7
 // threads it through stripe parity, hover, row click and cell focus, all of
@@ -2438,7 +2449,7 @@ component DataGrid(
                 // Absent `align` resolves to "start", which is the flex default,
                 // so an undeclared column renders exactly as before.
                 data-grid-cell-content: col._col.key
-                layout: horizontal, gap: spacing.1, align: center, justify: col._col.align != null ? col._col.align : "start"
+                layout: horizontal, gap: spacing.1, align: center, justify: gridIsDerivedGroup(row) ? "start" : (col._col.align != null ? col._col.align : "start")
                 // Group rows carry the expand/collapse control: the open state
                 // is the grid's, so the caller's cell slot cannot own it.
                 match hasAnyGroupRow {
@@ -2466,9 +2477,18 @@ component DataGrid(
                 // A DERIVED group row has no caller cell content \u2014 the grid
                 // made it \u2014 so it names itself. A structural group row still
                 // takes its label from the caller's `cell` slot, untouched.
+                //
+                // ONCE, in the first visible column \u2014 which, when a column is
+                // pinned, is this one \u2014 beside the caret. It used to render in
+                // every column, so "Baron 58 \u00b7 2" was printed across the whole
+                // row. `nowrap` keeps it on one line: a narrow first column must
+                // not stack the name over the count. The other cells of a derived
+                // header are empty and nothing here clips, so a long name runs on
+                // over them instead of wrapping.
                 block {
-                  visibility: isGrouped && gridRowKind(row) == "group"
+                  visibility: gridIsDerivedGroup(row)
                   layout: horizontal, gap: spacing.1, align: center
+                  white-space: 'nowrap'
                   text(row._groupLabel != null ? row._groupLabel : "") {
                     style: type.label-sm
                     weight: 700
@@ -2520,30 +2540,41 @@ component DataGrid(
                 // its values on different edges. `grow` here, not `width: 100%`
                 // on the caller's root: a component's root styling applies
                 // inside its mount wrapper, never to the wrapper itself.
-                block {
-                  // Fills the cell so the caller's content can size to it —
-                  // EXCEPT when the column asks to be aligned, because that fill
-                  // is what makes alignment impossible. This box spans the
-                  // content box, so the content box's `justify` has nothing left
-                  // to push and `align: "end"` sets a style that does nothing.
-                  // Measured in a browser; happy-dom computes no layout, so no
-                  // unit test can see it.
-                  //
-                  // Conditional here rather than making this box a flex row:
-                  // a flex row would turn the caller's mount wrapper into a flex
-                  // item and shrink-wrap it for EVERY column, and cf's
-                  // MktListingCell fills its cell to clamp a counterparty name
-                  // to one line. Gating on `align` is opt-in by construction —
-                  // a column that declares none renders exactly as before, and
-                  // one that declares it gives up the fill, which is what asking
-                  // to be aligned means.
-                  grow: col._col.align == null
-                  @slot("cell", col._col, row)
-                  block {
-                    visibility: !hasSlot("cell")
-                    text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
-                      style: type.body-sm
-                      color: semantic.text-primary
+                // Not for a derived group header \u2014 see `gridIsDerivedGroup`.
+                // A `match`, not `visibility:`, because hiding the slot would
+                // still RUN it: the caller's cell component would mount for a
+                // row it was never written for. The subject is the row alone,
+                // so the arm is picked when `each` builds the row, and re-picked
+                // when a collapse moves a different row into this position.
+                match gridIsDerivedGroup(row) {
+                  true -> {},
+                  _ -> {
+                    block {
+                      // Fills the cell so the caller's content can size to it —
+                      // EXCEPT when the column asks to be aligned, because that fill
+                      // is what makes alignment impossible. This box spans the
+                      // content box, so the content box's `justify` has nothing left
+                      // to push and `align: "end"` sets a style that does nothing.
+                      // Measured in a browser; happy-dom computes no layout, so no
+                      // unit test can see it.
+                      //
+                      // Conditional here rather than making this box a flex row:
+                      // a flex row would turn the caller's mount wrapper into a flex
+                      // item and shrink-wrap it for EVERY column, and cf's
+                      // MktListingCell fills its cell to clamp a counterparty name
+                      // to one line. Gating on `align` is opt-in by construction —
+                      // a column that declares none renders exactly as before, and
+                      // one that declares it gives up the fill, which is what asking
+                      // to be aligned means.
+                      grow: col._col.align == null
+                      @slot("cell", col._col, row)
+                      block {
+                        visibility: !hasSlot("cell")
+                        text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
+                          style: type.body-sm
+                          color: semantic.text-primary
+                        }
+                      }
                     }
                   }
                 }
@@ -2592,7 +2623,7 @@ component DataGrid(
                 // Absent `align` resolves to "start", which is the flex default,
                 // so an undeclared column renders exactly as before.
                 data-grid-cell-content: col._col.key
-                layout: horizontal, gap: spacing.1, align: center, justify: col._col.align != null ? col._col.align : "start"
+                layout: horizontal, gap: spacing.1, align: center, justify: gridIsDerivedGroup(row) ? "start" : (col._col.align != null ? col._col.align : "start")
                 // Same control for an unpinned grid, where column 0 is here.
                 match hasAnyGroupRow {
                   true -> {
@@ -2616,12 +2647,13 @@ component DataGrid(
                   },
                   _ -> {}
                 }
-                // A DERIVED group row has no caller cell content \u2014 the grid
-                // made it \u2014 so it names itself. A structural group row still
-                // takes its label from the caller's `cell` slot, untouched.
+                // A DERIVED group row names itself \u2014 see the pinned half. Here
+                // only in column 0 of an unpinned grid: the caret's own gate, so
+                // the label and its caret cannot land in different cells.
                 block {
-                  visibility: isGrouped && gridRowKind(row) == "group"
+                  visibility: gridIsDerivedGroup(row) && colIdx == 0 && !pinFirst
                   layout: horizontal, gap: spacing.1, align: center
+                  white-space: 'nowrap'
                   text(row._groupLabel != null ? row._groupLabel : "") {
                     style: type.label-sm
                     weight: 700
@@ -2676,30 +2708,41 @@ component DataGrid(
                 // its values on different edges. `grow` here, not `width: 100%`
                 // on the caller's root: a component's root styling applies
                 // inside its mount wrapper, never to the wrapper itself.
-                block {
-                  // Fills the cell so the caller's content can size to it —
-                  // EXCEPT when the column asks to be aligned, because that fill
-                  // is what makes alignment impossible. This box spans the
-                  // content box, so the content box's `justify` has nothing left
-                  // to push and `align: "end"` sets a style that does nothing.
-                  // Measured in a browser; happy-dom computes no layout, so no
-                  // unit test can see it.
-                  //
-                  // Conditional here rather than making this box a flex row:
-                  // a flex row would turn the caller's mount wrapper into a flex
-                  // item and shrink-wrap it for EVERY column, and cf's
-                  // MktListingCell fills its cell to clamp a counterparty name
-                  // to one line. Gating on `align` is opt-in by construction —
-                  // a column that declares none renders exactly as before, and
-                  // one that declares it gives up the fill, which is what asking
-                  // to be aligned means.
-                  grow: col._col.align == null
-                  @slot("cell", col._col, row)
-                  block {
-                    visibility: !hasSlot("cell")
-                    text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
-                      style: type.body-sm
-                      color: semantic.text-primary
+                // Not for a derived group header \u2014 see `gridIsDerivedGroup`.
+                // A `match`, not `visibility:`, because hiding the slot would
+                // still RUN it: the caller's cell component would mount for a
+                // row it was never written for. The subject is the row alone,
+                // so the arm is picked when `each` builds the row, and re-picked
+                // when a collapse moves a different row into this position.
+                match gridIsDerivedGroup(row) {
+                  true -> {},
+                  _ -> {
+                    block {
+                      // Fills the cell so the caller's content can size to it —
+                      // EXCEPT when the column asks to be aligned, because that fill
+                      // is what makes alignment impossible. This box spans the
+                      // content box, so the content box's `justify` has nothing left
+                      // to push and `align: "end"` sets a style that does nothing.
+                      // Measured in a browser; happy-dom computes no layout, so no
+                      // unit test can see it.
+                      //
+                      // Conditional here rather than making this box a flex row:
+                      // a flex row would turn the caller's mount wrapper into a flex
+                      // item and shrink-wrap it for EVERY column, and cf's
+                      // MktListingCell fills its cell to clamp a counterparty name
+                      // to one line. Gating on `align` is opt-in by construction —
+                      // a column that declares none renders exactly as before, and
+                      // one that declares it gives up the fill, which is what asking
+                      // to be aligned means.
+                      grow: col._col.align == null
+                      @slot("cell", col._col, row)
+                      block {
+                        visibility: !hasSlot("cell")
+                        text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
+                          style: type.body-sm
+                          color: semantic.text-primary
+                        }
+                      }
                     }
                   }
                 }
