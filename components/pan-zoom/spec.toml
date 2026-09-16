@@ -1,0 +1,16 @@
+[package]
+name = "pan-zoom"
+version = "0.1.0"
+category = "components"
+description = "Pan and zoom an image: wheel, pinch, drag, double-tap, and host commands"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "pan-zoom.spec"
+
+[extern]
+files = ["../_extern/pan-zoom.js"]
