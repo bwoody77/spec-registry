@@ -1,4 +1,4 @@
-component Toast(message: string, severity: string = "info", duration: number = 5000) {
+component Toast(message: text, severity: string = "info", duration: number = 5000) {
   @state {
     hovered: false
   }
