@@ -62,9 +62,15 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
   @computed {
     valueISO: value != "" ? toISODate(value, format) : ""
     displayValue: value != "" ? value : ""
-    placeholderText: placeholder != "" ? placeholder : format
+    // The letters a date-entry mask shows, in the build's language (es: A for
+    // año). Declared before placeholderText and the seg*Label masks that read
+    // them — computeds evaluate in order.
+    maskY: calendarMaskLetter('Y')
+    maskM: calendarMaskLetter('M')
+    maskD: calendarMaskLetter('D')
+    placeholderText: placeholder != "" ? placeholder : regexReplace(regexReplace(regexReplace(format, 'Y', maskY), 'M', maskM), 'D', maskD)
     daysInCurrentMonth: daysInMonth(viewYear, viewMonth)
-    monthNames: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    monthNames: calendarMonths('long')
     calendarCells: calendarGrid(viewYear, viewMonth)
     segments: formatSegments(format)
     sep: formatSeparator(format)
@@ -89,12 +95,12 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     mStr: dMonth < 10 ? "0" + dMonth : dMonth + ""
     dStr: dDay < 10 ? "0" + dDay : dDay + ""
     yStr: dYear + ""
-    monthShort: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    monthShort: calendarMonths('short')
     gridIndices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     yearRangeLabel: yearGridStart + " – " + (yearGridStart + 11)
-    seg0Label: mask0 ? (segments[0] == 'month' ? "MM" : segments[0] == 'day' ? "DD" : "YYYY") : (segments[0] == 'month' ? mStr : segments[0] == 'day' ? dStr : yStr)
-    seg1Label: mask1 ? (segments[1] == 'month' ? "MM" : segments[1] == 'day' ? "DD" : "YYYY") : (segments[1] == 'month' ? mStr : segments[1] == 'day' ? dStr : yStr)
-    seg2Label: mask2 ? (segments[2] == 'month' ? "MM" : segments[2] == 'day' ? "DD" : "YYYY") : (segments[2] == 'month' ? mStr : segments[2] == 'day' ? dStr : yStr)
+    seg0Label: mask0 ? (segments[0] == 'month' ? maskM + maskM : segments[0] == 'day' ? maskD + maskD : maskY + maskY + maskY + maskY) : (segments[0] == 'month' ? mStr : segments[0] == 'day' ? dStr : yStr)
+    seg1Label: mask1 ? (segments[1] == 'month' ? maskM + maskM : segments[1] == 'day' ? maskD + maskD : maskY + maskY + maskY + maskY) : (segments[1] == 'month' ? mStr : segments[1] == 'day' ? dStr : yStr)
+    seg2Label: mask2 ? (segments[2] == 'month' ? maskM + maskM : segments[2] == 'day' ? maskD + maskD : maskY + maskY + maskY + maskY) : (segments[2] == 'month' ? mStr : segments[2] == 'day' ? dStr : yStr)
     // What a segment actually SHOWS. The committed value is only half of it:
     // a segment being typed into has to echo the digits already entered, or
     // the field looks inert until the segment happens to complete. On a
@@ -833,13 +839,9 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
           layout: grid, columns: "repeat(7, 1fr)"
           padding: spacing.1
 
-          text('Su') { style: type.caption, color: semantic.text-tertiary }
-          text('Mo') { style: type.caption, color: semantic.text-tertiary }
-          text('Tu') { style: type.caption, color: semantic.text-tertiary }
-          text('We') { style: type.caption, color: semantic.text-tertiary }
-          text('Th') { style: type.caption, color: semantic.text-tertiary }
-          text('Fr') { style: type.caption, color: semantic.text-tertiary }
-          text('Sa') { style: type.caption, color: semantic.text-tertiary }
+          each calendarWeekdays('min') as w {
+            text(w) { style: type.caption, color: semantic.text-tertiary }
+          }
         }
 
         // Calendar grid

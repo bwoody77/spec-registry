@@ -55,21 +55,6 @@ export function calendarGrid(year, month) {
     }
     return result;
 }
-/** Format a date string for display. */
-export function formatDate(dateStr, locale) {
-    if (!dateStr)
-        return '';
-    const parts = parseDateParts(dateStr);
-    if (!parts)
-        return dateStr;
-    const d = new Date(parts.year, parts.month, parts.day);
-    try {
-        return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
-    }
-    catch {
-        return dateStr;
-    }
-}
 /** Check if two date strings represent the same date. */
 export function isSameDate(a, b) {
     return a === b;
@@ -106,16 +91,6 @@ export function todayStr() {
     const d = new Date();
     return formatDateStr(d.getFullYear(), d.getMonth(), d.getDate());
 }
-/** Get month name for display. */
-export function monthName(year, month, locale) {
-    const d = new Date(year, month, 1);
-    try {
-        return d.toLocaleDateString(locale, { year: 'numeric', month: 'long' });
-    }
-    catch {
-        return `${year}-${String(month + 1).padStart(2, '0')}`;
-    }
-}
 /** Check if a date string is within min/max bounds. */
 export function isDateInRange(dateStr, min, max) {
     if (!dateStr)
@@ -125,23 +100,6 @@ export function isDateInRange(dateStr, min, max) {
     if (max && dateStr > max)
         return false;
     return true;
-}
-/** Weekday header labels. */
-export function weekdayHeaders(locale) {
-    // Sun-Sat short names
-    const headers = [];
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(2024, 0, i); // Jan 2024 starts on Monday, but we need Sun=0
-        // Jan 7, 2024 is a Sunday
-        const d2 = new Date(2024, 0, 7 + i);
-        try {
-            headers.push(d2.toLocaleDateString(locale, { weekday: 'short' }).slice(0, 2));
-        }
-        catch {
-            headers.push(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][i]);
-        }
-    }
-    return headers;
 }
 /** Get today's date as {year, month, day} (month is 0-indexed). */
 export function todayParts() {
