@@ -91,7 +91,7 @@
 //   add a badge or icon in one column without losing the default text.
 component ModalSelect(
   open: boolean = false,
-  title: string = "Select",
+  title: text = "Select",
   width: string = "640px",
   columns: array = [],
   rows: array = [],
@@ -99,7 +99,7 @@ component ModalSelect(
   emptyMessage: string = "Nothing to choose from",
   searchable: boolean = true,
   multi: boolean = false,
-  confirmLabel: string = "Add"
+  confirmLabel: text = "Add"
 ) {
   @state {
     query: ""
