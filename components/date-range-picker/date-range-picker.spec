@@ -1,4 +1,3 @@
-@extern { drpMonthGrid, drpSpan, drpIn, drpCellLabel, drpPick, drpViewFor, drpShiftView, drpMonthTitle, drpMoveFocus, drpInView, drpLabel, drpDays, drpPrompt, drpSame, drpSuggestEnd } from "@spec/components/date-range-utils.js"
 @extern { toISODate, isoToOutput, todayStr } from "@spec/components/date-utils.js"
 
 // DateRangePicker — a start and an end picked on ONE calendar.
@@ -19,7 +18,8 @@
 //   today        ISO; defaults to the browser's local date. Pass the business's
 //                own "today" when that can differ.
 //
-// Interaction (date-range-utils.ts holds every rule, tested there):
+// Interaction (the drp* fns at the end of this file hold every rule, tested in
+// date-range-picker-fns.test.ts):
 //   • click a start → the end is suggested (dashed) or awaited; hovering
 //     previews the end; the next click on or after the start sets it; a click
 //     before the start restarts; the same day twice is a one-day range.
@@ -86,13 +86,13 @@ component DateRangePicker(start: string = "", end: string = "",
     hasValue: start != "" && end != ""
     triggerText: hasValue ? drpLabel(start, end) : placeholder
     valueDays: drpDays(start, end)
-    triggerMeta: valueDays == 0 ? "" : (valueDays == 1 ? "1 day" : valueDays + " days")
-    triggerName: (label != "" ? label : "Date range") + ": " + triggerText
+    triggerMeta: valueDays == 0 ? "" : plural(valueDays, one: "{valueDays} day", other: "{valueDays} days")
+    triggerName: (label != "" ? label : t("Date range")) + ": " + triggerText
     prompt: drpPrompt(draftStart, draftEnd, picking, suggested)
     hasPresets: presets.length > 0
     showBandsKey: bands.length > 0 && bandsLabel != ""
     popWidth: wide ? (hasPresets ? "780px" : "600px") : "320px"
-    weekdays: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+    weekdays: calendarWeekdays('min')
   }
 
   @watch {
@@ -168,7 +168,8 @@ component DateRangePicker(start: string = "", end: string = "",
       let from = focusIso != "" ? focusIso : todayIso
       let next = drpMoveFocus(from, key)
       if drpInView(next, viewYear, viewMonth, months) == false {
-        if next < from {
+        // Epoch days, never the ISO strings — see drpIn.
+        if drpToDay(next) < drpToDay(from) {
           shiftView(-1)
         } else {
           shiftView(1)
@@ -198,7 +199,7 @@ component DateRangePicker(start: string = "", end: string = "",
         problem = "Pick an end date."
         return
       }
-      if draftEnd < draftStart {
+      if drpToDay(draftEnd) < drpToDay(draftStart) {
         problem = "The end is before the start."
         return
       }
@@ -238,7 +239,7 @@ component DateRangePicker(start: string = "", end: string = "",
       // therefore kept Aug 29, Apply refused "The end is before the start",
       // and nothing reached the page (Vector e2e PPR3). It also left `picking`
       // false, so a suggestion read as a confirmed range (PPR2).
-      if endTouched && draftEnd != "" && draftEnd >= iso {
+      if endTouched && draftEnd != "" && drpToDay(draftEnd) >= drpToDay(iso) {
         draftStart = iso
         picking = false
         suggested = false
@@ -686,4 +687,421 @@ component DateRangePicker(start: string = "", end: string = "",
       text(errorMessage) { style: type.caption, color: semantic.destructive }
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// drp* — the date math behind DateRangePicker, as portable fns.
+//
+// ISO 'YYYY-MM-DD' strings in and out, integer epoch-day math (whole days since
+// 1970-01-01) with no Date, so no timezone can move a date and every target
+// computes the same answer. `month` is 0-based (0 = January), the convention
+// DatePicker's viewMonth uses. Weeks start on Sunday, as DatePicker's grid
+// does. Names, word order and prose come from calendar*() / fillPattern() /
+// t() / plural(), so a locale build reads in its own language.
+//
+// Three rules carry the weight, and each has a test
+// (date-range-picker-fns.test.ts):
+//
+//   • A range includes BOTH ends. A 14-day period that starts Sep 13 ends
+//     Sep 26 — start + 13. Start + 14 is day one of the next period.
+//   • Picking is click-click on one calendar: the first click is the start,
+//     the second (on or after it) the end; a click BEFORE the start restarts
+//     there; the same day twice is a one-day range.
+//   • A suggested end (from `periodDays`, or the band the start falls in) is
+//     TENTATIVE: shown, but confirmed only by a second click or Apply.
+//
+// Shapes:
+//   band   { start, end } — a marked span drawn as a ruler under the weeks.
+//   cell   { key, iso, day, blank, inRange, isStart, isEnd, tentative, today,
+//            bandParity, bandStart, bandEnd, label } — `key` is the ISO date
+//            or 'blank-N', stable within one month, so the component's keyed
+//            `each` keeps a day's button (and its keyboard focus) across a
+//            re-render. `tentative` marks a suggested end or a hover preview;
+//            `bandParity` is 0 / 1 alternating per band, -1 outside any band.
+//   pick   { start, end, picking, suggested }
+//   view   { year, month }
+//   span   { lo, hi, tentative, awaitingEnd }
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Epoch day for a civil date (m is 1-based) — Hinnant's days_from_civil.
+fn drpCivilToDay(y: number, m: number, d: number) -> number {
+  let yy = m <= 2 ? y - 1 : y
+  let era = floor(yy / 400)
+  let yoe = yy - era * 400
+  let mp = m > 2 ? m - 3 : m + 9
+  let doy = floor((153 * mp + 2) / 5) + d - 1
+  let doe = yoe * 365 + floor(yoe / 4) - floor(yoe / 100) + doy
+  return era * 146097 + doe - 719468
+}
+
+// Civil date { y, m (1-based), d } for an epoch day — Hinnant's civil_from_days.
+fn drpDayToCivil(z: number) -> map {
+  let zz = z + 719468
+  let era = floor(zz / 146097)
+  let doe = zz - era * 146097
+  let yoe = floor((doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146096)) / 365)
+  let doy = doe - (365 * yoe + floor(yoe / 4) - floor(yoe / 100))
+  let mp = floor((5 * doy + 2) / 153)
+  let d = doy - floor((153 * mp + 2) / 5) + 1
+  let m = mp < 10 ? mp + 3 : mp - 9
+  let y = yoe + era * 400 + (m <= 2 ? 1 : 0)
+  return { y: y, m: m, d: d }
+}
+
+// 0 = Sunday. Epoch day 0 (1970-01-01) was a Thursday.
+fn drpDow(z: number) -> number {
+  return (((z % 7) + 7) % 7 + 4) % 7
+}
+
+// month0 is 0-based, as everywhere in this component.
+fn drpDaysIn(year: number, month0: number) -> number {
+  let next = drpShiftView(year, month0, 1)
+  return drpCivilToDay(next.year, next.month + 1, 1) - drpCivilToDay(year, month0 + 1, 1)
+}
+
+// Epoch day for a REAL calendar date, or null ('2026-02-30' → null).
+fn drpToDay(iso: any) -> any {
+  if typeOf(iso) != 'string' { return null }
+  if regexTest(iso, '^\d{4}-\d{2}-\d{2}$') == false { return null }
+  let y = parseInt(slice(iso, 0, 4), 10)
+  let m = parseInt(slice(iso, 5, 7), 10)
+  let d = parseInt(slice(iso, 8, 10), 10)
+  if m < 1 || m > 12 || d < 1 { return null }
+  if d > drpDaysIn(y, m - 1) { return null }
+  return drpCivilToDay(y, m, d)
+}
+
+fn drpFromDay(z: number) -> string {
+  let c = drpDayToCivil(z)
+  return padStart("{c.y}", 4, '0') + '-' + padStart("{c.m}", 2, '0') + '-' + padStart("{c.d}", 2, '0')
+}
+
+fn drpAddDays(iso: any, n: number) -> string {
+  let z = drpToDay(iso)
+  if z == null { return '' }
+  return drpFromDay(z + n)
+}
+
+// Days in a range, BOTH ends counted; 0 when either end is missing or it runs backwards.
+fn drpDays(start: any, end: any) -> number {
+  let a = drpToDay(start)
+  let b = drpToDay(end)
+  if a == null || b == null { return 0 }
+  if b < a { return 0 }
+  return b - a + 1
+}
+
+// 'Aug 30 – Sep 12, 2026' · 'Sep 13 – 26, 2026' · 'Dec 27, 2026 – Jan 9, 2027' · 'Sep 13, 2026'.
+fn drpLabel(start: any, end: any) -> string {
+  let a = drpToDay(start)
+  let b = drpToDay(end)
+  if a == null || b == null { return '' }
+  let ca = drpDayToCivil(a)
+  let cb = drpDayToCivil(b)
+  let short = calendarMonths('short')
+  let ma = short[ca.m - 1]
+  let mb = short[cb.m - 1]
+  if a == b {
+    return fillPattern(calendarPattern('monthDayYear'), { mon: ma, d: ca.d, y: ca.y })
+  }
+  if ca.y != cb.y {
+    return fillPattern(calendarPattern('monthDayYear'), { mon: ma, d: ca.d, y: ca.y }) + ' – ' + fillPattern(calendarPattern('monthDayYear'), { mon: mb, d: cb.d, y: cb.y })
+  }
+  if ca.m == cb.m {
+    return fillPattern(calendarPattern('rangeSameMonth'), { mon: ma, d1: ca.d, d2: cb.d, y: ca.y })
+  }
+  return fillPattern(calendarPattern('rangeSameYear'), { mon1: ma, d1: ca.d, mon2: mb, d2: cb.d, y: cb.y })
+}
+
+// 'Sunday, September 13, 2026'.
+fn drpLongDate(iso: any) -> string {
+  let z = drpToDay(iso)
+  if z == null { return '' }
+  let c = drpDayToCivil(z)
+  return fillPattern(calendarPattern('fullDate'), { weekday: calendarWeekdays('long')[drpDow(z)], month: calendarMonths('long')[c.m - 1], d: c.d, y: c.y })
+}
+
+fn drpMonthTitle(year: number, month: number) -> string {
+  let v = drpShiftView(year, month, 0)
+  return fillPattern(calendarPattern('monthYear'), { month: calendarMonths('long')[v.month], y: v.year })
+}
+
+// Index of the band holding epoch day z, or -1.
+fn drpBandIndexOf(z: number, bands: any) -> number {
+  if isList(bands) == false { return -1 }
+  for b, i in bands {
+    let s = drpToDay(b?.start)
+    let e = drpToDay(b?.end)
+    if s != null && e != null && s <= z && z <= e { return i }
+  }
+  return -1
+}
+
+// The end to fill in once a start is picked: a whole `periodDays` after it
+// (start + periodDays − 1, since both ends count), else the end of the band the
+// start falls in, else '' — no suggestion.
+fn drpSuggestEnd(start: any, periodDays: any, bands: any) -> string {
+  let z = drpToDay(start)
+  if z == null { return '' }
+  if typeOf(periodDays) == 'number' && periodDays > 0 {
+    return drpFromDay(z + floor(periodDays) - 1)
+  }
+  let i = drpBandIndexOf(z, bands)
+  if i < 0 { return '' }
+  return bands[i].end
+}
+
+// One click on `day`. Returns the next selection state.
+fn drpPick(start: any, end: any, picking: boolean, day: any, periodDays: any, bands: any) -> map {
+  let zd = drpToDay(day)
+  if zd == null {
+    return { start: start, end: end, picking: picking, suggested: false }
+  }
+  let zs = drpToDay(start)
+  if picking && zs != null && zd >= zs {
+    return { start: start, end: day, picking: false, suggested: false }
+  }
+  let suggestedEnd = drpSuggestEnd(day, periodDays, bands)
+  return { start: day, end: suggestedEnd, picking: true, suggested: suggestedEnd != '' }
+}
+
+// A padding cell outside the month.
+fn drpBlankCell(i: number) -> map {
+  return { key: "blank-{i}", iso: '', day: 0, blank: true, inRange: false, isStart: false, isEnd: false, tentative: false, today: false, bandParity: -1, bandStart: false, bandEnd: false, label: '' }
+}
+
+// The cells of one month, Sunday-first, padded with blanks to whole weeks.
+//
+// While `picking` with a `hover` on or after the start, the hover previews the
+// end; otherwise the start..end on record is drawn, tentative when `suggested`.
+fn drpMonthCells(year: number, month: number, start: any, end: any, hover: any, picking: boolean, suggested: boolean, bands: any, today: any) -> list {
+  let v = drpShiftView(year, month, 0)
+  let first = drpCivilToDay(v.year, v.month + 1, 1)
+  let count = drpDaysIn(v.year, v.month)
+  let zs = drpToDay(start)
+  let ze = drpToDay(end)
+  let zh = drpToDay(hover)
+  let zt = drpToDay(today)
+
+  let lo = null
+  let hi = null
+  let tentative = false
+  if picking && zs != null && zh != null && zh >= zs {
+    lo = zs
+    hi = zh
+    tentative = true
+  } else if zs != null && ze != null && ze >= zs {
+    lo = zs
+    hi = ze
+    tentative = suggested
+  } else if zs != null {
+    lo = zs
+    hi = zs
+  }
+
+  let cells = []
+  for i in range(0, drpDow(first)) {
+    push(cells, drpBlankCell(length(cells)))
+  }
+  for d in range(1, count + 1) {
+    let z = first + d - 1
+    let iso = drpFromDay(z)
+    let inRange = lo != null && hi != null && z >= lo && z <= hi
+    let isStart = lo != null && z == lo
+    let isEnd = hi != null && z == hi && inRange
+    let bi = drpBandIndexOf(z, bands)
+    let band = bi >= 0 ? bands[bi] : null
+    let label = drpLongDate(iso)
+    if z == zt {
+      label = t("{label}, today")
+    }
+    // A start still waiting for its end is drawn as a one-day span, but it is
+    // not a one-day RANGE yet — announce it as the start.
+    let awaitingEnd = picking && ze == null
+    if isStart && isEnd && !awaitingEnd {
+      label = t("{label}, selected")
+    } else if isStart {
+      label = t("{label}, start")
+    } else if isEnd {
+      label = tentative ? t("{label}, suggested end") : t("{label}, end")
+    } else if inRange {
+      label = t("{label}, in range")
+    }
+    push(cells, { key: iso, iso: iso, day: d, blank: false, inRange: inRange, isStart: isStart, isEnd: isEnd, tentative: inRange && tentative, today: z == zt, bandParity: bi < 0 ? -1 : bi % 2, bandStart: band != null && band.start == iso, bandEnd: band != null && band.end == iso, label: label })
+  }
+  let trailing = (7 - length(cells) % 7) % 7
+  for i in range(0, trailing) {
+    push(cells, drpBlankCell(length(cells)))
+  }
+  return cells
+}
+
+// ── The same picture, split for rendering ─────────────────────────────────
+//
+// drpMonthCells answers everything about a cell at once, which makes the LIST
+// change on every hover and pick — and a list that changes is re-rendered, so
+// the day button holding keyboard focus was destroyed on each arrow key. The
+// component therefore renders drpMonthGrid (which changes only with the month,
+// the bands and today) and asks drpSpan / drpIn / drpCellLabel per cell. The
+// parity test holds the split to drpMonthCells exactly.
+
+// A month's cells, carrying only what does NOT change while a range is picked.
+fn drpMonthGrid(year: number, month: number, bands: any, today: any) -> list {
+  let out = []
+  for c in drpMonthCells(year, month, '', '', '', false, false, bands, today) {
+    push(out, { key: c.key, iso: c.iso, day: c.day, blank: c.blank, today: c.today, bandParity: c.bandParity, bandStart: c.bandStart, bandEnd: c.bandEnd })
+  }
+  return out
+}
+
+// What to draw for the current selection — the rules drpMonthCells applies, once.
+// Each cell compares its own epoch day to lo / hi (drpIn).
+fn drpSpan(start: any, end: any, hover: any, picking: boolean, suggested: boolean) -> map {
+  let zs = drpToDay(start)
+  let ze = drpToDay(end)
+  let zh = drpToDay(hover)
+  let awaitingEnd = picking && ze == null
+  if picking && zs != null && zh != null && zh >= zs {
+    return { lo: start, hi: hover, tentative: true, awaitingEnd: awaitingEnd }
+  }
+  if zs != null && ze != null && ze >= zs {
+    return { lo: start, hi: end, tentative: suggested, awaitingEnd: awaitingEnd }
+  }
+  if zs != null {
+    return { lo: start, hi: start, tentative: false, awaitingEnd: awaitingEnd }
+  }
+  return { lo: '', hi: '', tentative: false, awaitingEnd: false }
+}
+
+// Is a cell's ISO date inside the span? False for a blank cell or an empty span.
+fn drpIn(iso: any, span: any) -> boolean {
+  if typeOf(iso) != 'string' || iso == '' { return false }
+  if typeOf(span) != 'map' { return false }
+  if typeOf(span.lo) != 'string' || span.lo == '' { return false }
+  // Epoch days, not the strings. ISO dates do sort as strings, but only in
+  // JavaScript: the Swift emitter lowers `>=` to specNum on each side, and
+  // specNum('2026-09-13') is NaN — so no day was ever in range on iOS.
+  let z = drpToDay(iso)
+  let lo = drpToDay(span.lo)
+  let hi = drpToDay(span.hi)
+  if z == null || lo == null || hi == null { return false }
+  return z >= lo && z <= hi
+}
+
+// A cell's whole accessible name, exactly as drpMonthCells builds it.
+fn drpCellLabel(iso: any, span: any, today: any) -> string {
+  if typeOf(iso) != 'string' || iso == '' { return '' }
+  let label = drpLongDate(iso)
+  if iso == today {
+    label = t("{label}, today")
+  }
+  let inRange = drpIn(iso, span)
+  let isStart = inRange && iso == span.lo
+  let isEnd = inRange && iso == span.hi
+  if isStart && isEnd && !span.awaitingEnd {
+    label = t("{label}, selected")
+  } else if isStart {
+    label = t("{label}, start")
+  } else if isEnd {
+    label = span.tentative ? t("{label}, suggested end") : t("{label}, end")
+  } else if inRange {
+    label = t("{label}, in range")
+  }
+  return label
+}
+
+// Normalized {year, month} after moving `n` months.
+fn drpShiftView(year: number, month: number, n: number) -> map {
+  let total = year * 12 + month + n
+  let y = floor(total / 12)
+  return { year: y, month: total - y * 12 }
+}
+
+// Which month opens on the LEFT of `months` visible months (1 on a phone, 2
+// otherwise). `months` is REQUIRED: a fn has no default parameters, and while a
+// 3-argument call happens to work in JavaScript (undefined <= 1 is false), the
+// Swift build rejects it.
+//
+//   • One month: the start's month (today's with no start). 0.1.2 used the
+//     two-month rule here too, so a phone showed an empty July for an August
+//     range — the range off screen and focus on a day that was not there.
+//   • Two months, a range spanning months: the start's month.
+//   • Two months, a range inside one month (or no range): that month on the
+//     left and the next on the right — unless it is TODAY's month, which goes
+//     on the right so last month shows beside it (reports look back).
+fn drpViewFor(start: any, end: any, today: any, months: any) -> map {
+  let zs = drpToDay(start)
+  let ze = drpToDay(end)
+  let zt = drpToDay(today)
+  let anchor = zs ?? zt ?? 0
+  let a = drpDayToCivil(anchor)
+  if months <= 1 {
+    return drpShiftView(a.y, a.m - 1, 0)
+  }
+  let b = drpDayToCivil(ze ?? anchor)
+  let sameMonth = a.y == b.y && a.m == b.m
+  if !sameMonth {
+    return drpShiftView(a.y, a.m - 1, 0)
+  }
+  let tc = drpDayToCivil(zt ?? anchor)
+  let todaysMonth = tc.y == a.y && tc.m == a.m
+  return drpShiftView(a.y, a.m - 1, todaysMonth ? -1 : 0)
+}
+
+// Is `iso` in one of the `months` months shown from {year, month}?
+fn drpInView(iso: any, year: number, month: number, months: number) -> boolean {
+  let z = drpToDay(iso)
+  if z == null { return false }
+  let v = drpShiftView(year, month, 0)
+  let lo = drpCivilToDay(v.year, v.month + 1, 1)
+  let after = drpShiftView(v.year, v.month, max(1, months))
+  let hi = drpCivilToDay(after.year, after.month + 1, 1) - 1
+  return z >= lo && z <= hi
+}
+
+// Keyboard focus movement in the grid, per the APG date-picker grid: arrows
+// by day / week, Home / End to the week's ends, PageUp / PageDown by month with
+// the day clamped to the target month. Any other key returns the date unchanged.
+fn drpMoveFocus(iso: any, key: string) -> string {
+  let z = drpToDay(iso)
+  if z == null { return iso }
+  if key == 'ArrowLeft' { return drpFromDay(z - 1) }
+  if key == 'ArrowRight' { return drpFromDay(z + 1) }
+  if key == 'ArrowUp' { return drpFromDay(z - 7) }
+  if key == 'ArrowDown' { return drpFromDay(z + 7) }
+  if key == 'Home' { return drpFromDay(z - drpDow(z)) }
+  if key == 'End' { return drpFromDay(z + (6 - drpDow(z))) }
+  if key == 'PageUp' || key == 'PageDown' {
+    let c = drpDayToCivil(z)
+    let v = drpShiftView(c.y, c.m - 1, key == 'PageUp' ? -1 : 1)
+    let day = min(c.d, drpDaysIn(v.year, v.month))
+    return drpFromDay(drpCivilToDay(v.year, v.month + 1, day))
+  }
+  return iso
+}
+
+// What a screen reader hears after each step — and what the footer says.
+fn drpPrompt(start: any, end: any, picking: boolean, suggested: boolean) -> string {
+  if drpToDay(start) == null {
+    return t("Pick a start date.")
+  }
+  let startDate = drpLongDate(start)
+  if picking && suggested && drpToDay(end) != null {
+    let endDate = drpLongDate(end)
+    return t("Start {startDate}. End suggested: {endDate}. Pick another day to change it, or Apply.")
+  }
+  if picking {
+    return t("Start {startDate}. Now pick the end date.")
+  }
+  let n = drpDays(start, end)
+  if n == 0 {
+    return t("Pick an end date.")
+  }
+  let rangeLabel = drpLabel(start, end)
+  return plural(n, one: "{rangeLabel} — {n} day.", other: "{rangeLabel} — {n} days.")
+}
+
+// Do two ranges name exactly the same days?
+fn drpSame(aStart: any, aEnd: any, bStart: any, bEnd: any) -> boolean {
+  return drpToDay(aStart) != null && aStart == bStart && aEnd == bEnd
 }
