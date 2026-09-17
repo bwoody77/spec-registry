@@ -1,7 +1,7 @@
 component FAB(
   icon: string = "plus",
   size: string = "md",
-  label: string = ""
+  label: text = ""
 ) {
   @computed {
     btnSize: match size {
