@@ -1,6 +1,6 @@
 [package]
 name = "loading-block"
-version = "0.2.0"
+version = "0.3.0"
 category = "components"
 description = "Centered spinner with label for loading sections"
 license = "MIT"
