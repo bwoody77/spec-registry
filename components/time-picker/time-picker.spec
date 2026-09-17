@@ -1,4 +1,4 @@
-component TimePicker(value: string = "12:00", format: string = "24", minuteStep: number = 1, label: string = "", disabled: boolean = false) {
+component TimePicker(value: string = "12:00", format: string = "24", minuteStep: number = 1, label: text = "", disabled: boolean = false) {
   @state {
     hours: 12
     minutes: 0
