@@ -37,10 +37,10 @@
 // twice.
 component Modal(
   open: boolean = false,
-  title: string = "",
+  title: text = "",
   width: string = "500px",
   chrome: boolean = true,
-  ariaLabel: string = "",
+  ariaLabel: text = "",
   dialogShadow: string = "",
   fullBleed: boolean = false
 ) {
