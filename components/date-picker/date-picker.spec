@@ -1,8 +1,8 @@
 @extern { calendarGrid, todayStr, parseDateInput, daysInMonth, todayParts, formatDateOutput, formatSegments, formatSeparator, toISODate, isoToOutput } from "@spec/components/date-utils.js"
 
-component DatePicker(value: string = "", label: string = "", placeholder: string = "",
+component DatePicker(value: string = "", label: text = "", placeholder: text = "",
                      disabled: boolean = false, format: string = "MM/DD/YYYY",
-                     error: boolean = false, errorMessage: string = "",
+                     error: boolean = false, errorMessage: text = "",
                      // Same value space as TextInput's `tone`, and the same
                      // meaning: `error` says the submit rejected this field,
                      // `tone: "warning"` says something still wants a value
