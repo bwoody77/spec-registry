@@ -1,4 +1,4 @@
-component EmptyState(message: string, description: string = "") {
+component EmptyState(message: text, description: text = "") {
   block {
     layout: vertical, gap: spacing.2, align: center
     padding: spacing.6
