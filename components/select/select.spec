@@ -8,7 +8,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
 // visible label is somewhere the compiler can't see, or when the control needs
 // a longer name than the one on screen.
-component Select(options: array = [], value: string = "", highlight: string = "", placeholder: string = "Select...", searchable: boolean = false, disabled: boolean = false, label: string = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: string = "", ariaLabel: string = "", autoFocus: boolean = false, size: string = "md") {
+component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md") {
   @state {
     open: false
     query: ""
