@@ -31,7 +31,7 @@
 component SegmentedControl(
   options: array = [],
   value: string = "",
-  ariaLabel: string = "",
+  ariaLabel: text = "",
   disabled: boolean = false,
   size: string = "md"
 ) {
@@ -66,7 +66,7 @@ component SegmentedControl(
 // One segment. A real <button>, so the group is reachable and operable from the
 // keyboard — a clickable div would put the whole control out of reach.
 component SegmentedControlItem(
-  label: string,
+  label: text,
   active: boolean = false,
   disabled: boolean = false,
   padY: number = 6,
