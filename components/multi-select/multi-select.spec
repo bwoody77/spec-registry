@@ -5,7 +5,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 
 // `ariaLabel` is normally supplied by the compiler from the visible label
 // rendered beside the control (ast-to-ir inferAccessibleNames), not by hand.
-component MultiSelect(options: array = [], values: array = [], placeholder: string = "Select...", searchable: boolean = true, disabled: boolean = false, label: string = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3, ariaLabel: string = "") {
+component MultiSelect(options: array = [], values: array = [], placeholder: text = "Select...", searchable: boolean = true, disabled: boolean = false, label: text = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3, ariaLabel: text = "") {
   @state {
     open: false
     query: ""
