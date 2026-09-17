@@ -1,6 +1,6 @@
 component NavStack(
   showBackButton: boolean = true,
-  title: string = ""
+  title: text = ""
 ) {
   @state {
     canGoBack: false
