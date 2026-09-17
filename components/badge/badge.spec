@@ -13,7 +13,7 @@
 // The radius comes from `token.badge-square-radius` rather than a literal, for
 // the same reason the pill's comes from a token: an app that wants softer or
 // sharper corners overrides a token instead of forking the component.
-component Badge(text: string, variant: string = "neutral", shape: string = "pill") {
+component Badge(text: text, variant: string = "neutral", shape: string = "pill") {
   block {
     inline: true
     layout: horizontal, gap: 4px, align: center
