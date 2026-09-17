@@ -74,7 +74,7 @@
 //   - iconOnly forces square padding (matches size).
 //   - link variant has no padding-y (sits inline with text) and no bg/border.
 component Button(
-  label:        string,
+  label:        text,
   variant:      string  = "primary",
   disabled:     boolean = false,
   loading:      boolean = false,
@@ -92,8 +92,8 @@ component Button(
   iconLeft:     string  = "",
   iconRight:    string  = "",
   iconOnly:     string  = "",
-  loadingLabel: string  = "",
-  ariaLabel:    string  = "",
+  loadingLabel: text  = "",
+  ariaLabel:    text  = "",
   // Where the content sits along the button's own main axis:
   // "start" | "center" | "end" | "between" | "around" | "evenly". Defaults to
   // "center", which is what every Button rendered before this prop existed, so
