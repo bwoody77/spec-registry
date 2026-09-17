@@ -1,6 +1,6 @@
 component ActionSheet(
   open: boolean = false,
-  title: string = "",
+  title: text = "",
   actions: array = []
 ) {
   @state {
