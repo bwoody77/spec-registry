@@ -1,5 +1,5 @@
 // Progress — bar progress indicator with expression-based width
-component Progress(value: number = 0, label: string = "") {
+component Progress(value: number = 0, label: text = "") {
   block {
     height: 8px
     background: token.progress-trackBg
