@@ -17,8 +17,8 @@ component TextInput(
   // more, so a paragraph field could not grow into the pane it was given.
   // Defaulted to 4, so every existing consumer renders exactly as before.
   rows: number = 4,
-  label: string = "",
-  placeholder: string = "",
+  label: text = "",
+  placeholder: text = "",
   value: string = "",
   disabled: boolean = false,
   readonly: boolean = false,
@@ -38,10 +38,10 @@ component TextInput(
   unit: string = "",
   tone: string = "default",
   error: boolean = false,
-  errorMessage: string = "",
+  errorMessage: text = "",
   // Normally supplied by the compiler from the visible label rendered
   // beside the field (ast-to-ir inferAccessibleNames), not by hand.
-  ariaLabel: string = "",
+  ariaLabel: text = "",
   // "md" (default, unchanged) | "sm". Mirrors Select's prop of the same name,
   // and lands on the same measured height, so the two sit level in a toolbar
   // or a property grid — which is the gap that motivated this. Select took a
