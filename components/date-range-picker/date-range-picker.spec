@@ -40,11 +40,11 @@ component DateRangePicker(start: string = "", end: string = "",
                           bands: list = [],
                           bandsLabel: string = "",
                           today: string = "",
-                          label: string = "",
-                          placeholder: string = "Pick dates",
+                          label: text = "",
+                          placeholder: text = "Pick dates",
                           disabled: boolean = false,
                           error: boolean = false,
-                          errorMessage: string = "") {
+                          errorMessage: text = "") {
   @state {
     open: false
     viewYear: 2026
