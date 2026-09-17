@@ -10,7 +10,7 @@
 //
 // role="switch" rather than "checkbox": both announce a binary state, but a
 // switch is the on/off control this renders and it has no indeterminate state.
-component Toggle(label: string, checked: boolean = false, disabled: boolean = false) {
+component Toggle(label: text, checked: boolean = false, disabled: boolean = false) {
   button {
     disabled: disabled
     border: "none"
