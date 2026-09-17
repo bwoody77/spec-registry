@@ -100,9 +100,9 @@ fn _wrapIndex(index: number, delta: number, len: number) -> number {
 component Autocomplete(
   options: array = [],
   value: string = "",
-  placeholder: string = "Type to search…",
+  placeholder: text = "Type to search…",
   error: boolean = false,
-  errorMessage: string = "",
+  errorMessage: text = "",
   disabled: boolean = false,
   freeText: boolean = false,
   openOnFocus: boolean = false,
@@ -113,7 +113,7 @@ component Autocomplete(
   highlight: string = "",
   // Supplied by the compiler from the adjacent visible label; forwarded
   // to the wrapped TextInput, which is the element that needs the name.
-  ariaLabel: string = ""
+  ariaLabel: text = ""
 ) {
   @state {
     query: ""
