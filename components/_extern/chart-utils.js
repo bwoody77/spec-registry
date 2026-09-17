@@ -9,6 +9,8 @@ import { registerMount } from '@spec/runtime';
 import { mountChartSVG } from './chart.js';
 // Register on first import so mount("ChartSVG") resolves at runtime.
 registerMount('ChartSVG', mountChartSVG);
+/** Dummy export so @extern { _registerChart } keeps the import for the side effect. */
+export function _registerChart() { }
 export const DEFAULT_COLORS = [
     '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#3b82f6',
     '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#84cc16',
@@ -25,9 +27,10 @@ export function resolveSeries(type, series, yKey, color, colors) {
             key: s.key,
             label: s.label ?? s.key,
             color: s.color ?? (colors?.[i] ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length]),
+            dashed: s.dashed ?? false,
         }));
     }
-    return [{ key: yKey || 'y', label: yKey || 'y', color: color || DEFAULT_COLORS[0] }];
+    return [{ key: yKey || 'y', label: yKey || 'y', color: color || DEFAULT_COLORS[0], dashed: false }];
 }
 /**
  * Build legend items for pie/donut charts from the raw data array.

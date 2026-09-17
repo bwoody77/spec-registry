@@ -41,7 +41,7 @@ component Chart(
   color: string = "",
   colors: array = [],
   height: string = "300px",
-  title: string = "",
+  title: text = "",
   showLegend: boolean = true,
   showGrid: boolean = true,
   showValues: boolean = false,
