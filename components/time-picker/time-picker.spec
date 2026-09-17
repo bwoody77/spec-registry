@@ -143,7 +143,7 @@ component TimePicker(value: string = "12:00", format: string = "24", minuteStep:
           layout: horizontal, align: center, justify: center
           on hover { background: disabled ? semantic.surface-raised : semantic.interactive }
           on click: { if disabled == false { toggleAmPm() } }
-          text(ampm) { style: type.label-sm, color: semantic.text-primary }
+          text(ampm == "AM" ? calendarMeridiem('am') : calendarMeridiem('pm')) { style: type.label-sm, color: semantic.text-primary }
         }
       }
     }
