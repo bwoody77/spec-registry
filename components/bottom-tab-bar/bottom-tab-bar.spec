@@ -2,7 +2,7 @@ component BottomTabBar(
   tabs: array = [],
   activeTab: string = "",
   showLabels: boolean = true,
-  ariaLabel: string = "",
+  ariaLabel: text = "",
   // The id of ONE tab to render as a raised circular disc standing proud of the
   // bar, instead of a flat icon. "" (the default) is every bar that shipped
   // before this prop existed, byte for byte.
