@@ -1,4 +1,4 @@
-component CommandPalette(commands: array = [], open: boolean = false, placeholder: string = "Type a command...", maxResults: number = 50) {
+component CommandPalette(commands: array = [], open: boolean = false, placeholder: text = "Type a command...", maxResults: number = 50) {
   @state {
     query: ""
     highlightIndex: 0
