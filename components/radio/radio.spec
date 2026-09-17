@@ -24,7 +24,7 @@ component RadioGroup(options: array = [], value: string = "", disabled: boolean 
 // announces which option in the group is selected. RadioGroup already wraps
 // these in role="radiogroup"; without aria-checked on the items that grouping
 // described a set whose state could not be read.
-component Radio(label: string, value: string = "", checked: boolean = false, disabled: boolean = false) {
+component Radio(label: text, value: string = "", checked: boolean = false, disabled: boolean = false) {
   button {
     disabled: disabled
     border: "none"
