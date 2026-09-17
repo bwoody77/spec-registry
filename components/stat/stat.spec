@@ -19,7 +19,7 @@
 //
 // Until then this tile is centred, and that is now TRUE rather than merely
 // documented.
-component Stat(label: string, value: string, trend: string = "", trendValue: string = "", helpText: string = "") {
+component Stat(label: text, value: string, trend: string = "", trendValue: string = "", helpText: text = "") {
   block {
     layout: vertical, align: center
 
