@@ -12,7 +12,7 @@
 //
 // If an edge-anchored drawer is wanted, that is a different component (or an
 // `align` on the overlay plus a full-height panel), not this prop.
-component Drawer(open: boolean = false, title: string = "", width: string = "280px") {
+component Drawer(open: boolean = false, title: text = "", width: string = "280px") {
   @state {
     showing: false
   }
