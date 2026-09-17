@@ -1,4 +1,4 @@
-component Slider(min: number = 0, max: number = 100, step: number = 1, value: number = 50, label: string = "", disabled: boolean = false) {
+component Slider(min: number = 0, max: number = 100, step: number = 1, value: number = 50, label: text = "", disabled: boolean = false) {
   @state {
     currentValue: 50
   }
