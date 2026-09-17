@@ -46,9 +46,9 @@
 component Alert(
   // 'info' | 'success' | 'warning' | 'destructive'
   tone:    string  = 'info',
-  message: string  = '',
+  message: text  = '',
   // Optional bolded first line above the message.
-  title:   string  = '',
+  title:   text  = '',
   // Overrides the per-tone default glyph. 'none' hides the icon entirely;
   // '' means "use the tone's default", which is what the default value does.
   icon:    string  = '',
