@@ -1,6 +1,6 @@
 // ColumnChooser — show, hide, reorder and search a grid's columns.
 //
-// DataGridSpec embeds it behind `configurableColumns: true`, so a consumer
+// DataGrid embeds it behind `configurableColumns: true`, so a consumer
 // gets the whole feature from one prop. It also stands alone, which is what
 // lets a page put the trigger in a toolbar it already owns rather than accept
 // a second button in the grid's own chrome.
@@ -159,7 +159,7 @@ component ColumnChooser(
   hiddenColumns: array = [],
   columnOrder: array = [],
   searchThreshold: number = 8,
-  label: string = 'Columns',
+  label: text = 'Columns',
 ) {
   @state {
     // Per-instance id, so two choosers on one page never share a drag session.

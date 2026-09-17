@@ -126,6 +126,8 @@ export function mountGridDrag(opts) {
     function resolveSources() {
         if (Array.isArray(opts.sources))
             return opts.sources;
+        if (typeof opts.sources === 'function')
+            return opts.sources() ?? [];
         return Array.from(opts.container.querySelectorAll(opts.sources));
     }
     function syncAttachments() {

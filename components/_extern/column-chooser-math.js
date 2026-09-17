@@ -47,7 +47,7 @@ export function groupsIntact(order, columns) {
  * The order reconciled against the columns: unknown keys dropped, columns the
  * order does not mention appended in declared order, repeats removed.
  *
- * This is the SAME contract DataGridSpec's `gridApplyColumnOrder` applies, and
+ * This is the SAME contract DataGrid's `gridApplyColumnOrder` applies, and
  * the two must agree. They did not: the panel rendered by walking `order`, so
  * a column a partial saved order failed to mention was not listed AT ALL —
  * while the grid still rendered it, because the grid appends what the order
@@ -80,7 +80,7 @@ export function reconcileOrder(columns, order) {
  * Every column pinned by `movable: false` still sits where it did.
  *
  * `movable: false` stopping only the LOCKED column from moving is not enough:
- * DataGridSpec's `pinFirst` pins by POSITION, so a neighbour moved above the
+ * DataGrid's `pinFirst` pins by POSITION, so a neighbour moved above the
  * locked first column freezes the neighbour and silently un-pins the locked
  * one — while the panel goes on drawing it with a lock and a `pinned` tag.
  * A locked column holds its INDEX against everything, not just itself.

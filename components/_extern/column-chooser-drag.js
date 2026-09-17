@@ -54,6 +54,7 @@ const HIT = ROW + ', ' + SLOT;
 const GROUP_PREFIX = 'g:';
 /** How often we look for a panel that the Popover mounts only while open. */
 const POLL_MS = 80;
+import { onDispose } from '@spec/runtime';
 function makeSlot(height) {
     const el = document.createElement('div');
     el.setAttribute('data-colchooser-slot', 'true');
@@ -300,7 +301,18 @@ export function wireChooserDrag(chooserId, onReorder, columns, order) {
         waitTimer = setTimeout(tick, POLL_MS);
     }
     tick();
-    return function teardown() {
+    // ColumnChooser calls this from a @state initializer and parks the returned
+    // teardown in a signal it never reads again — nothing in a compiled surface
+    // runs a stored function at unmount. So the poll above outlived every
+    // chooser ever mounted, and each timer closed over `resolveOrder` /
+    // `resolveColumns` and through them the DataGrid's props and the whole grid
+    // page. Measured in Vector on 2026-09-02: /fleet retained ~2,500 detached
+    // elements per visit with `DOMTimer → tick → orderOf → props` as the root
+    // path. The @state init runs inside the mount's owner scope, so hand the
+    // teardown to it; the return value stays for callers that manage it by hand.
+    onDispose(teardown);
+    return teardown;
+    function teardown() {
         destroyed = true;
         if (waitTimer != null) {
             clearTimeout(waitTimer);
@@ -319,7 +331,8 @@ export function wireChooserDrag(chooserId, onReorder, columns, order) {
         if (listEl)
             listEl.removeAttribute('data-colchooser-armed');
         listEl = null;
-    };
+    }
+    ;
 }
 // Re-exported so `column-chooser.spec` needs exactly ONE `@extern` line — and
 // so the math module reaches the registry as a TRANSITIVE import, which is the
