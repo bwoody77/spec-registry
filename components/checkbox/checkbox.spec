@@ -24,11 +24,11 @@
 // Same shape and same default as Button's: empty means the accessible name is
 // the visible label, so every existing caller is byte-identical.
 component Checkbox(
-  label: string,
+  label: text,
   checked: boolean = false,
   disabled: boolean = false,
   size: string = "md",
-  ariaLabel: string = ""
+  ariaLabel: text = ""
 ) {
   @computed {
     isSm:      size == "sm"
