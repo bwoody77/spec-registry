@@ -7,7 +7,7 @@ component Spinner(
   tone:       string = "default",
   color:      string = "",
   trackColor: string = "",
-  label:      string = ""
+  label:      text = ""
 ) {
   @computed {
     px: match size {
