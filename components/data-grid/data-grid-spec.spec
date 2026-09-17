@@ -435,6 +435,56 @@ fn gridToggleExpanded(expandedSet: list, key: string) -> list {
   return expandedSet |> concat([key])
 }
 
+// ─── The keyed body loop ────────────────────────────────────────────────────
+// The body is keyed so opening a group does not rebuild every row. A key
+// expression may read only the row, never the loop index, so everything a key
+// needs travels on the row itself.
+//
+// A windowed grid's not-yet-loaded slots carry their absolute slot number.
+fn gridWinDisplayRows(winRows: list, winStart: number) -> list {
+  let out = []
+  for r, i in winRows {
+    push(out, r != null ? r : { _unloaded: true, _slot: winStart + i })
+  }
+  return out
+}
+
+// Can the body be keyed by `rowKeyField`? Only when every loaded row has a key
+// and no two share one: the runtime keeps ONE row per key, so a duplicate would
+// silently drop a row from the grid.
+fn gridKeysUsable(rows: list, keyField: string) -> boolean {
+  let seen = {}
+  for r in rows {
+    if r != null && r._unloaded != true {
+      let raw = r[keyField]
+      if raw == null { return false }
+      let k = 'k:' + raw
+      if seen[k] == true { return false }
+      seen[k] = true
+    }
+  }
+  return true
+}
+
+// The rows the body loop renders. Usable keys: the rows themselves, untouched,
+// so a row that did not change keeps its node. Otherwise each row is copied
+// with its position (`_rk`), which keys the loop positionally and rebuilds
+// every row on every change — exactly what the unkeyed loop always did.
+fn gridBodyRows(rows: list, keysUsable: boolean) -> list {
+  if keysUsable { return rows }
+  let out = []
+  for r, i in rows {
+    push(out, { ...r, _rk: i })
+  }
+  return out
+}
+
+fn gridBodyKey(row: any, keyField: string) -> string {
+  if row._rk != null { return 'p:' + row._rk }
+  if row._unloaded == true { return 'u:' + row._slot }
+  return 'k:' + row[keyField]
+}
+
 // Drop rows belonging to a collapsed group. Group headers and totals always show.
 fn gridVisibleRows(rows: list, openGroups: list) -> list {
   return rows |> filter(r => r._group == null || gridGroupIsOpen(openGroups, r._group))
@@ -1282,13 +1332,14 @@ component DataGrid(
     // null is replaced by a sentinel here, and the gate reads that sentinel
     // off the very object the loop is iterating rather than off a parallel
     // array that could be one recompute behind it.
-    winDisplayRows: winRows |> map(r => r != null ? r : { _unloaded: true })
+    winDisplayRows: gridWinDisplayRows(winRows, winStart)
     // ONE body renders both modes. winDisplayRows already carries an
     // `_unloaded` sentinel OBJECT rather than null, so the shared body never
     // sees a null row. Two bodies would be ~330 duplicated lines inside one
     // file, free to drift exactly the way CfDealTab drifted from Tabs — and
     // check-kit-duplication cannot see it, because it compares ACROSS files.
     renderRows: windowed ? winDisplayRows : displayRows
+    bodyRows: gridBodyRows(renderRows, gridKeysUsable(renderRows, rowKeyField))
 
     // Grid-level, and that is the entire point. The two row controls further
     // down are gated per CELL, so on a grid with neither feature they were
@@ -2279,7 +2330,15 @@ component DataGrid(
         // check can see it because they all compare across files.
         // Body rows \u2014 ordinary rows, group headers and totals all render through
         // this one template, so they cannot disagree about column widths.
-        each renderRows as row, rowIdx {
+        // KEYED, so opening a group does not rebuild the whole body. Unkeyed,
+        // the runtime removed every row and built them all again on any change
+        // to the list; while it did, the body was briefly shorter than the
+        // scroll position and the browser clamped it — opening a group near the
+        // bottom of Vector's Revenue by Source jumped the page to the top.
+        // Rows whose position changed are still rebuilt (the body reads the
+        // loop index), but none are torn down that did not have to be. Rows with a
+        // missing or shared key fall back to the old behavior: see gridBodyRows.
+        each bodyRows as row, rowIdx (gridBodyKey(row, rowKeyField)) {
           block {
             // Not arrived yet. `_unloaded` is a sentinel this grid puts in
             // place of a null so every `row.` access below stays safe —
