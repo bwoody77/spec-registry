@@ -1,6 +1,6 @@
 component Snackbar(
   open: boolean = false,
-  message: string = "",
+  message: text = "",
   duration: number = 4000,
   actionLabel: string = ""
 ) {
