@@ -750,7 +750,7 @@ component DataGrid(
   // More rows exist beyond the ones given. Renders one Load more control; the
   // grid never fetches, it asks.
   hasMore: boolean = false,
-  emptyText: string = "No rows",
+  emptyText: text = "No rows",
 
   // ─── P5: derived row grouping ─────────────────────────────────────────────
   // Group rows by a FIELD, rather than by the caller injecting `_kind: 'group'`
