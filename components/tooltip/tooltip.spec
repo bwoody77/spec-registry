@@ -18,7 +18,7 @@
 // that need to escape transformed ancestors, see HoverCard (which doesn't
 // solve this either at the spec level — it's an open Spec limitation).
 
-component Tooltip(text: string = "", placement: string = "top") {
+component Tooltip(text: text = "", placement: string = "top") {
   @state {
     visible: false
   }
