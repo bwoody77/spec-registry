@@ -1,4 +1,4 @@
-component ConfirmDialog(open: boolean = false, title: string = "Confirm", message: string = "", confirmLabel: string = "Confirm", cancelLabel: string = "Cancel", destructive: boolean = false) {
+component ConfirmDialog(open: boolean = false, title: text = "Confirm", message: text = "", confirmLabel: text = "Confirm", cancelLabel: text = "Cancel", destructive: boolean = false) {
   @state {
     showing: false
   }
