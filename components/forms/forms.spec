@@ -55,16 +55,16 @@ fn validateFields(checks: list) -> map {
 // Pass `ariaLabel` only when the accessible name must differ from the visible
 // one, or when there is no visible label at all.
 component FormField(
-  label:        string  = '',
-  ariaLabel:    string  = '',
+  label:        text  = '',
+  ariaLabel:    text  = '',
   value:        string  = '',
-  placeholder:  string  = '',
+  placeholder:  text  = '',
   inputType:    string  = 'text',
   validation:   map     = null,
   field:        string  = '',
   showErrors:   boolean = false,
   error:        boolean = false,
-  errorMessage: string  = '',
+  errorMessage: text  = '',
   // Forwarded verbatim to the built-in TextInput; its value space is
   // TextInput's ("default" | "warning" | "danger" | "highlight").
   //
@@ -274,7 +274,7 @@ component FormField(
 // budgeting for it. See the note on the root `visibility:` below.
 component FormErrorSummary(
   visible:    boolean = false,
-  title:      string  = 'Fix these to continue:',
+  title:      text  = 'Fix these to continue:',
   items:      array   = [],
   firstField: string  = '',
   jumpLabel:  string  = 'Go to first problem'
