@@ -1,6 +1,6 @@
 [package]
 name = "date-range-picker"
-version = "0.3.0"
+version = "0.4.0"
 category = "components"
 description = "A start and an end picked on one calendar: presets, two months side by side (one on a phone), a suggested end for fixed-length periods, an optional ruler of bands such as pay periods, typed Start / Through fields, and Apply / Cancel."
 license = "MIT"

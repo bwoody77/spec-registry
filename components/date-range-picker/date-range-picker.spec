@@ -192,15 +192,15 @@ component DateRangePicker(start: string = "", end: string = "",
     // Validate on click and say what is missing, rather than a disabled Apply.
     apply() {
       if draftStart == "" {
-        problem = "Pick a start date."
+        problem = t("Pick a start date.")
         return
       }
       if draftEnd == "" {
-        problem = "Pick an end date."
+        problem = t("Pick an end date.")
         return
       }
       if drpToDay(draftEnd) < drpToDay(draftStart) {
-        problem = "The end is before the start."
+        problem = t("The end is before the start.")
         return
       }
       problem = ""
