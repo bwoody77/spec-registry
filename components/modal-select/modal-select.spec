@@ -130,7 +130,7 @@ component ModalSelect(
     noMatch:    !loading && rows.length > 0 && visibleRows.length == 0
     showSearch: searchable && !loading && rows.length > 0
 
-    noMatchText: "No matches for “" + query + "”"
+    noMatchText: t("No matches for “{query}”")
 
     // Multi-select footer state — see the `multi` prop doc above.
     // `hasSelection`/`confirmText`/`countText` each read `selected.length`
