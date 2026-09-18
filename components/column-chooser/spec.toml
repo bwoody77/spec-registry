@@ -1,6 +1,6 @@
 [package]
 name = "column-chooser"
-version = "0.2.0"
+version = "0.3.0"
 category = "components"
 description = "Show, hide, reorder and search a grid's columns; groups move as a block"
 license = "MIT"

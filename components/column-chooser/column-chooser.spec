@@ -197,8 +197,8 @@ component ColumnChooser(
     anyHidden: length(_hidden) > 0
     hiddenCount: toString(length(_hidden))
     noMatches: length(rows) == 0
-    bulkLabel: anyHidden ? 'Show all' : 'Hide all'
-    emptyLine: 'No columns match “' + _query + '”'
+    bulkLabel: anyHidden ? t('Show all') : t('Hide all')
+    emptyLine: t("No columns match “{_query}”")
   }
 
   @actions {
