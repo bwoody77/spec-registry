@@ -51,7 +51,7 @@ component Modal(
   @computed {
     // A generic "Dialog" tells a screen-reader user nothing about which dialog
     // they are in. Prefer the caller's label, then the visible title.
-    label: ariaLabel != "" ? ariaLabel : (title != "" ? title : "Dialog")
+    label: ariaLabel != "" ? ariaLabel : (title != "" ? title : t("Dialog"))
 
     // Conditional styling is hoisted: an inline ternary on a prop is evaluated
     // once at mount and never re-read.
