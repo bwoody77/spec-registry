@@ -35,7 +35,7 @@ fn toggleSortState(sortState: list, colKey: string) -> list {
 fn validateCell(value: any, column: any) -> any {
   if column.required == true && (value == null || value == "") {
     let label = column.header ?? column.key
-    return label + " is required"
+    return t("{label} is required")
   }
   return null
 }
