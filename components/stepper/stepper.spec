@@ -108,12 +108,13 @@ fn _stepMark(step: map, i: number, activeStep: number) -> string {
 // half of this change that survives a user who cannot see the green.
 fn _stepName(step: map, i: number, count: number, activeStep: number) -> string {
   let state = _stepState(step, i, activeStep)
-  let word = "not started"
-  if state == "current"    { word = "current step" }
-  if state == "complete"   { word = "completed" }
-  if state == "skipped"    { word = "skipped" }
-  if state == "incomplete" { word = "incomplete" }
-  return "Step " + toString(i + 1) + " of " + toString(count) + ", " + word
+  let word = t("not started")
+  if state == "current"    { word = t("current step") }
+  if state == "complete"   { word = t("completed") }
+  if state == "skipped"    { word = t("skipped") }
+  if state == "incomplete" { word = t("incomplete") }
+  let stepNo = i + 1
+  return t("Step {stepNo} of {count}, {word}")
 }
 
 component Stepper(steps: array = [], activeStep: number = 0, orientation: string = "horizontal", allowBack: boolean = true) {
