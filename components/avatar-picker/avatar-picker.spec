@@ -108,13 +108,13 @@ component AvatarPicker(
     // What the chip announces (0.7.0). The chip is the whole editable surface
     // now, so its name says what tapping it does. Read-only it is a picture,
     // not an affordance, and must not promise anything.
-    chipLabel: readOnly ? "Profile photo"
+    chipLabel: readOnly ? t("Profile photo")
       : (hasAvatar
-        ? (subjectName != "" ? "Edit " + subjectName + "'s photo" : "Edit your photo")
-        : (subjectName != "" ? "Add a photo of " + subjectName : "Add a photo"))
+        ? (subjectName != "" ? t("Edit {subjectName}'s photo") : t("Edit your photo"))
+        : (subjectName != "" ? t("Add a photo of {subjectName}") : t("Add a photo")))
     chipDisabled: readOnly || busy
-    dialogHint: framing ? "Drag to move it. Scroll, pinch or use the slider to zoom." : "Replace it to reframe."
-    closeLabel: framing ? "Cancel" : "Close"
+    dialogHint: framing ? t("Drag to move it. Scroll, pinch or use the slider to zoom.") : t("Replace it to reframe.")
+    closeLabel: framing ? t("Cancel") : t("Close")
     previewCursor: framing ? "grab" : "default"
     canDelete: removable && hasAvatar
     avatarPx: size + "px"
@@ -273,7 +273,7 @@ component AvatarPicker(
       let dataUrl = await cropAvatarToDataUrl(imageSrc, zoom, cropOffsetX, cropOffsetY, cropSize)
       busy = false
       if dataUrl == "" {
-        cropError = "Couldn't process that photo. Try uploading it again."
+        cropError = t("Couldn't process that photo. Try uploading it again.")
         return
       }
       cropOpen = false
