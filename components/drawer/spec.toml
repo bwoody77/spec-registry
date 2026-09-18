@@ -1,6 +1,6 @@
 [package]
 name = "drawer"
-version = "0.4.0"
+version = "0.5.0"
 category = "components"
 description = "Centred panel that slides in over a scrim, for navigation or forms"
 license = "MIT"

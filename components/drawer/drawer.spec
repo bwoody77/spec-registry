@@ -86,6 +86,25 @@ component Drawer(open: boolean = false, title: text = "", width: string = "280px
     block {
       width: width
       max-width: 90vw
+      // The overlay is `align: center`, and centring neither stretches a flex
+      // child nor clamps it — so without this the panel sized to its CONTENT
+      // and grew past the top and bottom of the window. `lockBodyScroll()`
+      // holds the page still while it is open, which turned the overflow from
+      // ugly into unreachable: the bottom of a tall drawer could not be
+      // scrolled to by any means. Reported on Vector's Hours Recon, whose
+      // flight-detail drawer is the tallest caller.
+      //
+      // The `overflow: "auto"` below could not have saved it on its own; a box
+      // with no height constraint never overflows. Same for the body slot's
+      // `grow: true` + `overflow: auto`, since `flex: 1` against an indefinite
+      // height resolves to auto. A cap is what makes both of them work.
+      //
+      // 90dvh, not 90vh, and not a `height`: `dvh` because on a phone `vh` is
+      // the tallest the viewport ever gets, so the browser chrome eats the
+      // last rows (modal.spec's dialogMaxHeight carries the same note); a
+      // ceiling rather than a height because a drawer holding three rows must
+      // still be three rows tall.
+      max-height: 90dvh
       background: semantic.surface
       shadow: elevation.floating
       overflow: "auto"
