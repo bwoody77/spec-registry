@@ -1137,14 +1137,14 @@ component DataGrid(
     // DECLARATION ORDER and a forward reference throws at mount, blanking the
     // whole grid. Everything else read here is a prop.
     guardMsg: !windowed ? ""
-      : (groupBy != "" ? "DataGrid: rowHeight cannot be combined with groupBy - grouped rows have no fixed pitch, so a window cannot be sized."
-      : (expandable ? "DataGrid: rowHeight cannot be combined with expandable - an open detail panel has no fixed pitch, so a window cannot be sized."
+      : (groupBy != "" ? "DataGrid: rowHeight cannot be combined with groupBy - grouped rows have no fixed pitch, so a window cannot be sized." // i18n-ignore: developer misconfiguration diagnostic, not end-user copy
+      : (expandable ? "DataGrid: rowHeight cannot be combined with expandable - an open detail panel has no fixed pitch, so a window cannot be sized." // i18n-ignore: developer misconfiguration diagnostic, not end-user copy
       // A source receives `sort` and `filters` in its request, so it cannot
       // disagree with the grid about them — the flags are satisfied by
       // construction and demanding them as well would be asking a caller to
       // promise something the contract already guarantees.
-      : (source == null && !externalSort ? "DataGrid: rowHeight (windowed mode) requires externalSort - a client sort would order only the rows currently loaded."
-      : (source == null && !externalFilter ? "DataGrid: rowHeight (windowed mode) requires externalFilter - a client filter would match only the rows currently loaded."
+      : (source == null && !externalSort ? "DataGrid: rowHeight (windowed mode) requires externalSort - a client sort would order only the rows currently loaded." // i18n-ignore: developer misconfiguration diagnostic, not end-user copy
+      : (source == null && !externalFilter ? "DataGrid: rowHeight (windowed mode) requires externalFilter - a client filter would match only the rows currently loaded." // i18n-ignore: developer misconfiguration diagnostic, not end-user copy
       // Measured in a browser, 2026-08-13: without `height` the scroll
       // container is unbounded, so clientHeight == scrollHeight, the window
       // spans every row, and the grid renders all 1,043 of them. Windowing is
@@ -1152,7 +1152,7 @@ component DataGrid(
       // Wrapping the grid in a fixed-height parent is NOT enough; `height` is
       // the mechanism, because it is what sets the scroller's max-height.
       // Invisible to every happy-dom test, where clientHeight is 0 regardless.
-      : (height == "" ? "DataGrid: rowHeight (windowed mode) requires height - an unbounded scroll container renders every row, so windowing does nothing."
+      : (height == "" ? "DataGrid: rowHeight (windowed mode) requires height - an unbounded scroll container renders every row, so windowing does nothing." // i18n-ignore: developer misconfiguration diagnostic, not end-user copy
       : "")))))
     guarded: guardMsg != ""
 
@@ -1323,7 +1323,7 @@ component DataGrid(
     skelRowPx: SKELETON_ROW_HEIGHT()
     // The live region's whole content. Empty when nothing is failed, so the
     // change from '' to a sentence is the mutation a reader announces on.
-    failureAnnouncement: gridAnyFailed(winFailed) ? 'Some rows could not be loaded. Use the Retry button in the grid to try again.' : ''
+    failureAnnouncement: gridAnyFailed(winFailed) ? t('Some rows could not be loaded. Use the Retry button in the grid to try again.') : ''
     // The windowed loop's collection. A row the cache has not delivered yet
     // arrives as null, and a null cannot go through the row template: the
     // template reads row[rowKeyField], row._kind and row._toggleLabel, and
@@ -1394,7 +1394,7 @@ component DataGrid(
     // `!guarded` because a refused grid renders its diagnostic and nothing
     // else, exactly like its four sibling blocks.
     offerAllMatching: windowed && allSelected && !selectAllMatching && !guarded
-    allMatchingLabel: 'Select all ' + toString(rowCount) + ' matching'
+    allMatchingLabel: t("Select all {rowCount} matching")
     // The wire lives HERE and not in @state, even though the other two wires
     // (wireColumnDrag / wireGroupDrag) are @state initialisers. It predates
     // spec#164, which fixed the @state-prop-ref trap this was avoiding: a
