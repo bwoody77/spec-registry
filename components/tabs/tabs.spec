@@ -15,6 +15,20 @@
 // grid. When a strip has MANY tabs of uneven length that floor stops paying
 // for itself — see `PackedTabs` further down this file, which sizes each tab
 // to its own label and separates them with a rule instead.
+//
+// labelWrap: false (default) | true — whether a long LABEL may break onto a
+//           second line instead of widening its tab. Off, a tab is exactly as
+//           wide as its label on one line, so one long label widens the strip
+//           and, under overflow:'scroll', starts it scrolling while the
+//           strip's own height goes unused. On, the label is capped at 110px
+//           (the same floor the 'wrap' grid uses for a column), wraps, and is
+//           drawn 0.85em so two lines cost about what one line did.
+//
+//           It is a STRIP-level mode, not per-tab auto-detection: whether one
+//           label needs a second line is a layout fact, and the component
+//           cannot measure layout. Turn it on for a strip you know is tight.
+//           See `TabsItem`'s computeds for why the off path emits no style at
+//           all. Also on `PackedTabs`.
 // countTone: how a tab's `count` badge is coloured.
 //           'state'  (default) — tinted with the tab's own active/inactive
 //                    state, so the count reads as part of that tab.
@@ -108,7 +122,7 @@ fn _tabCells(items: array) -> array {
 // deals toolbar against its own mockup, which draws the segment at 28px. Same
 // prop, same two values, as Select and Button.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
-               countTone: string = "state", size: string = "md") {
+               countTone: string = "state", size: string = "md", labelWrap: boolean = false) {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -260,6 +274,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
         focused: tab.id == focusedId
         countTone: countTone
         size: size
+        labelWrap: labelWrap
       ) {
         on change(id): pickTab(id)
       }
@@ -322,6 +337,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
             focused: tab.id == focusedId
             countTone: countTone
             size: size
+            labelWrap: labelWrap
           ) {
             on change(id): pickTab(id)
           }
@@ -373,7 +389,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // and `group`. Those exist to structure a GRID of tabs; a packed strip has no
 // columns for them to line up with. They can be added if a caller needs them.
 component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pill",
-                     countTone: string = "state", size: string = "md") {
+                     countTone: string = "state", size: string = "md", labelWrap: boolean = false) {
   @state {
     // Which tab currently holds DOM focus — empty until the user arrows into
     // the strip, so `focus:` never steals focus on mount. Same contract as Tabs.
@@ -451,6 +467,7 @@ component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pil
         focused: tab.id == focusedId
         countTone: countTone
         size: size
+        labelWrap: labelWrap
         fillColumn: false
         divider: tab.id != lastId
       ) {
@@ -474,7 +491,8 @@ component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pil
 component TabsItem(tab: object, active: boolean = false, variant: string = "pill",
                    tabStop: boolean = true, focused: boolean = false,
                    countTone: string = "state", size: string = "md",
-                   fillColumn: boolean = true, divider: boolean = false) {
+                   fillColumn: boolean = true, divider: boolean = false,
+                   labelWrap: boolean = false) {
   @computed {
     // The ONLY thing size changes. The radius, the borders and the count badge
     // are untouched, so a small strip is the same control drawn tighter rather
@@ -527,6 +545,63 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // Conditional attribute values must be named computeds, not inline
     // ternaries at the property.
     tabStopOrder: tabStop ? '0' : '-1'
+
+    // ── labelWrap: spend the strip's spare HEIGHT instead of its width ──────
+    //
+    // A tab is as wide as its label on one line, because every column template
+    // above is `max-content` (or a 110px-floored auto-fill). So one long label
+    // widens the strip, and in `overflow: 'scroll'` that is what starts the
+    // strip scrolling — while the strip's own height goes unused.
+    //
+    // `labelWrap` lets a caller trade that the other way: the label is capped,
+    // wraps onto a second line, and is drawn a step smaller so two lines cost
+    // about what one line did. A cap is what makes it work at all — a
+    // `max-content` column measures the label's longest unbroken run, so
+    // without a `max-width` there is nothing for the text to wrap against and
+    // the column simply grows.
+    //
+    // 110px is not a new number: it is the floor the `wrap` grid already uses
+    // for a column, so a wrapped strip and a wrapping grid agree on how narrow
+    // a tab may sensibly get.
+    //
+    // It is a STRIP-level mode, not per-tab auto-detection. Whether one label
+    // actually needs a second line is a LAYOUT fact, and neither this
+    // component nor the unit tests around it can measure layout — see the
+    // repo's note on what belongs in tests/e2e. A caller turns it on for a
+    // strip it knows is tight.
+    //
+    // THE OFF ARM IS THE EMPTY STRING, not 'none' / 'nowrap' / 'start'.
+    // `bindStyle` assigns straight onto the CSSOM (`node.style[prop] = v`),
+    // and assigning '' REMOVES the declaration — so with labelWrap off this
+    // block emits no style at all and the label's markup is byte-for-byte what
+    // it was before the prop existed. That is not a nicety: every un-adorned
+    // caller of Tabs on the registry is frozen against a pre-change baseline
+    // in tabs-adornment.test.ts, and a CSS-default-but-present declaration
+    // ('normal', 'start') would fail it while changing nothing visually.
+    labelMaxWidth:   labelWrap ? '110px' : ''
+    labelWhiteSpace: labelWrap ? 'normal' : ''
+    //
+    // NO text-align here, and not by preference: `text-align` is an ENUM
+    // property that takes one of start/center/end/justify as a LITERAL, so it
+    // cannot be bound to a computed at all (`text-align expects one of: ...`).
+    // Centring the two lines would need a wrapper element around the label,
+    // and a wrapper is exactly what the byte-for-byte freeze forbids adding to
+    // the off path. A wrapped label is therefore ragged-right inside a tab that
+    // is itself centred, which is a small cost for not touching every caller.
+    // A RATIO, not a size. The label carries no font-size of its own: the
+    // static `style: type.body-sm` contributes weight and line-height, and the
+    // size is inherited through the button (which is `font-size: inherit`).
+    // So there is no absolute value here to step down FROM — a px token would
+    // not shrink the label, it would REPLACE an inherited size with a fixed
+    // one and could just as easily grow it. Measured while writing this:
+    // `token.tab-fontSize` rendered the wrapped label at 14px, LARGER than the
+    // 11.2px it inherits.
+    //
+    // `em` resolves against the parent's computed size, so 0.85em is one step
+    // down from whatever this strip actually inherits, in any theme and at any
+    // base size — which is the property that matters, and the one an absolute
+    // token cannot give.
+    labelFontSize:   labelWrap ? '0.85em' : ''
 
     // `width: 100%` is what makes a tab fill its grid column — a <button> does
     // not stretch on its own. In a PACKED strip there is no column to fill:
@@ -583,6 +658,10 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
       style: type.body-sm
       weight: labelWeight
       color: fg
+      // All three are empty unless `labelWrap` is on — see the computeds.
+      font-size: labelFontSize
+      max-width: labelMaxWidth
+      white-space: labelWhiteSpace
     }
     // Optional count badge ("Documents 12"). Absent unless a tab supplies
     // `count`, so every existing caller renders byte-for-byte as before.
