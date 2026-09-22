@@ -4,7 +4,7 @@
  * `mountChartSVG`, which fills its container with an auto-resizing SVG.
  */
 import { createHandle } from './types.js';
-import { DEFAULT_COLORS } from './chart-utils.js';
+import { DEFAULT_COLORS, sliceColor } from './chart-utils.js';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -251,7 +251,11 @@ function renderPie(svg, props, data, W, H, isDonut) {
     data.forEach((d, i) => {
         const v = values[i];
         const sweep = (v / total) * 2 * Math.PI;
-        const color = props.series?.[i]?.color ?? DEFAULT_COLORS[i % DEFAULT_COLORS.length];
+        // sliceColor(), the same function the legend uses. This read
+        // `props.series?.[i]?.color ?? DEFAULT_COLORS[...]`, and resolveSeries()
+        // returns [] for pie/donut — so the left side was always undefined and
+        // every slice took the default palette, whatever the caller passed.
+        const color = sliceColor(props, d, i);
         const midAngle = angle + sweep / 2;
         const x1 = cx + r * Math.cos(angle);
         const y1 = cy + r * Math.sin(angle);

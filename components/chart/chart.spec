@@ -21,11 +21,30 @@ fn resolveSeries(type: string, series: list, yKey: string, color: string, colors
   return [{ key: k, label: k, color: color ?? _defaultColor(0), dashed: false }]
 }
 
-fn resolveSegmentMeta(data: list, colors: list, labelKey: string) -> list {
+// The legend's color for slice i, and it MUST agree with the arc.
+//
+// This is the Spec-side twin of sliceColor() in chart-utils.ts; the precedence
+// is stated there at length (colorKey, then a series color, then the
+// positional palette, then the default — each falling through on a blank
+// rather than painting a transparent wedge). A pie resolves no series, so the
+// series step is the one rung this copy leaves out.
+//
+// It is a copy because a `fn` here cannot call the extern, and the two are
+// held together by chart-slice-color.test.ts, which asserts this file's chain
+// matches the TS one.
+fn _sliceColor(d: object, i: number, colors: list, colorKey: string) -> string {
+  if colorKey != null && colorKey != '' {
+    let fromDatum = d[colorKey]
+    if fromDatum != null && toString(fromDatum) != '' { return toString(fromDatum) }
+  }
+  return colors?.[i] ?? _defaultColor(i)
+}
+
+fn resolveSegmentMeta(data: list, colors: list, labelKey: string, colorKey: string) -> list {
   return data |> map((d, i) => {
     return {
       label: toString(d[labelKey] ?? i),
-      color: colors?.[i] ?? _defaultColor(i)
+      color: _sliceColor(d, i, colors, colorKey)
     }
   })
 }
@@ -56,7 +75,7 @@ component Chart(
     isEmpty: data == null || data.length == 0
     isPie: type == "pie" || type == "donut"
     resolvedSeries: resolveSeries(type, series, yKey, color, colors)
-    legendItems: isPie ? resolveSegmentMeta(data, colors, labelKey) : resolvedSeries
+    legendItems: isPie ? resolveSegmentMeta(data, colors, labelKey, colorKey) : resolvedSeries
     showLegendBar: showLegend && (isPie || resolvedSeries.length > 1)
   }
 
@@ -90,6 +109,11 @@ component Chart(
         yMax: yMax
         connectNulls: connectNulls
         colorKey: colorKey
+        // `colors` was NOT passed here, and that alone made the prop inert for
+        // pie and donut however the renderer behaved: it had no way to see the
+        // palette. Cartesian charts still fold `colors` into resolvedSeries
+        // above and ignore this.
+        colors: colors
         formatX: formatX
         formatY: formatY
       }
