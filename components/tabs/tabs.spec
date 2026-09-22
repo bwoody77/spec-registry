@@ -16,25 +16,27 @@
 // for itself — see `PackedTabs` further down this file, which sizes each tab
 // to its own label and separates them with a rule instead.
 //
-// labelWrap: false (default) | true — whether a long LABEL may break onto a
-//           second line instead of widening its tab. Off, a tab is exactly as
-//           wide as its label on one line, so one long label widens the strip
-//           and, under overflow:'scroll', starts it scrolling while the
-//           strip's own height goes unused. On, the label is capped at
-//           `labelWidth`, wraps, and is drawn 0.85em so two lines cost about
-//           what one line did.
+// A STRIP HOLDS ITS HEIGHT. Under `overflow: 'scroll'` every column is
+// `max-content`, so a label has no width to break against and a second line is
+// always a bug rather than a fit — the strip is declared to scroll, and that is
+// where the overflow belongs. Those labels are therefore `white-space: nowrap`,
+// structurally. 'wrap' (a 110px column floor) and 'grow' (1fr columns) DO
+// constrain a label's width, so they are left alone: forcing nowrap there would
+// push text out of its own column.
 //
-// labelWidth: the cap, default '10ch' ("about one word"). It MUST be narrower
-//           than the label's single-line width or nothing wraps — measured on
-//           cf's deal workspace, the label this exists for is 103px wide, so
-//           an earlier 110px default did nothing at all. Only the caller knows
-//           its own width budget; ch keeps the default tracking the type scale.
+// This replaces a `labelWrap` prop that did the opposite. It let cf's deal strip
+// spend height to save width, and the trade was bad in both directions: the
+// strip went 49px -> 66px, and it wrapped at 1440px too, where it had 100px of
+// room to spare.
 //
-//           It is a STRIP-level mode, not per-tab auto-detection: whether one
-//           label needs a second line is a layout fact, and the component
-//           cannot measure layout. Turn it on for a strip you know is tight.
-//           See `TabsItem`'s computeds for why the off path emits no style at
-//           all. Also on `PackedTabs`.
+// labelScale: '' (default, nothing declared) | a ratio like '0.8em' — steps
+//           every label in the strip down one size, so a tight strip narrows by
+//           shrinking its TYPE instead of growing a second row. A RATIO, not a
+//           size: the label carries no font-size of its own (see `TabsItem`),
+//           so there is no absolute value to step down from, and `em` resolves
+//           against whatever this strip actually inherits in any theme at any
+//           base size. Only the caller knows its own width budget. Also on
+//           `PackedTabs`.
 // countTone: how a tab's `count` badge is coloured.
 //           'state'  (default) — tinted with the tab's own active/inactive
 //                    state, so the count reads as part of that tab.
@@ -128,8 +130,7 @@ fn _tabCells(items: array) -> array {
 // deals toolbar against its own mockup, which draws the segment at 28px. Same
 // prop, same two values, as Select and Button.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
-               countTone: string = "state", size: string = "md", labelWrap: boolean = false,
-               labelWidth: string = "10ch") {
+               countTone: string = "state", size: string = "md", labelScale: string = "") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -149,6 +150,11 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
                        ? ('repeat(' + (cells.length + '') + ', max-content)')
                        : 'repeat(auto-fill, minmax(110px, max-content))')
     scrollMode:  overflow == 'scroll' ? 'auto' : 'visible'
+    // The same test that picks the column template decides whether a label may
+    // wrap, because it is the same fact: `max-content` columns give a label
+    // nothing to break against, so a break there is never a fit. The other two
+    // templates DO bound a column, so their labels keep the default.
+    noWrapLabels: overflow == 'scroll'
     // Strip chrome differs by variant.
     stripBg:        variant == 'pill' ? semantic.surface : 'transparent'
     stripBorder:    variant == 'pill' ? borders.default : '1px solid transparent'
@@ -281,8 +287,8 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
         focused: tab.id == focusedId
         countTone: countTone
         size: size
-        labelWrap: labelWrap
-        labelWidth: labelWidth
+        labelScale: labelScale
+        labelNoWrap: noWrapLabels
       ) {
         on change(id): pickTab(id)
       }
@@ -345,8 +351,21 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
             focused: tab.id == focusedId
             countTone: countTone
             size: size
-            labelWrap: labelWrap
-            labelWidth: labelWidth
+            labelScale: labelScale
+            labelNoWrap: noWrapLabels
+            // A GROUPED cell is a flex row, not a grid column, so the tabs in
+            // it must not claim `width: 100%`. Two flex children each demanding
+            // the whole wrapper get shrunk below their own content, and the
+            // longer label breaks onto a second line with free space beside it
+            // — measured on cf's drilled-into checklist item: the drill tab sat
+            // at 178x71 inside a 1094px track holding 987px of tabs, and its
+            // parent was padded out to match. `fillColumn: false` is the prop
+            // PackedTabs already uses for exactly this, for exactly this reason.
+            //
+            // An UNGROUPED cell keeps the default: it holds one tab beside its
+            // adornment, and callers place that adornment against a tab that
+            // fills the column.
+            fillColumn: !cell.grouped
           ) {
             on change(id): pickTab(id)
           }
@@ -398,8 +417,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // and `group`. Those exist to structure a GRID of tabs; a packed strip has no
 // columns for them to line up with. They can be added if a caller needs them.
 component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pill",
-                     countTone: string = "state", size: string = "md", labelWrap: boolean = false,
-                     labelWidth: string = "10ch") {
+                     countTone: string = "state", size: string = "md", labelScale: string = "") {
   @state {
     // Which tab currently holds DOM focus — empty until the user arrows into
     // the strip, so `focus:` never steals focus on mount. Same contract as Tabs.
@@ -477,8 +495,11 @@ component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pil
         focused: tab.id == focusedId
         countTone: countTone
         size: size
-        labelWrap: labelWrap
-        labelWidth: labelWidth
+        labelScale: labelScale
+        // Unconditional, with no `overflow` to consult: a packed strip is a
+        // flex row of content-sized tabs, so every tab IS max-content and the
+        // rule that holds for `Tabs(overflow: 'scroll')` holds here always.
+        labelNoWrap: true
         fillColumn: false
         divider: tab.id != lastId
       ) {
@@ -503,7 +524,7 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
                    tabStop: boolean = true, focused: boolean = false,
                    countTone: string = "state", size: string = "md",
                    fillColumn: boolean = true, divider: boolean = false,
-                   labelWrap: boolean = false, labelWidth: string = "10ch") {
+                   labelScale: string = "", labelNoWrap: boolean = false) {
   @computed {
     // The ONLY thing size changes. The radius, the borders and the count badge
     // are untouched, so a small strip is the same control drawn tighter rather
@@ -557,71 +578,45 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // ternaries at the property.
     tabStopOrder: tabStop ? '0' : '-1'
 
-    // ── labelWrap: spend the strip's spare HEIGHT instead of its width ──────
+    // ── label fit: a strip holds its HEIGHT ───────────────────────────
     //
-    // A tab is as wide as its label on one line, because every column template
-    // above is `max-content` (or a 110px-floored auto-fill). So one long label
-    // widens the strip, and in `overflow: 'scroll'` that is what starts the
-    // strip scrolling — while the strip's own height goes unused.
+    // Two knobs, and neither of them wraps anything.
     //
-    // `labelWrap` lets a caller trade that the other way: the label is capped,
-    // wraps onto a second line, and is drawn a step smaller so two lines cost
-    // about what one line did. A cap is what makes it work at all — a
-    // `max-content` column measures the label's longest unbroken run, so
-    // without a `max-width` there is nothing for the text to wrap against and
-    // the column simply grows.
+    // `labelNoWrap` is set by a caller whose columns are `max-content` —
+    // `Tabs(overflow: 'scroll')` and every PackedTabs. There the column is
+    // defined as "as wide as the content", so the label has nothing to break
+    // against and a second line is a bug rather than a fit: it is what a
+    // squeezed flex parent produces, and it silently makes the whole strip
+    // taller, since the strip is as tall as its tallest tab. Declaring nowrap
+    // turns that from unlikely into impossible. A 'wrap' or 'grow' strip does
+    // bound its columns, so it keeps the default and may still break a label.
     //
-    // THE CAP IS THE CALLER'S, and the default is text-relative rather than a
-    // pixel count. This started as 110px — the floor the 'wrap' grid uses for a
-    // column — which was tidy and useless: measured on cf's deal workspace, the
-    // label that motivated this ('Payment Schedule', the widest on the strip)
-    // renders 103px wide, so a 110px cap sat ABOVE it and would never have
-    // wrapped the one label the prop exists for. The number has to be below the
-    // single-line width to do anything at all, and only the caller knows its
-    // strip's width budget.
+    // `labelScale` is how a tight strip gets narrower instead: it steps the
+    // type down. A RATIO, not a size — the label carries no font-size of its
+    // own (the static `style: type.body-sm` contributes weight and
+    // line-height, and the size is inherited through the button, which is
+    // `font-size: inherit`), so there is no absolute value here to step down
+    // FROM. A px token would REPLACE an inherited size rather than reduce it,
+    // and could just as easily grow the label: measured, `token.tab-fontSize`
+    // rendered at 14px against the 11.2px it inherited. `em` resolves against
+    // the parent's computed size, so one ratio is one step down in any theme
+    // at any base size.
     //
-    // `10ch` is 'about one word': ch is the width of '0' in the label's OWN
-    // computed font, so the cap tracks the type scale and the 0.85em step below
-    // instead of being a number picked against one theme at one size.
-    //
-    // It is a STRIP-level mode, not per-tab auto-detection. Whether one label
-    // actually needs a second line is a LAYOUT fact, and neither this
-    // component nor the unit tests around it can measure layout — see the
-    // repo's note on what belongs in tests/e2e. A caller turns it on for a
-    // strip it knows is tight.
-    //
-    // THE OFF ARM IS THE EMPTY STRING, not 'none' / 'nowrap' / 'start'.
+    // THE OFF ARM IS THE EMPTY STRING, not 'normal' / 'inherit' / 'initial'.
     // `bindStyle` assigns straight onto the CSSOM (`node.style[prop] = v`),
-    // and assigning '' REMOVES the declaration — so with labelWrap off this
-    // block emits no style at all and the label's markup is byte-for-byte what
-    // it was before the prop existed. That is not a nicety: every un-adorned
-    // caller of Tabs on the registry is frozen against a pre-change baseline
-    // in tabs-adornment.test.ts, and a CSS-default-but-present declaration
-    // ('normal', 'start') would fail it while changing nothing visually.
-    labelMaxWidth:   labelWrap ? labelWidth : ''
-    labelWhiteSpace: labelWrap ? 'normal' : ''
+    // and assigning '' REMOVES the declaration — so a caller that names
+    // neither prop emits no style at all and its label markup is byte-for-byte
+    // what it was. That is not a nicety: every un-adorned caller of Tabs on
+    // the registry is frozen against a baseline in tabs-adornment.test.ts, and
+    // a CSS-default-but-present declaration would fail it while changing
+    // nothing visually. `labelScale` is already a string, so its own off arm
+    // is the default — no ternary needed.
     //
     // NO text-align here, and not by preference: `text-align` is an ENUM
-    // property that takes one of start/center/end/justify as a LITERAL, so it
-    // cannot be bound to a computed at all (`text-align expects one of: ...`).
-    // Centring the two lines would need a wrapper element around the label,
-    // and a wrapper is exactly what the byte-for-byte freeze forbids adding to
-    // the off path. A wrapped label is therefore ragged-right inside a tab that
-    // is itself centred, which is a small cost for not touching every caller.
-    // A RATIO, not a size. The label carries no font-size of its own: the
-    // static `style: type.body-sm` contributes weight and line-height, and the
-    // size is inherited through the button (which is `font-size: inherit`).
-    // So there is no absolute value here to step down FROM — a px token would
-    // not shrink the label, it would REPLACE an inherited size with a fixed
-    // one and could just as easily grow it. Measured while writing this:
-    // `token.tab-fontSize` rendered the wrapped label at 14px, LARGER than the
-    // 11.2px it inherits.
-    //
-    // `em` resolves against the parent's computed size, so 0.85em is one step
-    // down from whatever this strip actually inherits, in any theme and at any
-    // base size — which is the property that matters, and the one an absolute
-    // token cannot give.
-    labelFontSize:   labelWrap ? '0.85em' : ''
+    // property taking a LITERAL, so it cannot be bound to a computed at all
+    // (`text-align expects one of: ...`).
+    labelWhiteSpace: labelNoWrap ? 'nowrap' : ''
+    labelFontSize:   labelScale
 
     // `width: 100%` is what makes a tab fill its grid column — a <button> does
     // not stretch on its own. In a PACKED strip there is no column to fill:
@@ -678,9 +673,10 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
       style: type.body-sm
       weight: labelWeight
       color: fg
-      // All three are empty unless `labelWrap` is on — see the computeds.
+      // Both are empty unless the caller asked for them — see the computeds.
+      // No `max-width`: a cap is what made a label wrap in the first place, and
+      // nothing here wants that any more.
       font-size: labelFontSize
-      max-width: labelMaxWidth
       white-space: labelWhiteSpace
     }
     // Optional count badge ("Documents 12"). Absent unless a tab supplies
