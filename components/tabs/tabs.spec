@@ -20,9 +20,15 @@
 //           second line instead of widening its tab. Off, a tab is exactly as
 //           wide as its label on one line, so one long label widens the strip
 //           and, under overflow:'scroll', starts it scrolling while the
-//           strip's own height goes unused. On, the label is capped at 110px
-//           (the same floor the 'wrap' grid uses for a column), wraps, and is
-//           drawn 0.85em so two lines cost about what one line did.
+//           strip's own height goes unused. On, the label is capped at
+//           `labelWidth`, wraps, and is drawn 0.85em so two lines cost about
+//           what one line did.
+//
+// labelWidth: the cap, default '10ch' ("about one word"). It MUST be narrower
+//           than the label's single-line width or nothing wraps — measured on
+//           cf's deal workspace, the label this exists for is 103px wide, so
+//           an earlier 110px default did nothing at all. Only the caller knows
+//           its own width budget; ch keeps the default tracking the type scale.
 //
 //           It is a STRIP-level mode, not per-tab auto-detection: whether one
 //           label needs a second line is a layout fact, and the component
@@ -122,7 +128,8 @@ fn _tabCells(items: array) -> array {
 // deals toolbar against its own mockup, which draws the segment at 28px. Same
 // prop, same two values, as Select and Button.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
-               countTone: string = "state", size: string = "md", labelWrap: boolean = false) {
+               countTone: string = "state", size: string = "md", labelWrap: boolean = false,
+               labelWidth: string = "10ch") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -275,6 +282,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
         countTone: countTone
         size: size
         labelWrap: labelWrap
+        labelWidth: labelWidth
       ) {
         on change(id): pickTab(id)
       }
@@ -338,6 +346,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
             countTone: countTone
             size: size
             labelWrap: labelWrap
+            labelWidth: labelWidth
           ) {
             on change(id): pickTab(id)
           }
@@ -389,7 +398,8 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
 // and `group`. Those exist to structure a GRID of tabs; a packed strip has no
 // columns for them to line up with. They can be added if a caller needs them.
 component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pill",
-                     countTone: string = "state", size: string = "md", labelWrap: boolean = false) {
+                     countTone: string = "state", size: string = "md", labelWrap: boolean = false,
+                     labelWidth: string = "10ch") {
   @state {
     // Which tab currently holds DOM focus — empty until the user arrows into
     // the strip, so `focus:` never steals focus on mount. Same contract as Tabs.
@@ -468,6 +478,7 @@ component PackedTabs(tabs: array, activeTab: string = "", variant: string = "pil
         countTone: countTone
         size: size
         labelWrap: labelWrap
+        labelWidth: labelWidth
         fillColumn: false
         divider: tab.id != lastId
       ) {
@@ -492,7 +503,7 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
                    tabStop: boolean = true, focused: boolean = false,
                    countTone: string = "state", size: string = "md",
                    fillColumn: boolean = true, divider: boolean = false,
-                   labelWrap: boolean = false) {
+                   labelWrap: boolean = false, labelWidth: string = "10ch") {
   @computed {
     // The ONLY thing size changes. The radius, the borders and the count badge
     // are untouched, so a small strip is the same control drawn tighter rather
@@ -560,9 +571,18 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // without a `max-width` there is nothing for the text to wrap against and
     // the column simply grows.
     //
-    // 110px is not a new number: it is the floor the `wrap` grid already uses
-    // for a column, so a wrapped strip and a wrapping grid agree on how narrow
-    // a tab may sensibly get.
+    // THE CAP IS THE CALLER'S, and the default is text-relative rather than a
+    // pixel count. This started as 110px — the floor the 'wrap' grid uses for a
+    // column — which was tidy and useless: measured on cf's deal workspace, the
+    // label that motivated this ('Payment Schedule', the widest on the strip)
+    // renders 103px wide, so a 110px cap sat ABOVE it and would never have
+    // wrapped the one label the prop exists for. The number has to be below the
+    // single-line width to do anything at all, and only the caller knows its
+    // strip's width budget.
+    //
+    // `10ch` is 'about one word': ch is the width of '0' in the label's OWN
+    // computed font, so the cap tracks the type scale and the 0.85em step below
+    // instead of being a number picked against one theme at one size.
     //
     // It is a STRIP-level mode, not per-tab auto-detection. Whether one label
     // actually needs a second line is a LAYOUT fact, and neither this
@@ -578,7 +598,7 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // caller of Tabs on the registry is frozen against a pre-change baseline
     // in tabs-adornment.test.ts, and a CSS-default-but-present declaration
     // ('normal', 'start') would fail it while changing nothing visually.
-    labelMaxWidth:   labelWrap ? '110px' : ''
+    labelMaxWidth:   labelWrap ? labelWidth : ''
     labelWhiteSpace: labelWrap ? 'normal' : ''
     //
     // NO text-align here, and not by preference: `text-align` is an ENUM
