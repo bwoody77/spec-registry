@@ -70,7 +70,23 @@ component AvatarPicker(
   // callers used to keep a second, hand-rolled avatar for this case, and the
   // two drifted (Vector's desktop profile shipped without the cropper for a
   // week while the phone had it). 0.6.0.
-  readOnly: boolean = false
+  readOnly: boolean = false,
+  // 0.10.0: the frame's corners, as any CSS border-radius. A percentage
+  // scales with the box, so the 64px chip and the 260px editor preview agree:
+  // "50%" is a circle on both (the default, and what every caller had), "21%"
+  // is a 12px-on-56px rounded square. Vector's aircraft chips are rounded
+  // squares; a person's is a circle. The saved crop is a square JPEG either
+  // way, so this is paint, not geometry.
+  //
+  // A WIDER RECTANGLE is the next shape someone will want (planes are long).
+  // That is a `cropAspect` (w/h) prop generalizing cropWindow / previewFit /
+  // cropAvatarToDataUrl from `side` to w x h in avatar-picker-math.ts; radius
+  // would keep working unchanged. Not built until a surface needs it.
+  radius: string = "50%",
+  // 0.10.0: an icon name to show in place of the initials monogram. The host
+  // supplies the glyph (a dynamic name is resolved from the host's icon
+  // build), so the host must already render that name somewhere literally.
+  fallbackIcon: string = ""
 ) {
   @state {
     cropOpen: false
@@ -108,11 +124,16 @@ component AvatarPicker(
     // What the chip announces (0.7.0). The chip is the whole editable surface
     // now, so its name says what tapping it does. Read-only it is a picture,
     // not an affordance, and must not promise anything.
-    chipLabel: readOnly ? t("Profile photo")
+    chipLabel: readOnly
+      ? (subjectName != "" ? t("{subjectName}'s photo") : t("Profile photo"))
       : (hasAvatar
         ? (subjectName != "" ? t("Edit {subjectName}'s photo") : t("Edit your photo"))
         : (subjectName != "" ? t("Add a photo of {subjectName}") : t("Add a photo")))
     chipDisabled: readOnly || busy
+    // 0.10.0: a placeholder glyph instead of initials, and the delete confirm
+    // says which one will show once the photo is gone.
+    hasFallbackIcon: fallbackIcon != ""
+    deleteNote: hasFallbackIcon ? t("The placeholder icon will show instead.") : t("Your initials will show instead.")
     dialogHint: framing ? t("Drag to move it. Scroll, pinch or use the slider to zoom.") : t("Replace it to reframe.")
     closeLabel: framing ? t("Cancel") : t("Close")
     previewCursor: framing ? "grab" : "default"
@@ -376,7 +397,7 @@ component AvatarPicker(
     button {
       width: avatarPx
       height: avatarPx
-      border-radius: 999px
+      border-radius: radius
       overflow: hidden
       position: "relative"
       border: 'none'
@@ -401,10 +422,22 @@ component AvatarPicker(
         right: 0px
         bottom: 0px
         layout: horizontal, justify: center, align: center
-        text(initials) {
-          color: "#ffffff"
-          weight: 700
-          style: type.body-md
+        block {
+          visibility: !hasFallbackIcon
+          layout: horizontal, justify: center, align: center
+          text(initials) {
+            color: "#ffffff"
+            weight: 700
+            style: type.body-md
+          }
+        }
+        // 0.10.0: a glyph for a subject that has no initials (an aircraft).
+        // The name is the caller's, so it is resolved from the host's icon
+        // build at runtime, the way Button's iconLeft is.
+        block {
+          visibility: hasFallbackIcon
+          layout: horizontal, justify: center, align: center
+          Icon(name: fallbackIcon, size: 28, color: "#ffffff")
         }
       }
 
@@ -510,7 +543,7 @@ component AvatarPicker(
         block {
           width: 260px
           height: 260px
-          border-radius: 999px
+          border-radius: radius
           overflow: hidden
           background: "#000"
           position: "relative"
@@ -695,7 +728,7 @@ component AvatarPicker(
             weight: 600
             style: type.label-sm
           }
-          text("Your initials will show instead.") {
+          text(deleteNote) {
             color: semantic.text-tertiary
             style: type.label-sm
           }
