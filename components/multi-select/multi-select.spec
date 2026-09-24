@@ -390,11 +390,28 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
                 on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
                 on click: toggleOption(option.value)
 
-                // Checkbox / checkmark indicator
-                text(match showCheckbox {
-                  true -> safeSelected.includes(option.value) ? "\u2611" : "\u2610",
-                  _ -> safeSelected.includes(option.value) ? "\u2713" : ""
-                }) {
+                // Checkbox indicator: a DRAWN box, the same one Checkbox and Radio
+                // draw, at 16px to match the option's body-md text beside it. It was
+                // a ballot-box glyph at label-sm, and that glyph fills well under its
+                // em, so it rendered far smaller than the 16px label next to it.
+                block {
+                  visibility: showCheckbox
+                  width: 16px
+                  height: 16px
+                  min-width: 16px
+                  border-radius: token.checkbox-radius
+                  border: match safeSelected.includes(option.value) { true -> "none", _ -> "1px solid " + token.checkbox-border }
+                  background: match safeSelected.includes(option.value) { true -> token.checkbox-checkedBg, _ -> "transparent" }
+                  layout: horizontal, align: center, justify: center
+                  block {
+                    visibility: safeSelected.includes(option.value)
+                    Icon(name: "check", size: "12px", color: "#ffffff")
+                  }
+                }
+
+                // Checkmark indicator (showCheckbox: false)
+                text(safeSelected.includes(option.value) ? "✓" : "") {
+                  visibility: showCheckbox == false
                   style: type.label-sm
                   color: semantic.interactive
                   width: 16px
@@ -520,11 +537,28 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
             on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
             on click: toggleOption(option.value)
 
-            // Checkbox / checkmark indicator
-            text(match showCheckbox {
-              true -> safeSelected.includes(option.value) ? "\u2611" : "\u2610",
-              _ -> safeSelected.includes(option.value) ? "\u2713" : ""
-            }) {
+            // Checkbox indicator: a DRAWN box, the same one Checkbox and Radio
+            // draw, at 16px to match the option's body-md text beside it. It was
+            // a ballot-box glyph at label-sm, and that glyph fills well under its
+            // em, so it rendered far smaller than the 16px label next to it.
+            block {
+              visibility: showCheckbox
+              width: 16px
+              height: 16px
+              min-width: 16px
+              border-radius: token.checkbox-radius
+              border: match safeSelected.includes(option.value) { true -> "none", _ -> "1px solid " + token.checkbox-border }
+              background: match safeSelected.includes(option.value) { true -> token.checkbox-checkedBg, _ -> "transparent" }
+              layout: horizontal, align: center, justify: center
+              block {
+                visibility: safeSelected.includes(option.value)
+                Icon(name: "check", size: "12px", color: "#ffffff")
+              }
+            }
+
+            // Checkmark indicator (showCheckbox: false)
+            text(safeSelected.includes(option.value) ? "✓" : "") {
+              visibility: showCheckbox == false
               style: type.label-sm
               color: semantic.interactive
               width: 16px
