@@ -49,9 +49,22 @@ component Tooltip(text: text = "", placement: string = "top") {
     // Bubble — anchored to the trigger (previous sibling) via positionDropdown.
     // visibility on the block (not on the text — text() silently ignores
     // visibility per spec compiler quirk).
+    //
+    // Sized `max-content` capped at 320px, and the text WRAPS. It used to be
+    // `white-space: nowrap` with no cap, which is fine for "Due soon" and
+    // unreadable for free-form text: a grounding squawk on Vector's schedule
+    // rail ran as one line from one edge of the window to the other.
+    // `max-content` (not shrink-to-fit) keeps a short tip on one line even when
+    // the bubble first lands near the right edge, where shrink-to-fit would
+    // wrap it into the little space left before positionDropdown clamps it.
+    // A declared width also skips positionDropdown's trigger-width floor,
+    // which a tooltip never wanted. `overflow-wrap: anywhere` breaks a long
+    // unspaced token (a URL, an id) instead of letting it burst the cap.
     block {
       visibility: visible == true
       anchor: placement
+      width: 'max-content'
+      max-width: 'min(320px, calc(100vw - 16px))'
       padding: spacing.2
       background: "#1e293b"
       border-radius: 6px
@@ -61,7 +74,7 @@ component Tooltip(text: text = "", placement: string = "top") {
       text(text) {
         style: type.label-sm
         color: "#f1f5f9"
-        white-space: 'nowrap'
+        overflow-wrap: 'anywhere'
       }
     }
   }
