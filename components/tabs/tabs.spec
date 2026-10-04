@@ -160,7 +160,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // templates DO bound a column, so their labels keep the default.
     noWrapLabels: overflow == 'scroll'
     // Strip chrome differs by variant.
-    stripBg:        variant == 'pill' ? semantic.surface : (variant == 'segmented' ? semantic.surface-hover : 'transparent')
+    stripBg:        variant == 'pill' ? semantic.surface : (variant == 'segmented' ? token.tab-segmentTrack : 'transparent')
     stripBorder:    variant == 'pill' ? borders.default : (variant == 'segmented' ? 'none' : '1px solid transparent')
     stripBorderBot: variant == 'pill' ? borders.default : (variant == 'segmented' ? 'none' : ('1px solid ' + semantic.border))
     stripRadius:    variant == 'pill' ? 12px : (variant == 'segmented' ? 9px : 0px)
