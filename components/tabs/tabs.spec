@@ -8,6 +8,10 @@
 //
 // tabs:     array of { id: string, label: string, icon?: string, count?: number }
 // variant:  'pill' (filled chip, carded strip) | 'underline' (2px indicator)
+//           | 'segmented' (the iOS segmented control: a recessed track with the
+//             active segment raised on a surface chip — for a strip that
+//             switches views of ONE thing, like a leg's Preflight / Times /
+//             Receipts, where it is what an iOS build draws natively)
 // overflow: 'wrap' (grid auto-fill) | 'scroll' (single row, auto-scroll)
 //           | 'grow' (equal-width columns filling the row)
 //
@@ -156,11 +160,11 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // templates DO bound a column, so their labels keep the default.
     noWrapLabels: overflow == 'scroll'
     // Strip chrome differs by variant.
-    stripBg:        variant == 'pill' ? semantic.surface : 'transparent'
-    stripBorder:    variant == 'pill' ? borders.default : '1px solid transparent'
-    stripBorderBot: variant == 'pill' ? borders.default : ('1px solid ' + semantic.border)
-    stripRadius:    variant == 'pill' ? 12px : 0px
-    stripPad:       variant == 'pill' ? 6px : 0px
+    stripBg:        variant == 'pill' ? semantic.surface : (variant == 'segmented' ? semantic.surface-hover : 'transparent')
+    stripBorder:    variant == 'pill' ? borders.default : (variant == 'segmented' ? 'none' : '1px solid transparent')
+    stripBorderBot: variant == 'pill' ? borders.default : (variant == 'segmented' ? 'none' : ('1px solid ' + semantic.border))
+    stripRadius:    variant == 'pill' ? 12px : (variant == 'segmented' ? 9px : 0px)
+    stripPad:       variant == 'pill' ? 6px : (variant == 'segmented' ? 2px : 0px)
 
     // The grouped cell's fill, which has to differ by variant because the PILL
     // variant already spends `semantic.interactive-bg` on its active chip
@@ -529,21 +533,27 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // The ONLY thing size changes. The radius, the borders and the count badge
     // are untouched, so a small strip is the same control drawn tighter rather
     // than a second design.
-    padY:        size == 'sm' ? (variant == 'pill' ? 4px : 5px) : (variant == 'pill' ? 9px : 10px)
-    padX:        size == 'sm' ? (variant == 'pill' ? 10px : 12px) : (variant == 'pill' ? 12px : 16px)
-    itemRadius:  variant == 'pill' ? 8px : 0px
-    // pill: filled chip when active. underline: no chip.
-    itemBg:      (variant == 'pill' && active) ? semantic.interactive-bg : 'transparent'
+    padY:        variant == 'segmented' ? 6px : (size == 'sm' ? (variant == 'pill' ? 4px : 5px) : (variant == 'pill' ? 9px : 10px))
+    padX:        variant == 'segmented' ? 12px : (size == 'sm' ? (variant == 'pill' ? 10px : 12px) : (variant == 'pill' ? 12px : 16px))
+    itemRadius:  variant == 'pill' ? 8px : (variant == 'segmented' ? 7px : 0px)
+    // pill: filled chip when active. underline: no chip. segmented: the
+    // active segment is a raised SURFACE chip on the sunken track — neutral,
+    // not the accent, the way the native control draws it; the accent stays
+    // for things that act.
+    itemBg:      (variant == 'pill' && active) ? semantic.interactive-bg
+                   : ((variant == 'segmented' && active) ? semantic.surface : 'transparent')
+    itemShadow:  (variant == 'segmented' && active) ? '0 1px 3px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.04)' : 'none'
     itemBorder:  (variant == 'pill' && active) ? '1px solid #bfdbfe' : '1px solid transparent'
     // underline: 2px indicator on the bottom. pill: keep bottom consistent
     // with the other three sides so the chip border is uniform.
     itemBorderBot: variant == 'underline'
                      ? (active ? ('2px solid ' + semantic.interactive) : '2px solid transparent')
                      : ((variant == 'pill' && active) ? '1px solid #bfdbfe' : '1px solid transparent')
-    hoverBg:     active ? (variant == 'pill' ? semantic.interactive-bg : 'transparent') : semantic.surface-hover
-    fg:          active ? semantic.interactive-hover : semantic.text-secondary
-    iconFg:      active ? semantic.interactive-hover : semantic.text-tertiary
-    labelWeight: active ? 700 : 600
+    hoverBg:     active ? (variant == 'pill' ? semantic.interactive-bg : (variant == 'segmented' ? semantic.surface : 'transparent'))
+                   : (variant == 'segmented' ? 'transparent' : semantic.surface-hover)
+    fg:          active ? (variant == 'segmented' ? semantic.text-primary : semantic.interactive-hover) : semantic.text-secondary
+    iconFg:      active ? (variant == 'segmented' ? semantic.text-primary : semantic.interactive-hover) : semantic.text-tertiary
+    labelWeight: variant == 'segmented' ? (active ? 600 : 500) : (active ? 700 : 600)
     // Count badge. toString guards a null (the badge is hidden then anyway, but
     // the computed still evaluates).
     countText: tab.count != null ? toString(tab.count) : ''
@@ -659,6 +669,7 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     border: itemBorder
     border-bottom: itemBorderBot
     border-right: itemBorderRight
+    shadow: itemShadow
     on click: emit("change", tab.id)
     on hover {
       background: hoverBg
