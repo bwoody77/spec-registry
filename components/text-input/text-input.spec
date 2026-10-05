@@ -52,11 +52,11 @@ component TextInput(
   //
   // "lg" (0.11.0) is the field read at arm's length: a 56px control with 24px
   // bold digits, for a phone app a mechanic types a tire pressure into while
-  // standing at the plane. The size is set on the CONTAINER, because an <input>
-  // takes no font-size of its own and inherits its parent's (the compiler
-  // resets `font-size: inherit` on every form tag), and font-size on a block
-  // became a property for exactly this (compiler, block-font-size.test.ts).
-  // "inherit" for the other two sizes is what they already rendered.
+  // standing at the plane. The size goes on the INPUT itself: the compiler
+  // seeds every text control with the body-md size (so it never renders in
+  // the UA's 13.33px), and an author font-size on the control wins while it
+  // has a value and falls back to that seed when it is '' (compiler,
+  // block-font-size.test.ts) — which is what keeps sm and md as they were.
   size: string = "md"
 ) {
   @state { focused: false }
@@ -134,8 +134,13 @@ component TextInput(
     //   lg: floor 54 + 0 + 2                                             → 56
     boxPad: size == "sm" ? '0 8px' : (size == "lg" ? '0 14px' : spacing.2)
     boxMinHeight: size == "sm" ? '30px' : (size == "lg" ? '54px' : 'auto')
-    boxFontSize: size == "lg" ? '24px' : 'inherit'
-    boxFontWeight: size == "lg" ? 700 : 'inherit'
+    // The INPUT's own text. A text control is seeded with the body-md size by
+    // the compiler; an author font-size on it wins while it has a value and
+    // falls back to the seed when it is '' (block-font-size.test.ts), so md
+    // and sm render exactly as before. The weight has no seed: '' clears it
+    // to the UA's normal, which is what the other sizes already render.
+    inputFontSize: size == "lg" ? '24px' : ''
+    inputFontWeight: size == "lg" ? 700 : ''
   }
 
   @actions {
@@ -167,8 +172,6 @@ component TextInput(
       layout: horizontal, align: center, gap: 8px
       padding: boxPad
       min-height: boxMinHeight
-      font-size: boxFontSize
-      font-weight: boxFontWeight
       border-radius: token.input-radius
       // `error` outranks `tone` here for the same reason it does on the border
       // below, and it has to be said in BOTH places or the precedence is only
@@ -232,6 +235,8 @@ component TextInput(
           border: "none"
           background: "transparent"
           width: 100%
+          font-size: inputFontSize
+          font-weight: inputFontWeight
           on input: emit("change", value)
           on focus: handleFocus()
           on blur: handleBlur()
