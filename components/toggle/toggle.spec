@@ -31,10 +31,19 @@ component Toggle(label: text, checked: boolean = false, disabled: boolean = fals
 
     on click: emit("change", checked == false)
 
+    // `text-align: start` is load-bearing. The root is a <button>, and the UA
+    // stylesheet gives every button `text-align: center`, which inherits into
+    // this label. While the button shrink-wraps the box hugs the glyphs and
+    // nothing looks wrong; once the label is long enough to WRAP, both lines
+    // center themselves. Seen in Vector on "Only show to members whose tier
+    // includes this aircraft". Checkbox 0.5.1 carries the same fix for the
+    // same reason. The property cannot go on the `button` itself (Spec rejects
+    // it there), and only logical values are accepted, so `start`, not `left`.
     text(label) {
       style: type.body-md
       weight: 500
       color: semantic.text-secondary
+      text-align: start
     }
 
     // Track
