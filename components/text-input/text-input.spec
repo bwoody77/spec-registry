@@ -49,6 +49,14 @@ component TextInput(
   // surface that used both got a 32px control beside a 38px one, and a
   // fixed-height row holding a TextInput sheared open the moment it was
   // focused.
+  //
+  // "lg" (0.11.0) is the field read at arm's length: a 56px control with 24px
+  // bold digits, for a phone app a mechanic types a tire pressure into while
+  // standing at the plane. The size is set on the CONTAINER, because an <input>
+  // takes no font-size of its own and inherits its parent's (the compiler
+  // resets `font-size: inherit` on every form tag), and font-size on a block
+  // became a property for exactly this (compiler, block-font-size.test.ts).
+  // "inherit" for the other two sizes is what they already rendered.
   size: string = "md"
 ) {
   @state { focused: false }
@@ -123,8 +131,11 @@ component TextInput(
     // never applied. That is how this was found: matching Select's height
     // meant measuring Select, and Select was not the height it claimed.
     // Corrected on the same branch, so the two agree again.
-    boxPad: size == "sm" ? '0 8px' : spacing.2
-    boxMinHeight: size == "sm" ? '30px' : 'auto'
+    //   lg: floor 54 + 0 + 2                                             → 56
+    boxPad: size == "sm" ? '0 8px' : (size == "lg" ? '0 14px' : spacing.2)
+    boxMinHeight: size == "sm" ? '30px' : (size == "lg" ? '54px' : 'auto')
+    boxFontSize: size == "lg" ? '24px' : 'inherit'
+    boxFontWeight: size == "lg" ? 700 : 'inherit'
   }
 
   @actions {
@@ -156,6 +167,8 @@ component TextInput(
       layout: horizontal, align: center, gap: 8px
       padding: boxPad
       min-height: boxMinHeight
+      font-size: boxFontSize
+      font-weight: boxFontWeight
       border-radius: token.input-radius
       // `error` outranks `tone` here for the same reason it does on the border
       // below, and it has to be said in BOTH places or the precedence is only
