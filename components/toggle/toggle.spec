@@ -10,13 +10,28 @@
 //
 // role="switch" rather than "checkbox": both announce a binary state, but a
 // switch is the on/off control this renders and it has no indeterminate state.
-component Toggle(label: text, checked: boolean = false, disabled: boolean = false) {
+//
+// `ariaLabel` (0.5.0): the switch's accessible name when the visible label is
+// not it — the same prop Checkbox and Button carry, with the same default.
+// Empty means the name is the label, so every existing caller is byte-identical.
+// The case it exists for is a row that already names the setting in its own
+// title ("Immediate risk / Someone should act now") and mounts the switch at
+// the end: with `label` the title printed twice, with `label: ""` the switch
+// announced as an unnamed control. Vector's hazard report row rebuilt the
+// whole switch by hand to avoid both (2026-10-13); this is the prop that
+// makes that unnecessary. The label is still drawn when it is given.
+component Toggle(label: text, checked: boolean = false, disabled: boolean = false, ariaLabel: text = "") {
+  @computed {
+    accessibleName: ariaLabel != "" ? ariaLabel : label
+    hasLabel: label != ""
+  }
   button {
     disabled: disabled
     border: "none"
     background: "transparent"
     padding: 0
     role: "switch"
+    aria-label: accessibleName
     aria-checked: checked
     aria-disabled: disabled
     layout: horizontal, gap: 10px, align: center
@@ -32,6 +47,7 @@ component Toggle(label: text, checked: boolean = false, disabled: boolean = fals
     on click: emit("change", checked == false)
 
     text(label) {
+      visibility: hasLabel
       style: type.body-md
       weight: 500
       color: semantic.text-secondary
