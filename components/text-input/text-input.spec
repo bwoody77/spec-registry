@@ -49,6 +49,14 @@ component TextInput(
   // surface that used both got a 32px control beside a 38px one, and a
   // fixed-height row holding a TextInput sheared open the moment it was
   // focused.
+  //
+  // "lg" (0.11.0) is the field read at arm's length: a 56px control with 24px
+  // bold digits, for a phone app a mechanic types a tire pressure into while
+  // standing at the plane. The size goes on the INPUT itself: the compiler
+  // seeds every text control with the body-md size (so it never renders in
+  // the UA's 13.33px), and an author font-size on the control wins while it
+  // has a value and falls back to that seed when it is '' (compiler,
+  // block-font-size.test.ts) — which is what keeps sm and md as they were.
   size: string = "md"
 ) {
   @state { focused: false }
@@ -123,8 +131,16 @@ component TextInput(
     // never applied. That is how this was found: matching Select's height
     // meant measuring Select, and Select was not the height it claimed.
     // Corrected on the same branch, so the two agree again.
-    boxPad: size == "sm" ? '0 8px' : spacing.2
-    boxMinHeight: size == "sm" ? '30px' : 'auto'
+    //   lg: floor 54 + 0 + 2                                             → 56
+    boxPad: size == "sm" ? '0 8px' : (size == "lg" ? '0 14px' : spacing.2)
+    boxMinHeight: size == "sm" ? '30px' : (size == "lg" ? '54px' : 'auto')
+    // The INPUT's own text. A text control is seeded with the body-md size by
+    // the compiler; an author font-size on it wins while it has a value and
+    // falls back to the seed when it is '' (block-font-size.test.ts), so md
+    // and sm render exactly as before. The weight has no seed: '' clears it
+    // to the UA's normal, which is what the other sizes already render.
+    inputFontSize: size == "lg" ? '24px' : ''
+    inputFontWeight: size == "lg" ? 700 : ''
   }
 
   @actions {
@@ -219,6 +235,8 @@ component TextInput(
           border: "none"
           background: "transparent"
           width: 100%
+          font-size: inputFontSize
+          font-weight: inputFontWeight
           on input: emit("change", value)
           on focus: handleFocus()
           on blur: handleBlur()
