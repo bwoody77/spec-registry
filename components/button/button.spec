@@ -123,7 +123,16 @@ component Button(
   // always did. Stat carried an `align: string` prop that silently did nothing
   // for exactly this class of confusion (see stat.spec's header) — that one
   // also predated the compiler accepting an expression here at all.
-  justify:      string  = "center"
+  justify:      string  = "center",
+  // Fill the column the button sits in. On the web a stacked Button already
+  // does (its root is the column's flex item), so this is the explicit form
+  // for a button inside a ROW or a `display: block` wrapper. On iOS it is the
+  // only way a button fills its width at all: the SwiftUI label is sized to
+  // its text, so every pinned action in Vector's phone apps was label-width
+  // until 2026-10-15 — measured on the simulator, five screens in a row. The
+  // iOS emitter also fills a Button that is a direct child of a `layout:
+  // vertical` block with no cross-axis pin, matching what the web does there.
+  fullWidth:    bool    = false
 ) {
   @computed {
     isIconOnly: iconOnly != ""
@@ -179,6 +188,8 @@ component Button(
     // Only "xs" reads anything else, so sm/md/lg are byte-identical to what
     // they rendered before.
     labelStyle: size == "xs" ? type.label-sm : type.label-md
+
+    btnWidth: fullWidth ? "100%" : "auto"
   }
 
   // NOTE: Conditional rendering uses `visibility:` on always-emitted nodes
@@ -213,6 +224,7 @@ component Button(
     layout: horizontal, align: center, justify: justify, gap: spacing.2
     padding-x: padX
     padding-y: padY
+    width: btnWidth
     border-radius: radius
     shadow: match pressed {
       true -> "inset 0 1px 3px rgba(0,0,0,0.2)",
