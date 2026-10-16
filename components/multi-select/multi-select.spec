@@ -5,7 +5,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 
 // `ariaLabel` is normally supplied by the compiler from the visible label
 // rendered beside the control (ast-to-ir inferAccessibleNames), not by hand.
-component MultiSelect(options: array = [], values: array = [], placeholder: text = "Select...", searchable: boolean = true, disabled: boolean = false, label: text = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3, ariaLabel: text = "") {
+component MultiSelect(options: array = [], values: array = [], placeholder: text = "Select...", searchable: boolean = true, disabled: boolean = false, label: text = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3, ariaLabel: text = "", summary: text = "") {
   @state {
     open: false
     query: ""
@@ -49,7 +49,15 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
     // option doesn't define a `shortLabel` (e.g. callers building options from
     // simple {value,label} pairs). Aircraft pickers, for example, set shortLabel
     // to just the tail so the trigger row stays readable when many are picked.
-    displayText: selectedOptions.map(o => (o.shortLabel != null ? o.shortLabel : o.label)).join(", ")
+    //
+    // `summary` (0.8.0) REPLACES that joined text when the caller passes one.
+    // The joined labels say WHICH options are selected; a filter whose resting
+    // state is every option selected wants to say HOW MANY instead: "All item
+    // types", "3 of 4 item types". Only the caller knows that framing, so it
+    // passes the sentence. Empty (the default) keeps the joined labels, and it
+    // only applies in display "text" with something selected: nothing selected
+    // still shows the placeholder, and chips are their own summary.
+    displayText: summary != "" ? summary : selectedOptions.map(o => (o.shortLabel != null ? o.shortLabel : o.label)).join(", ")
     isDropdownMode: mode == "dropdown"
     showList: isDropdownMode == false || open == true
     // The text-summary block below grows (grow: true) when display=='text'
