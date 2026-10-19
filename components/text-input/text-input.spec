@@ -65,6 +65,12 @@ component TextInput(
     // per mount: a literal would repeat on every TextInput on the page, and
     // each field would be described by whichever line came first.
     msgId: uniqueId('spec-field-msg')
+    // The words the error line says. The props reach it through
+    // followError(), not directly: see "Saying it again" below.
+    errWords: error == true ? errorMessage : ''
+    // True for 100ms after the line went empty: the page may not have drawn
+    // the empty line yet, so words arriving now wait until it has.
+    errHeld: false
   }
 
   @computed {
@@ -95,11 +101,27 @@ component TextInput(
     // Now the line is never hidden. It holds the message while `error` is on
     // and '' otherwise, and while it is empty it is out of the flow, so a field
     // with no error takes exactly the room it took before (the root's `gap`
-    // does not apply to an absolute child). Saying the same thing twice is the
-    // caller's half: empty the message as each attempt starts, then refill it.
+    // does not apply to an absolute child).
+    //
+    // ── Saying it again (Vector #987) ────────────────────────────────────────
+    //
+    // A live region speaks when its text CHANGES, so the same message set
+    // twice is heard once. The caller's half is to empty the message (or turn
+    // `error` off) as each attempt starts and then refill it. This half makes
+    // that round trip reach the page: a check that fails without a request
+    // clears and refills in ONE action, and Spec writes the DOM once per
+    // frame, so the line went from the words to the same words and a screen
+    // reader heard nothing. The line therefore shows `errWords`, not
+    // `errText`: words that arrive within 100ms of the line going empty wait
+    // out those 100ms with the line empty (Vector's kit ErrorLine does the
+    // same, #1003). Meanwhile `errStandIn` paints them where the line stands,
+    // aria-hidden, so the field neither blinks nor moves. A first message, or
+    // a different one, shows at once, and a clear empties the field at once.
     errText: error == true ? errorMessage : ''
-    errShown: errText != ''
+    errShown: errWords != ''
     errPosition: errShown ? 'static' : 'absolute'
+    errStandIn: errHeld ? errText : ''
+    errStandInShown: errStandIn != ''
     // null, not "false", for the reason given above: bindAttr removes the
     // attribute, and the ~577 fields with no error stay exactly as they were.
     invalidAttr: error == true ? 'true' : null
@@ -173,7 +195,31 @@ component TextInput(
     inputFontWeight: size == "lg" ? 700 : ''
   }
 
+  @watch {
+    // Both props, not `errText`: a watch on one prop reads its sibling's old
+    // value when the caller changes both, so each runs the same follow.
+    error: { followError() }
+    errorMessage: { followError() }
+  }
+
   @actions {
+    followError() {
+      let words = error == true ? errorMessage : ''
+      if words == '' {
+        if errWords != '' {
+          errWords = ''
+          errHeld = true
+          delay("errRefill", 100) {
+            errHeld = false
+            errWords = error == true ? errorMessage : ''
+          }
+        }
+        return
+      }
+      if !errHeld {
+        errWords = words
+      }
+    }
     handleFocus() {
       focused = true
       emit("focus")
@@ -365,7 +411,21 @@ component TextInput(
       role: 'alert'
       aria-live: 'assertive'
       position: errPosition
-      text(errText) {
+      text(errWords) {
+        style: type.caption
+        color: semantic.destructive
+      }
+    }
+
+    // The same words while the line above waits out its empty moment (see
+    // "Saying it again"), painted in the line's place so the field neither
+    // blinks nor moves. aria-hidden and outside the region: the line is what
+    // speaks, once the wait is over. Empty and display:none otherwise, so a
+    // field holds no hidden copy of its message.
+    block {
+      visibility: errStandInShown
+      aria-hidden: 'true'
+      text(errStandIn) {
         style: type.caption
         color: semantic.destructive
       }
