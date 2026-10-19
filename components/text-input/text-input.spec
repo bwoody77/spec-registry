@@ -59,7 +59,13 @@ component TextInput(
   // block-font-size.test.ts) — which is what keeps sm and md as they were.
   size: string = "md"
 ) {
-  @state { focused: false }
+  @state {
+    focused: false
+    // The error line's id, which the box's aria-describedby names. Minted
+    // per mount: a literal would repeat on every TextInput on the page, and
+    // each field would be described by whichever line came first.
+    msgId: uniqueId('spec-field-msg')
+  }
 
   @computed {
     // The input carried NO accessible name at all: a bare <input> whose only
@@ -77,6 +83,30 @@ component TextInput(
     // valid keyboard token — it would land on all ~577 call sites that never
     // asked for one.
     inputModeAttr: inputMode != "" ? inputMode : null
+
+    // ── The error, said as well as painted (Vector #874) ─────────────────────
+    //
+    // The line used to be a block gated by `visibility: error == true`, which
+    // compiles to display:none. A live region that enters the accessibility
+    // tree together with its words is never announced, and the box carried no
+    // aria-invalid and no aria-describedby, so every field error was red to the
+    // eye and silent to a screen reader.
+    //
+    // Now the line is never hidden. It holds the message while `error` is on
+    // and '' otherwise, and while it is empty it is out of the flow, so a field
+    // with no error takes exactly the room it took before (the root's `gap`
+    // does not apply to an absolute child). Saying the same thing twice is the
+    // caller's half: empty the message as each attempt starts, then refill it.
+    errText: error == true ? errorMessage : ''
+    errShown: errText != ''
+    errPosition: errShown ? 'static' : 'absolute'
+    // null, not "false", for the reason given above: bindAttr removes the
+    // attribute, and the ~577 fields with no error stay exactly as they were.
+    invalidAttr: error == true ? 'true' : null
+    // Only while there are words to read: a box described by an empty node
+    // reads nothing, and a red box with no message (a caller that only paints)
+    // has nothing to add after its name.
+    describedBy: errShown ? msgId : null
 
     // ── size: "md" (default, unchanged) | "sm" ───────────────────────────────
     //
@@ -241,6 +271,8 @@ component TextInput(
             textArea(value) {
               placeholder: placeholder
               aria-label: inputAriaLabel
+              aria-invalid: invalidAttr
+              aria-describedby: describedBy
               inputMode: inputModeAttr
               disabled: disabled
               readonly: readonly
@@ -261,6 +293,8 @@ component TextInput(
             textInput(value) {
               placeholder: placeholder
               aria-label: inputAriaLabel
+              aria-invalid: invalidAttr
+              aria-describedby: describedBy
               type: type
               inputMode: inputModeAttr
               disabled: disabled
@@ -322,10 +356,16 @@ component TextInput(
       }
     }
 
-    // Error message
+    // Error message — a live region that is always here (see errText above).
+    // role alert (assertive), as Vector's kit ErrorLine: the field the user
+    // just tried to submit was refused, and they need that before they move on.
+    // The words are painted as they always were.
     block {
-      visibility: error == true
-      text(errorMessage) {
+      id: msgId
+      role: 'alert'
+      aria-live: 'assertive'
+      position: errPosition
+      text(errText) {
         style: type.caption
         color: semantic.destructive
       }
