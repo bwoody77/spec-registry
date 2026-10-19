@@ -221,47 +221,61 @@ component TextInput(
         }
       }
 
-      // Text input (non-textarea)
-      block {
-        visibility: type != "textarea"
-        grow: true
-        textInput(value) {
-          placeholder: placeholder
-          aria-label: inputAriaLabel
-          type: type
-          inputMode: inputModeAttr
-          disabled: disabled
-          readonly: readonly
-          border: "none"
-          background: "transparent"
-          width: 100%
-          font-size: inputFontSize
-          font-weight: inputFontWeight
-          on input: emit("change", value)
-          on focus: handleFocus()
-          on blur: handleBlur()
-          on key-down(e): emit("keydown", e)
-        }
-      }
-
-      // Textarea
-      block {
-        visibility: type == "textarea"
-        grow: true
-        textArea(value) {
-          placeholder: placeholder
-          aria-label: inputAriaLabel
-          inputMode: inputModeAttr
-          disabled: disabled
-          readonly: readonly
-          rows: rows
-          border: "none"
-          background: "transparent"
-          width: 100%
-          on input: emit("change", value)
-          on focus: handleFocus()
-          on blur: handleBlur()
-          on key-down(e): emit("keydown", e)
+      // The text box: an <input>, or a <textarea> for type "textarea" — ONE of
+      // them. These were two sibling blocks gated by `visibility:`, which hides
+      // without unmounting, so every field carried a display:none twin with
+      // the same aria-label: `getByRole('textbox', { includeHidden: true })`
+      // counted two boxes per field (Vector #796, a close-out Tach field read
+      // as 4 for 2 layouts). `type` is fixed per call site, so a `match` mounts
+      // one arm, and the arm never taken costs a comment node.
+      //
+      // The subject is the BOOLEAN, not `type`: a reveal toggle flips "password"
+      // and "text" at runtime, and matching on `type` would put those in
+      // different arms and remount the field — losing focus mid-keystroke. The
+      // active arm's host is `display: contents`, so the `grow` block below is
+      // still the flex item of the row.
+      match type == "textarea" {
+        true -> {
+          block {
+            grow: true
+            textArea(value) {
+              placeholder: placeholder
+              aria-label: inputAriaLabel
+              inputMode: inputModeAttr
+              disabled: disabled
+              readonly: readonly
+              rows: rows
+              border: "none"
+              background: "transparent"
+              width: 100%
+              on input: emit("change", value)
+              on focus: handleFocus()
+              on blur: handleBlur()
+              on key-down(e): emit("keydown", e)
+            }
+          }
+        },
+        _ -> {
+          block {
+            grow: true
+            textInput(value) {
+              placeholder: placeholder
+              aria-label: inputAriaLabel
+              type: type
+              inputMode: inputModeAttr
+              disabled: disabled
+              readonly: readonly
+              border: "none"
+              background: "transparent"
+              width: 100%
+              font-size: inputFontSize
+              font-weight: inputFontWeight
+              on input: emit("change", value)
+              on focus: handleFocus()
+              on blur: handleBlur()
+              on key-down(e): emit("keydown", e)
+            }
+          }
         }
       }
 
