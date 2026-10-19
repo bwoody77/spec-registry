@@ -9,6 +9,72 @@
  */
 /** Header cells, anywhere in the grid. */
 export const HEADER_CELLS = '[data-grid-row="header"] [data-grid-col]';
+/** Between looks for a grid root that is not in the document yet. */
+export const GRID_ROOT_POLL_MS = 80;
+/** Retries before a wire stops looking for its grid: ~10 s at 80ms. */
+export const GRID_ROOT_POLL_LIMIT = 125;
+/**
+ * Hand `onRoot` this grid's `[data-grid-id]` element once it is in the
+ * document, and return a cancel. Shared by the two drag wires.
+ *
+ * DataGrid creates both wires from @state initialisers, which run before the
+ * grid's DOM exists, so the synchronous look below always misses there. Mount
+ * is synchronous and stamps `data-grid-id` as it builds, so a microtask later
+ * the grid is normally in place and no timer is ever armed. Only a grid that
+ * arrives later than that (a container attached after mount) falls through to
+ * the poll.
+ *
+ * The poll is BOUNDED. It used to re-arm itself until the grid appeared, with
+ * nothing to stop it: a grid unmounted before its first retry polled for the
+ * life of the page, and under vitest the timer outlived the test environment,
+ * where `document` no longer exists — up to 52 "document is not defined …
+ * caught after test environment was torn down" errors on an all-green
+ * components run. So a retry also does nothing once the document is gone, and
+ * a wire that never finds its grid says so and stops.
+ */
+export function whenGridRoot(gridId, onRoot, 
+/** Names the wire in the give-up warning: 'column drag', 'group drag'. */
+what) {
+    let done = false;
+    let timer = null;
+    let retries = 0;
+    function attempt() {
+        const id = gridId();
+        const root = id
+            ? document.querySelector('[data-grid-id="' + id + '"]')
+            : null;
+        if (!root)
+            return false;
+        done = true;
+        onRoot(root);
+        return true;
+    }
+    function retry() {
+        timer = null;
+        // Cancelled, or the environment that owned this grid is gone — a torn-down
+        // test environment deletes `document`, and `attempt()` would throw.
+        if (done || typeof document === 'undefined')
+            return;
+        if (attempt())
+            return;
+        if (retries++ >= GRID_ROOT_POLL_LIMIT) {
+            done = true;
+            console.warn(`DataGrid: the ${what} wire never found [data-grid-id="${gridId()}"] after ` +
+                `${GRID_ROOT_POLL_LIMIT} retries and stopped looking. Dragging will not work on that grid.`);
+            return;
+        }
+        timer = setTimeout(retry, GRID_ROOT_POLL_MS);
+    }
+    if (typeof document === 'undefined' || !attempt())
+        queueMicrotask(retry);
+    return () => {
+        done = true;
+        if (timer != null) {
+            clearTimeout(timer);
+            timer = null;
+        }
+    };
+}
 /**
  * Only cells belonging to THIS grid. querySelectorAll reaches DOWN into a
  * nested DataGrid rendered in a detail slot — whose root sits inside this

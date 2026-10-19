@@ -24,9 +24,10 @@
  * sharing the source's `p:` / `s:` prefix, so a group cannot silently pin or
  * unpin itself.
  */
+import { onDispose } from '@spec/runtime';
 import { createDragSession } from './drag-core/pointer.js';
 import { gapFromX, orderFromGapIndex, mergeHiddenKeys, } from './column-reorder-math.js';
-import { HEADER_CELLS, ownedBy, segOf } from './data-grid-dom.js';
+import { HEADER_CELLS, ownedBy, segOf, whenGridRoot } from './data-grid-dom.js';
 /** Bound by DataGrid to `reorderableColumns`; see wireColumnDrag. */
 const ENABLED_ATTR = 'data-grid-reorderable';
 const SEG_LABEL = '[data-grid-seg-label]';
@@ -34,7 +35,8 @@ const SEG = '[data-grid-col-seg]';
 export function wireGroupDrag(gridId, onReorder, enabled, allKeys) {
     let session = null;
     let mutationObserver = null;
-    let waitTimer = null;
+    /** Stops the wait for the grid root; see whenGridRoot. */
+    let cancelWait = null;
     let teardownSources = null;
     function resolveId() {
         return typeof gridId === 'function' ? gridId() : gridId;
@@ -45,10 +47,6 @@ export function wireGroupDrag(gridId, onReorder, enabled, allKeys) {
     function resolveAllKeys() {
         const k = typeof allKeys === 'function' ? allKeys() : allKeys;
         return Array.isArray(k) ? k : [];
-    }
-    function findRoot() {
-        const id = resolveId();
-        return id ? document.querySelector('[data-grid-id="' + id + '"]') : null;
     }
     function teardown() {
         if (teardownSources) {
@@ -73,19 +71,12 @@ export function wireGroupDrag(gridId, onReorder, enabled, allKeys) {
             mutationObserver.disconnect();
             mutationObserver = null;
         }
-        if (waitTimer != null) {
-            clearTimeout(waitTimer);
-            waitTimer = null;
+        if (cancelWait) {
+            cancelWait();
+            cancelWait = null;
         }
     }
-    function tryMount() {
-        const found = findRoot();
-        if (!found) {
-            waitTimer = setTimeout(tryMount, 80);
-            return;
-        }
-        const root = found;
-        waitTimer = null;
+    function mount(root) {
         const mine = ownedBy(root);
         /** Segment containers on the source's side, in visual order. */
         function siblingSegments(side) {
@@ -281,7 +272,10 @@ export function wireGroupDrag(gridId, onReorder, enabled, allKeys) {
         });
         teardownSources = disarmSources;
     }
-    tryMount();
+    cancelWait = whenGridRoot(resolveId, mount, 'group drag');
+    // Same reason as wireColumnDrag: the teardown DataGrid parks in @state is
+    // never called, so the mount's owner scope runs it on unmount.
+    onDispose(teardown);
     return teardown;
 }
 //# sourceMappingURL=data-grid-group-drag.js.map

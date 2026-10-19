@@ -359,12 +359,12 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
      * clientHeight is 0 anyway, that fallback is INDISTINGUISHABLE from a
      * successful attach — a structural test cannot see it.
      *
-     * @state is no better: it runs earlier still. wireColumnDrag hits the same
-     * wall and answers it with an 80ms poll that never stops. This tries the
+     * @state is no better: it runs earlier still. The two drag wires hit the
+     * same wall (see `whenGridRoot` in data-grid-dom.ts). This tries the
      * microtask queue first (mount is synchronous, so one turn is normally all
      * it takes) and only then falls back to a BOUNDED poll, so a grid that is
      * never mounted stops asking instead of retrying forever — the shape behind
-     * this package's known post-teardown unhandled errors.
+     * this package's post-teardown unhandled errors.
      */
     // ~2s at 16ms. The old budget was 32 attempts — and `attempts` was consumed
     // by TWO chains at once (see below), so the real budget was ~256ms. A mount

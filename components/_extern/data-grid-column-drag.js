@@ -74,10 +74,11 @@
  * original column geometry, so it never oscillates). No dead-zones, so the
  * slot tracks continuously and the drop commits the gap the slot shows.
  */
+import { onDispose } from '@spec/runtime';
 import { createDragSession } from './drag-core/pointer.js';
 import { gapFromX, orderFromGapIndex, applySegmentOrder, mergeHiddenKeys, } from './column-reorder-math.js';
 import { buildColumnGhost, makeSlot } from './column-ghost.js';
-import { HEADER_CELLS, ownedBy, segOf, segmentCells, headerCellsFor, bodyCellsFor, } from './data-grid-dom.js';
+import { HEADER_CELLS, ownedBy, segOf, segmentCells, headerCellsFor, bodyCellsFor, whenGridRoot, } from './data-grid-dom.js';
 // Re-exported: the test suite imports these from here, and moving the
 // definitions must not move their import path.
 export { headerCellsFor, bodyCellsFor };
@@ -153,7 +154,8 @@ export function wireColumnDrag(gridId, onReorder, enabled,
 allKeys) {
     let session = null;
     let mutationObserver = null;
-    let waitTimer = null;
+    /** Stops the wait for the grid root; see whenGridRoot. */
+    let cancelWait = null;
     let slot = null;
     /** Set once mounted: detaches every armed source and restores its cursor. */
     let teardownSources = null;
@@ -168,10 +170,6 @@ allKeys) {
     function resolveAllKeys() {
         const k = typeof allKeys === 'function' ? allKeys() : allKeys;
         return Array.isArray(k) ? k : [];
-    }
-    function findRoot() {
-        const id = resolveId();
-        return id ? document.querySelector('[data-grid-id="' + id + '"]') : null;
     }
     function teardown() {
         if (teardownSources) {
@@ -196,9 +194,9 @@ allKeys) {
             mutationObserver.disconnect();
             mutationObserver = null;
         }
-        if (waitTimer != null) {
-            clearTimeout(waitTimer);
-            waitTimer = null;
+        if (cancelWait) {
+            cancelWait();
+            cancelWait = null;
         }
         if (slot) {
             try {
@@ -210,18 +208,9 @@ allKeys) {
             slot = null;
         }
     }
-    function tryMount() {
-        // The scope root IS the [data-grid-id] element — every query below is
-        // scoped to it, so sibling grids on the same page never see each other.
-        const found = findRoot();
-        if (!found) {
-            waitTimer = setTimeout(tryMount, 80);
-            return;
-        }
-        // Re-bound as a non-nullable const: TypeScript does not carry a narrowing
-        // into the function declarations below, and `root!` everywhere reads worse.
-        const root = found;
-        waitTimer = null;
+    // The scope root IS the [data-grid-id] element — every query below is
+    // scoped to it, so sibling grids on the same page never see each other.
+    function mount(root) {
         // The drop slot is created on first use, not at mount. The wire now mounts
         // even when the affordance is off, and a disabled grid must not leave a
         // stray element in document.body.
@@ -490,7 +479,13 @@ allKeys) {
         });
         teardownSources = disarmSources;
     }
-    tryMount();
+    cancelWait = whenGridRoot(resolveId, mount, 'column drag');
+    // DataGrid parks the returned teardown in @state, and nothing in a compiled
+    // surface runs a stored function at unmount — so a grid unmounted before its
+    // root was found kept the wait going. The @state initialiser runs inside the
+    // mount's owner scope, so hand the teardown to it (as wireChooserDrag does);
+    // the return value stays for callers that manage it by hand. Idempotent.
+    onDispose(teardown);
     return teardown;
 }
 export { genGridId } from './column-reorder-math.js';
