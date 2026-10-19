@@ -248,6 +248,10 @@ component Button(
         _ -> 1
       }
     }
+    // warning is a TINT under a dark label, so it presses and hovers to a
+    // deeper tint (warning-bg-strong), the way destructive-outline steps to
+    // destructive-bg. It used warning-hover, the shade a SOLID warning fill
+    // darkens to: the brown label on dark amber read at ~1.4:1.
     background: match pressed {
       true -> match variant {
         "primary" -> semantic.interactive-hover,
@@ -255,7 +259,7 @@ component Button(
         "ghost" -> semantic.surface-hover,
         "destructive" -> semantic.destructive-hover,
         "destructive-outline" -> semantic.destructive-bg,
-        "warning" -> semantic.warning-hover,
+        "warning" -> semantic.warning-bg-strong,
         "link" -> "transparent",
         _ -> semantic.interactive-hover
       },
@@ -284,7 +288,7 @@ component Button(
         "ghost" -> semantic.surface-hover,
         "destructive" -> semantic.destructive-hover,
         "destructive-outline" -> semantic.destructive-bg,
-        "warning" -> semantic.warning-hover,
+        "warning" -> semantic.warning-bg-strong,
         "link" -> "transparent",
         _ -> semantic.interactive-hover
       }
