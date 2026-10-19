@@ -245,12 +245,27 @@ component FormField(
     // — slot content is evaluated in the CALLER's scope, so this component's
     // computed error state is not reachable from inside it. The caller passes
     // its own `error:` to its own control; the message is rendered here.
-    block {
-      visibility: hasSlot("control") && effMsg != ''
-      text(effMsg) {
-        style: type.caption
-        color: semantic.destructive
-      }
+    //
+    // A `match`, not `visibility: hasSlot("control") && effMsg != ''`. With no
+    // component inside it, that block compiled to display:none on a node that
+    // was always mounted, so a field using the built-in input carried a second,
+    // hidden copy of every error beside TextInput's own — found twice by a
+    // strict text locator, an `includeHidden` query or a screen reader (Vector
+    // #879, the class of #796). `hasSlot` is answered once at mount, so the arm
+    // never taken costs a comment node. Inside the slotted arm the gate on the
+    // message stays a `visibility:`: it changes at runtime, and while it hides
+    // the line, the line holds ''.
+    match hasSlot("control") {
+      true -> {
+        block {
+          visibility: effMsg != ''
+          text(effMsg) {
+            style: type.caption
+            color: semantic.destructive
+          }
+        }
+      },
+      _ -> {}
     }
   }
 }
