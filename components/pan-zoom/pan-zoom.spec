@@ -81,10 +81,46 @@ fn pzCommandName(cmd: string) -> string {
   return regexReplace(cmd, "#.*", "")
 }
 
+// The view that frames `rect` — { x, y, width, height } in FRACTIONS of the
+// image, top-left origin — with a margin: the box fills about 80% of the
+// viewport on its limiting axis. Never below fit, never above the ceiling or
+// 2.6x fit (so a one-word box is shown in its line, not as three letters
+// filling the screen), centered on the box, then held inside the edges by
+// pzClampPan. A side of zero size does not limit, so a box with neither is a
+// point, shown at the cap. An unmeasured viewport or image, or a rect that is
+// not a map of four numbers, is fit.
+fn pzFocusView(rect: map, vw: number, vh: number, fitW: number, fitH: number, maxS: number) -> map {
+  if typeOf(rect) != "map" || vw <= 0 || vh <= 0 || fitW <= 0 || fitH <= 0 {
+    return { s: 1, tx: 0, ty: 0 }
+  }
+  // Each field by type, not by NaN: Swift reads a missing key as 0 where JS
+  // reads NaN, and receives a null `rect` as an empty map.
+  if typeOf(rect.x) != "number" || typeOf(rect.y) != "number" || typeOf(rect.width) != "number" || typeOf(rect.height) != "number" {
+    return { s: 1, tx: 0, ty: 0 }
+  }
+  let rw = max(rect.width * 1, 0)
+  let rh = max(rect.height * 1, 0)
+  let cx = rect.x * 1 + rw / 2
+  let cy = rect.y * 1 + rh / 2
+  let top = min(max(maxS, 1), 2.6)
+  let sx = rw > 0 ? 0.8 * vw / (rw * fitW) : top
+  let sy = rh > 0 ? 0.8 * vh / (rh * fitH) : top
+  let s = max(min(min(sx, sy), top), 1)
+  // The box's center, relative to the image's center, moved to the viewport's.
+  let p = pzClampPan(s, (0.5 - cx) * fitW * s, (0.5 - cy) * fitH * s, fitW, fitH, vw, vh)
+  return { s: s, tx: p.tx, ty: p.ty }
+}
+
 // ── PanZoom ──────────────────────────────────────────────────────────────
 // Fills its parent (give the parent a definite size). The image never takes
 // pointer events: an <img> under a pointer drag starts a native image drag and
 // cancels the gesture (AvatarPicker 0.6.2).
+//
+// Body content (0.2.0) is an OVERLAY: it is drawn in a layer that exactly
+// covers the image and moves and scales with it, so a box placed in
+// percentages of that layer stays on the same words at every zoom. The layer
+// takes no pointer events, so the gestures still reach the viewport. With no
+// body content the layer is not built at all.
 component PanZoom(
   src: string = "",
   alt: string = "",
@@ -99,7 +135,19 @@ component PanZoom(
   // "<in|out|fit|actual>#<n>". ONE prop, not a command plus a counter: a watch
   // on one prop reads a sibling prop's OLD value when both change in the same
   // tick, so a separate counter could run the previous command.
-  command: string = ""
+  command: string = "",
+  // Zoom to a region (0.2.0): { x, y, width, height } in FRACTIONS of the
+  // image (0..1, top-left origin). It is read when `focusKey` changes; on its
+  // own it moves nothing, so a caller can keep it bound to "the selected box"
+  // without the view following every selection. null: a new key does nothing
+  // (send `command: "fit#<n>"` to go back).
+  focus: any = null,
+  // Any change zooms to `focus` as it stands at that moment, animated like a
+  // command. Props arrive one at a time in the order the caller writes them,
+  // so the caller writes the box FIRST and the key after it: a key written
+  // first reads the previous box. (A box that moves on its own never moves
+  // the view, which is why this is two props and not one.)
+  focusKey: any = ""
 ) {
   @state {
     vw: 0
@@ -134,6 +182,7 @@ component PanZoom(
       applyView({ s: 1, tx: 0, ty: 0 })
     }
     command: { runCommand(pzCommandName(command)) }
+    focusKey: { runFocus() }
   }
 
   @actions {
@@ -229,6 +278,16 @@ component PanZoom(
       let target = c == "in" ? pzStep(s, 1, m) : (c == "out" ? pzStep(s, -1, m) : (c == "actual" ? pzActualScale(f.w, natW, m) : s))
       applyView(pzZoomAt(s, tx, ty, target / s, vw / 2, vh / 2, vw, vh, f.w, f.h, m))
     }
+
+    // Like a command: animated, and before load the view stays silent and
+    // onLoaded resets it, so a focus sent early is not replayed.
+    runFocus() {
+      if focus == null { return }
+      let f = pzFitSize(vw, vh, natW, natH, allowUpscale)
+      let m = pzMaxScale(f.w, natW, maxActual)
+      animate = true
+      applyView(pzFocusView(focus, vw, vh, f.w, f.h, m))
+    }
   }
 
   block {
@@ -259,6 +318,22 @@ component PanZoom(
         height: 100%
         on load(e): onLoaded(e.target.naturalWidth, e.target.naturalHeight)
         on error: emit("error")
+      }
+      // A `match`, so a viewer with no overlay builds no layer: hasSlot is
+      // answered once at mount, and the arm never taken costs a comment node.
+      match hasSlot("default") {
+        true -> {
+          block {
+            data-pan-zoom-overlay: "true"
+            position: "absolute"
+            top: 0px
+            left: 0px
+            width: 100%
+            height: 100%
+            pointer-events: "none"
+            @children
+          }
+        }
       }
     }
   }
