@@ -235,10 +235,18 @@ component FormField(
     // Every prop effMsg reads, not effMsg itself: a watch on one prop reads a
     // sibling's old value when the caller changes both, so each runs the same
     // follow and the last one sees them all (TextInput's shape).
-    errorMessage: { followCaption() }
-    validation: { followCaption() }
-    showErrors: { followCaption() }
-    field: { followCaption() }
+    //
+    // Immediate (`!`), so the caption also follows at construction (0.9.3).
+    // The @state seed already shows a message set at mount, so this changes
+    // nothing on screen; it says what is true: FormField latches nothing and
+    // needs no false → true edge, so a field built under a `visibility:` gate
+    // with `showErrors: true` is fine. A non-immediate watch on a prop is how
+    // an overlay that DOES latch (Modal's `open`) looks, and Vector's
+    // check-lazy-gated-overlays reads it that way.
+    errorMessage!: { followCaption() }
+    validation!: { followCaption() }
+    showErrors!: { followCaption() }
+    field!: { followCaption() }
   }
 
   @actions {
