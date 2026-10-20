@@ -98,6 +98,16 @@ component FormField(
   labelTransform: "none" | "uppercase" = 'none',
   fieldGap:     string  = '6px'
 ) {
+  @state {
+    // The words a slotted control's caption says. The props reach it through
+    // followCaption(), not directly: see "Saying it again" below. Seeded from
+    // effMsg once, so a field mounted with an error already set shows it.
+    capWords: effMsg
+    // True for 100ms after the caption went empty: the page may not have drawn
+    // the empty caption yet, so words arriving now wait until it has.
+    capHeld: false
+  }
+
   @computed {
     // Only take over the error state when a validation map AND a field key are
     // supplied; otherwise the explicit error/errorMessage props win untouched.
@@ -181,11 +191,76 @@ component FormField(
     // passed through, so the emitted declaration is always a valid
     // text-transform even if the union ever grows a value CSS does not know.
     effLabelTransform: labelTransform == 'uppercase' ? 'uppercase' : 'none'
+
+    // ── A slotted control's error, said as well as painted (Vector #1136) ───
+    //
+    // The built-in TextInput draws and speaks its own error (text-input 0.12).
+    // A slotted control cannot get this component's error state (slot content
+    // is evaluated in the CALLER's scope), so the caption under it is drawn
+    // here, and it is TextInput's line: a role=alert region that is always in
+    // the field, empty until there is a message, and out of the flow while
+    // empty, so a field with no error takes exactly the room it took before
+    // (the column's `gap` does not apply to an absolute child).
+    //
+    // It used to be a block gated by `visibility: effMsg != ''`, which compiles
+    // to display:none. A live region that enters the accessibility tree
+    // together with its words is never announced, so a Select, a date picker
+    // or a money field in a slot failed in silence, even the first time.
+    //
+    // ── Saying it again ──────────────────────────────────────────────────────
+    //
+    // A live region speaks when its text CHANGES, so the same message set
+    // twice is heard once. The host's half is to empty the message (or turn
+    // showErrors off) as each attempt starts and then refill it. A check that
+    // fails without a request does both in ONE action, and Spec writes the DOM
+    // once per frame, so the caption would go from the words to the same words.
+    // So it shows `capWords`, not `capText`: words that arrive within 100ms of
+    // the caption going empty wait out those 100ms with it empty (TextInput
+    // 0.12.1 and Vector's kit ErrorLine do the same). Meanwhile `capStandIn`
+    // paints them where the caption stands, aria-hidden, so the field neither
+    // blinks nor moves. A first message, or a different one, shows at once,
+    // and a clear empties the caption at once.
+    //
+    // The words are effMsg, as the caption always drew them: on the explicit
+    // path a slotted field shows `errorMessage` whatever `error` says, because
+    // the caller paints its own control red.
+    capText: effMsg
+    capShown: capWords != ''
+    capPosition: capShown ? 'static' : 'absolute'
+    capStandIn: capHeld ? capText : ''
+    capStandInShown: capStandIn != ''
+  }
+
+  @watch {
+    // Every prop effMsg reads, not effMsg itself: a watch on one prop reads a
+    // sibling's old value when the caller changes both, so each runs the same
+    // follow and the last one sees them all (TextInput's shape).
+    errorMessage: { followCaption() }
+    validation: { followCaption() }
+    showErrors: { followCaption() }
+    field: { followCaption() }
   }
 
   @actions {
     onKey(e) {
       if e.key == 'Enter' && !isTextarea { emit("submit") }
+    }
+    followCaption() {
+      let words = effMsg
+      if words == '' {
+        if capWords != '' {
+          capWords = ''
+          capHeld = true
+          delay("capRefill", 100) {
+            capHeld = false
+            capWords = effMsg
+          }
+        }
+        return
+      }
+      if !capHeld {
+        capWords = words
+      }
     }
   }
 
@@ -252,14 +327,32 @@ component FormField(
     // hidden copy of every error beside TextInput's own — found twice by a
     // strict text locator, an `includeHidden` query or a screen reader (Vector
     // #879, the class of #796). `hasSlot` is answered once at mount, so the arm
-    // never taken costs a comment node. Inside the slotted arm the gate on the
-    // message stays a `visibility:`: it changes at runtime, and while it hides
-    // the line, the line holds ''.
+    // never taken costs a comment node.
+    //
+    // Inside the slotted arm the caption is a live region that is always here
+    // (see capText above), never a `visibility:` gate. `data-error-line` names
+    // it by the field's key, the hook Vector's e2e helper finds a line by.
     match hasSlot("control") {
       true -> {
         block {
-          visibility: effMsg != ''
-          text(effMsg) {
+          role: 'alert'
+          aria-live: 'assertive'
+          data-error-line: field
+          position: capPosition
+          text(capWords) {
+            style: type.caption
+            color: semantic.destructive
+          }
+        }
+        // The same words while the caption waits out its empty moment (see
+        // "Saying it again"), painted in its place so the field neither blinks
+        // nor moves. aria-hidden and outside the region: the caption is what
+        // speaks, once the wait is over. Empty and display:none otherwise, so
+        // a field holds no hidden copy of its message.
+        block {
+          visibility: capStandInShown
+          aria-hidden: 'true'
+          text(capStandIn) {
             style: type.caption
             color: semantic.destructive
           }
