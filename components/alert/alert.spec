@@ -90,7 +90,11 @@ component Alert(
               : isWarning ? borders.warning
               : isSuccess ? borders.success
               : borders.interactive
-    toneFg:     isDanger  ? semantic.destructive
+    // Each tone's words are its *-text token, a step darker than the mark, so
+    // they read at AA on the tint. The destructive words were
+    // semantic.destructive until 0.4.1: 4.41:1 on Vector's tint (#1230). The
+    // icon keeps the mark's shade; a graphic needs 3:1.
+    toneFg:     isDanger  ? semantic.destructive-text
               : isWarning ? semantic.warning-text
               : isSuccess ? semantic.success-text
               : semantic.interactive-text
