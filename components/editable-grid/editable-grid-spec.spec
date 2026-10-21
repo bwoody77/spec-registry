@@ -9,6 +9,42 @@ fn _splitCellKey(ck: string) -> list {
   return [slice(ck, 0, i), slice(ck, i + 2)]
 }
 
+// ─── Column heading and width ───────────────────────────────────────────────
+// The heading DataGrid reads: header, then label, then key.
+fn egColHeading(col: any) -> string {
+  if col.header != null { return col.header }
+  if col.label != null { return col.label }
+  return col.key
+}
+
+// A column width as a CSS length. DataGrid documents `width` as a number of
+// px, EditableGridColumn's TS type as a CSS string, and spectest's Editable
+// Inventory passes "60px". Digits alone (a number, or "60") are px; anything
+// else is used as written.
+fn egCssLength(v: any) -> string {
+  let s = trim(toString(v))
+  if regexTest(s, "^[0-9.]+$") { return s + "px" }
+  return s
+}
+
+// Sized as DataGrid sizes: every cell is `grow: true`, so a pinned column sets
+// min-width and max-width to its width, and a flexible one sets only a floor
+// and shares the slack. Header and body cells read the same two values, and
+// neither carries padding or a border on that box (see the padding invariant
+// in data-grid-spec.spec), so each heading sits over its column.
+fn egSizedColumn(c: any) -> map {
+  return {
+    ...c,
+    _heading: egColHeading(c),
+    _min: c.width != null ? egCssLength(c.width) : (c.minWidth != null ? egCssLength(c.minWidth) : "100px"),
+    _max: c.width != null ? egCssLength(c.width) : "100000px"
+  }
+}
+
+fn egSizedColumns(cols: list) -> list {
+  return cols |> map(c => egSizedColumn(c))
+}
+
 // ─── TSV Parsing ────────────────────────────────────────────────────────────
 
 fn _parseTSV(text: string) -> list {
@@ -34,7 +70,7 @@ fn toggleSortState(sortState: list, colKey: string) -> list {
 
 fn validateCell(value: any, column: any) -> any {
   if column.required == true && (value == null || value == "") {
-    let label = column.header ?? column.key
+    let label = egColHeading(column)
     return t("{label} is required")
   }
   return null
@@ -253,6 +289,10 @@ component EditableGrid(
     processedRows: rows
     activeRowData: processedRows[activeRow]
     activeColDef: visibleColumns[activeCol]
+    // visibleColumns with each column's heading and min/max width resolved.
+    // `min-width:` will not parse a function call, and the header and every
+    // body row must read ONE width source.
+    sizedColumns: egSizedColumns(visibleColumns)
     cellKey: activeRowData != null && activeColDef != null ? (activeRowData[rowIdField] + "::" + activeColDef.key) : ""
     hasDirty: dirtyCells.length > 0
     canUndo: undoStack.length > 0
@@ -538,6 +578,7 @@ component EditableGrid(
 
         // Header
         block {
+          data-grid-row: "header"
           layout: horizontal
           background: semantic.surface
           border-bottom: borders.strong
@@ -545,22 +586,28 @@ component EditableGrid(
           top: 0px
           z-index: 2
 
-          each visibleColumns as col {
+          each sizedColumns as col {
+            // The width box: no padding here, or it is added to the width.
             block {
-              padding: spacing.2
-              min-width: 100px
+              data-grid-col: col.key
+              min-width: col._min
+              max-width: col._max
               grow: true
               cursor: col.sortable ? "pointer" : "default"
               on click: col.sortable ? toggleSort(col.key) : {}
-              layout: horizontal, gap: spacing.1, align: center
 
-              text(col.header != null ? col.header : col.key) {
-                style: type.label-sm
-                weight: 600
-              }
-              text(sortState.find(s => s.key == col.key) != null ? (sortState.find(s => s.key == col.key).direction == "asc" ? "\u2191" : "\u2193") : "") {
-                style: type.caption
-                color: semantic.interactive
+              block {
+                padding: spacing.2
+                layout: horizontal, gap: spacing.1, align: center
+
+                text(col._heading) {
+                  style: type.label-sm
+                  weight: 600
+                }
+                text(sortState.find(s => s.key == col.key) != null ? (sortState.find(s => s.key == col.key).direction == "asc" ? "\u2191" : "\u2193") : "") {
+                  style: type.caption
+                  color: semantic.interactive
+                }
               }
             }
           }
@@ -569,18 +616,20 @@ component EditableGrid(
         // Body rows
         each processedRows as row, rowIdx {
           block {
+            data-grid-row: "body"
             layout: horizontal
             border-bottom: borders.subtle
             background: selectedSet.includes(rowIdx) ? semantic.surface-raised : "transparent"
 
-            each visibleColumns as col, colIdx {
+            each sizedColumns as col, colIdx {
+              // The width box, sized like the header cell above. The cell's
+              // border and padding live on the block inside it, which fills it.
               block {
-                padding: spacing.2
-                min-width: 100px
+                data-grid-col: col.key
+                min-width: col._min
+                max-width: col._max
                 grow: true
-                position: "relative"
-                border: validationErrors.find(e => e.key == row[rowIdField] + "::" + col.key) != null ? "2px solid #ef4444" : ((rowIdx == activeRow && colIdx == activeCol && editing == false) ? "2px solid #3b82f6" : "2px solid transparent")
-                background: dirtyCells.includes(row[rowIdField] + "::" + col.key) ? "rgba(245,158,11,0.08)" : "transparent"
+                layout: vertical
                 on click: clickCell(rowIdx, colIdx)
                 on dbl-click: dblClickCell(rowIdx, colIdx)
                 on key-down(event): {
@@ -593,67 +642,75 @@ component EditableGrid(
                   }
                 }
 
-                // Editing mode — raw textInput for non-select columns
                 block {
-                  visibility: rowIdx == activeRow && colIdx == activeCol && editing == true && col.type != "select"
-                  position: "absolute"
-                  top: 0px
-                  left: 0px
-                  right: 0px
-                  bottom: 0px
-                  z-index: 1
-                  background: semantic.surface
-                  textInput(editValue) {
-                    placeholder: col.header != null ? col.header : col.key
-                    border: "none"
-                    background: "transparent"
-                    width: 100%
-                    height: 100%
-                    focus: focusTrigger
+                  grow: true
+                  padding: spacing.2
+                  position: "relative"
+                  border: validationErrors.find(e => e.key == row[rowIdField] + "::" + col.key) != null ? "2px solid #ef4444" : ((rowIdx == activeRow && colIdx == activeCol && editing == false) ? "2px solid #3b82f6" : "2px solid transparent")
+                  background: dirtyCells.includes(row[rowIdField] + "::" + col.key) ? "rgba(245,158,11,0.08)" : "transparent"
+
+                  // Editing mode — raw textInput for non-select columns
+                  block {
+                    visibility: rowIdx == activeRow && colIdx == activeCol && editing == true && col.type != "select"
+                    position: "absolute"
+                    top: 0px
+                    left: 0px
+                    right: 0px
+                    bottom: 0px
+                    z-index: 1
+                    background: semantic.surface
+                    textInput(editValue) {
+                      placeholder: col._heading
+                      border: "none"
+                      background: "transparent"
+                      width: 100%
+                      height: 100%
+                      focus: focusTrigger
+                    }
                   }
-                }
 
-                // Editing mode — show current value for select columns (dropdown is outside)
-                block {
-                  visibility: rowIdx == activeRow && colIdx == activeCol && editing == true && col.type == "select"
-                  text(editValue) {
-                    style: type.body-sm
-                    color: semantic.interactive
-                    weight: 600
+                  // Editing mode — show current value for select columns (dropdown is outside)
+                  block {
+                    visibility: rowIdx == activeRow && colIdx == activeCol && editing == true && col.type == "select"
+                    text(editValue) {
+                      style: type.body-sm
+                      color: semantic.interactive
+                      weight: 600
+                    }
                   }
-                }
 
-                // Display mode
-                block {
-                  visibility: rowIdx != activeRow || colIdx != activeCol || editing == false
-                  text(editedValues.find(e => e.key == row[rowIdField] + "::" + col.key) != null ? editedValues.find(e => e.key == row[rowIdField] + "::" + col.key).value : (row[col.key] != null ? row[col.key] + "" : "")) {
-                    style: type.body-sm
-                    color: semantic.text-primary
+                  // Display mode
+                  block {
+                    visibility: rowIdx != activeRow || colIdx != activeCol || editing == false
+                    text(editedValues.find(e => e.key == row[rowIdField] + "::" + col.key) != null ? editedValues.find(e => e.key == row[rowIdField] + "::" + col.key).value : (row[col.key] != null ? row[col.key] + "" : "")) {
+                      style: type.body-sm
+                      color: semantic.text-primary
+                    }
                   }
-                }
 
-                // Dirty indicator (yellow triangle, top-left)
-                block {
-                  visibility: dirtyCells.includes(row[rowIdField] + "::" + col.key)
-                  position: "absolute"
-                  top: 0px
-                  left: 0px
-                  width: 0px
-                  height: 0px
-                  border-left: "6px solid #f59e0b"
-                  border-bottom: "6px solid transparent"
-                }
+                  // Dirty indicator (yellow triangle, top-left)
+                  block {
+                    visibility: dirtyCells.includes(row[rowIdField] + "::" + col.key)
+                    position: "absolute"
+                    top: 0px
+                    left: 0px
+                    width: 0px
+                    height: 0px
+                    border-left: "6px solid #f59e0b"
+                    border-bottom: "6px solid transparent"
+                  }
 
-                // Validation error indicator (red triangle, bottom-right)
-                block {
-                  visibility: validationErrors.find(e => e.key == row[rowIdField] + "::" + col.key) != null
-                  position: "absolute"
-                  bottom: 0px
-                  right: 0px
-                  width: 0px
-                  height: 0px
-                  border-right: "6px solid #ef4444"
-                  border-top: "6px solid transparent"
+                  // Validation error indicator (red triangle, bottom-right)
+                  block {
+                    visibility: validationErrors.find(e => e.key == row[rowIdField] + "::" + col.key) != null
+                    position: "absolute"
+                    bottom: 0px
+                    right: 0px
+                    width: 0px
+                    height: 0px
+                    border-right: "6px solid #ef4444"
+                    border-top: "6px solid transparent"
+                  }
                 }
               }
             }
