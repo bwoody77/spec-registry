@@ -1,0 +1,108 @@
+{
+  "Apply": {
+    "value": "Aplicar",
+    "draft": true
+  },
+  "Cancel": {
+    "value": "Cancelar",
+    "draft": true
+  },
+  "Choose a date range": {
+    "value": "Elegir un rango de fechas",
+    "draft": true
+  },
+  "Date range": {
+    "value": "Rango de fechas",
+    "draft": true
+  },
+  "End date": {
+    "value": "Fecha de fin",
+    "draft": true
+  },
+  "Next month": {
+    "value": "Mes siguiente",
+    "draft": true
+  },
+  "Pick a start date.": {
+    "value": "Elija una fecha de inicio.",
+    "draft": true
+  },
+  "Pick an end date.": {
+    "value": "Elija una fecha de fin.",
+    "draft": true
+  },
+  "Pick dates": {
+    "value": "Elegir fechas",
+    "draft": true
+  },
+  "Previous month": {
+    "value": "Mes anterior",
+    "draft": true
+  },
+  "Quick ranges": {
+    "value": "Rangos rápidos",
+    "draft": true
+  },
+  "Start": {
+    "value": "Inicio",
+    "draft": true
+  },
+  "Start date": {
+    "value": "Fecha de inicio",
+    "draft": true
+  },
+  "Start {startDate}. End suggested: {endDate}. Pick another day to change it, or Apply.": {
+    "value": "Inicio: {startDate}. Fin sugerido: {endDate}. Elija otro día para cambiarlo, o seleccione Aplicar.",
+    "draft": true
+  },
+  "Start {startDate}. Now pick the end date.": {
+    "value": "Inicio: {startDate}. Ahora elija la fecha de fin.",
+    "draft": true
+  },
+  "The end is before the start.": {
+    "value": "La fecha de fin es anterior a la de inicio.",
+    "draft": true
+  },
+  "Through": {
+    "value": "Hasta",
+    "draft": true
+  },
+  "{label}, end": {
+    "value": "{label}, fin",
+    "draft": true
+  },
+  "{label}, in range": {
+    "value": "{label}, dentro del rango",
+    "draft": true
+  },
+  "{label}, selected": {
+    "value": "{label}, seleccionado",
+    "draft": true
+  },
+  "{label}, start": {
+    "value": "{label}, inicio",
+    "draft": true
+  },
+  "{label}, suggested end": {
+    "value": "{label}, fin sugerido",
+    "draft": true
+  },
+  "{label}, today": {
+    "value": "{label}, hoy",
+    "draft": true
+  },
+  "{rangeLabel} — {n} days.": {
+    "value": {
+      "one": "{rangeLabel} — {n} día.",
+      "other": "{rangeLabel} — {n} días."
+    },
+    "draft": true
+  },
+  "{valueDays} days": {
+    "value": {
+      "one": "{valueDays} día",
+      "other": "{valueDays} días"
+    },
+    "draft": true
+  }
+}

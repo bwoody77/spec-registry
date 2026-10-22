@@ -17,6 +17,16 @@
 //                start falls in suggests its end.
 //   today        ISO; defaults to the browser's local date. Pass the business's
 //                own "today" when that can differ.
+//   error, errorMessage
+//                the field's own error: a red box, and the words in a live
+//                region under it (see "The error, said as well as painted").
+//   applyError   the host's REFUSAL of the range it was just handed (Vector's
+//                Utilization tab refuses one over five years). Set it in the
+//                `change` handler instead of applying the range: the words show
+//                in the popover's problem line, are announced, and the popover
+//                stays open for another try. Clear it ('') when a range is
+//                taken. Setting the same words again is said again; the host
+//                need not empty it first.
 //
 // Interaction (the drp* fns at the end of this file hold every rule, tested in
 // date-range-picker-fns.test.ts):
@@ -44,7 +54,8 @@ component DateRangePicker(start: string = "", end: string = "",
                           placeholder: text = "Pick dates",
                           disabled: boolean = false,
                           error: boolean = false,
-                          errorMessage: text = "") {
+                          errorMessage: text = "",
+                          applyError: text = "") {
   @state {
     open: false
     viewYear: 2026
@@ -63,9 +74,21 @@ component DateRangePicker(start: string = "", end: string = "",
     focusIso: ""
     startText: ""
     endText: ""
+    // Why Apply did not apply. Written only through setProblem(); the line
+    // shows `probWords` (see "Saying it again").
     problem: ""
+    probWords: ""
+    // True for 100ms after the problem line went empty.
+    probHeld: false
     pendingClose: false
     refocusTrigger: false
+    // The field error line's id, which the trigger's aria-describedby names.
+    // Minted per mount: a literal would repeat on every picker on a page.
+    msgId: uniqueId('spec-field-msg')
+    // The words the field error line says, through followError().
+    errWords: error == true ? errorMessage : ''
+    // True for 100ms after the field error line went empty.
+    errHeld: false
   }
 
   // Two months side by side when there is room; one on a phone.
@@ -93,14 +116,95 @@ component DateRangePicker(start: string = "", end: string = "",
     showBandsKey: bands.length > 0 && bandsLabel != ""
     popWidth: wide ? (hasPresets ? "780px" : "600px") : "320px"
     weekdays: calendarWeekdays('min')
+
+    // ── The error, said as well as painted (Vector #1659) ────────────────────
+    //
+    // TextInput's pattern (Vector #874, #987), and its comments say why. Both
+    // messages here, the field's `errorMessage` caption and the popover's own
+    // problem line, used to be blocks gated by `visibility:`, which is
+    // display:none: a live region that enters the accessibility tree together
+    // with its words is never announced, so neither was ever heard. Now each
+    // line is always here (the problem line whenever the popover is open),
+    // holds its words or '', and is out of the flow while it is empty, so a
+    // picker with nothing to say takes exactly the room it took before.
+    errText: error == true ? errorMessage : ''
+    errShown: errWords != ''
+    errPosition: errShown ? 'static' : 'absolute'
+    errStandIn: errHeld ? errText : ''
+    errStandInShown: errStandIn != ''
+    // null, not "false" or "": bindAttr removes the attribute, so a field with
+    // no error carries neither.
+    invalidAttr: error == true ? 'true' : null
+    describedBy: errShown ? msgId : null
+    probPosition: probWords != '' ? 'static' : 'absolute'
+    probStandIn: probHeld ? problem : ''
+    probStandInShown: probStandIn != ''
   }
 
   @watch {
     start: { closeAfterApply() }
     end: { closeAfterApply() }
+    // Immediate (`!:`), as TextInput 0.12.2's: these FOLLOW the props and
+    // latch nothing. The @state seed already shows an error set at mount, and
+    // the popover is closed then, so running them at construction is a no-op.
+    error!: { followError() }
+    errorMessage!: { followError() }
+    applyError!: { hostRefused() }
   }
 
   @actions {
+    // ── Saying it again (TextInput's #987) ──────────────────────────────────
+    //
+    // A live region speaks when its text CHANGES, so the same words set twice
+    // are heard once. Apply empties the problem line as it starts and refills
+    // it, in ONE action, and Spec writes the DOM once per frame, so the line
+    // would go from the words to the same words. Words that arrive within
+    // 100ms of a line going empty therefore wait out those 100ms with the line
+    // empty, while an aria-hidden stand-in paints them in its place. A first
+    // message, or a different one, shows at once; a clear empties at once.
+    followError() {
+      let words = error == true ? errorMessage : ''
+      if words == '' {
+        if errWords != '' {
+          errWords = ''
+          errHeld = true
+          delay("errRefill", 100) {
+            errHeld = false
+            errWords = error == true ? errorMessage : ''
+          }
+        }
+        return
+      }
+      if !errHeld {
+        errWords = words
+      }
+    }
+    setProblem(words) {
+      problem = words
+      if words == '' {
+        if probWords != '' {
+          probWords = ''
+          probHeld = true
+          delay("probRefill", 100) {
+            probHeld = false
+            probWords = problem
+          }
+        }
+        return
+      }
+      if !probHeld {
+        probWords = words
+      }
+    }
+    // The host refused the range Apply handed it: say why in the popover, and
+    // stop waiting for a range to flow back and close on. Only while the
+    // popover is open; a closed picker's error is `error` / `errorMessage`.
+    hostRefused() {
+      if open && applyError != "" {
+        pendingClose = false
+        setProblem(applyError)
+      }
+    }
     openPicker() {
       if disabled { return }
       draftStart = start
@@ -109,7 +213,7 @@ component DateRangePicker(start: string = "", end: string = "",
       suggested = false
       endTouched = false
       hover = ""
-      problem = ""
+      setProblem("")
       pendingClose = false
       let v = drpViewFor(start, end, todayIso, months)
       viewYear = v.year
@@ -150,7 +254,7 @@ component DateRangePicker(start: string = "", end: string = "",
       endTouched = r.picking == false
       hover = ""
       focusIso = iso
-      problem = ""
+      setProblem("")
       syncTexts()
     }
     hoverDay(iso) {
@@ -190,20 +294,22 @@ component DateRangePicker(start: string = "", end: string = "",
       apply()
     }
     // Validate on click and say what is missing, rather than a disabled Apply.
+    // Each attempt empties the problem line first, so the same refusal twice
+    // is heard twice (setProblem).
     apply() {
+      setProblem("")
       if draftStart == "" {
-        problem = t("Pick a start date.")
+        setProblem(t("Pick a start date."))
         return
       }
       if draftEnd == "" {
-        problem = t("Pick an end date.")
+        setProblem(t("Pick an end date."))
         return
       }
       if drpToDay(draftEnd) < drpToDay(draftStart) {
-        problem = t("The end is before the start.")
+        setProblem(t("The end is before the start."))
         return
       }
-      problem = ""
       picking = false
       suggested = false
       if draftStart == start && draftEnd == end {
@@ -213,6 +319,10 @@ component DateRangePicker(start: string = "", end: string = "",
       }
       pendingClose = true
       emit("change", { start: draftStart, end: draftEnd })
+      // A host that refuses with the SAME words as last time changes no prop,
+      // so the applyError watch never runs. Its answer is in by now (the
+      // handler runs inside emit), so read it here as well.
+      hostRefused()
     }
     closeAfterApply() {
       if pendingClose {
@@ -228,7 +338,7 @@ component DateRangePicker(start: string = "", end: string = "",
       if v.length != format.length { return }
       let iso = toISODate(v, format)
       if iso == "" { return }
-      problem = ""
+      setProblem("")
       // A typed start BEGINS a range, exactly as a clicked one does: the end is
       // suggested (or awaited) and stays tentative until Apply or a second
       // pick. The one end it keeps is one the user typed or picked in THIS
@@ -265,7 +375,7 @@ component DateRangePicker(start: string = "", end: string = "",
       suggested = false
       picking = false
       endTouched = true
-      problem = ""
+      setProblem("")
     }
     // Escape closes the popover and is CONSUMED — stopPropagation too, since a
     // Modal's dismiss listener ignores defaultPrevented (see DatePicker). With
@@ -299,6 +409,8 @@ component DateRangePicker(start: string = "", end: string = "",
       aria-label: triggerName
       aria-haspopup: "dialog"
       aria-expanded: open
+      aria-invalid: invalidAttr
+      aria-describedby: describedBy
       layout: horizontal, align: center, gap: spacing.2
       min-height: 36px
       padding: spacing.2
@@ -659,10 +771,22 @@ component DateRangePicker(start: string = "", end: string = "",
             }
           }
 
+          // Why Apply did not apply: the picker's own check, or the host's
+          // applyError. A live region that is here whenever the popover is
+          // open (see "The error, said as well as painted").
           block {
-            visibility: problem != ""
-            role: "alert"
-            text(problem) { style: type.caption, color: semantic.destructive }
+            role: 'alert'
+            aria-live: 'assertive'
+            position: probPosition
+            text(probWords) { style: type.caption, color: semantic.destructive }
+          }
+
+          // The same words while the line above waits out its empty moment,
+          // painted in its place and aria-hidden (TextInput's stand-in).
+          block {
+            visibility: probStandInShown
+            aria-hidden: 'true'
+            text(probStandIn) { style: type.caption, color: semantic.destructive }
           }
         }
       }
@@ -682,9 +806,22 @@ component DateRangePicker(start: string = "", end: string = "",
       on click: cancel()
     }
 
+    // Error caption — a live region that is always here (see errText above).
+    // role alert (assertive), as TextInput and Vector's kit ErrorLine.
     block {
-      visibility: error == true
-      text(errorMessage) { style: type.caption, color: semantic.destructive }
+      id: msgId
+      role: 'alert'
+      aria-live: 'assertive'
+      position: errPosition
+      text(errWords) { style: type.caption, color: semantic.destructive }
+    }
+
+    // The same words while the line above waits out its empty moment,
+    // painted in its place and aria-hidden (TextInput's stand-in).
+    block {
+      visibility: errStandInShown
+      aria-hidden: 'true'
+      text(errStandIn) { style: type.caption, color: semantic.destructive }
     }
   }
 }
