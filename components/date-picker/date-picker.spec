@@ -11,7 +11,22 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                      //
                      // Defaults to "default", so every existing call site is
                      // untouched.
-                     tone: string = "default") {
+                     tone: string = "default",
+                     // The date field's accessible name, when it is not `label`.
+                     //
+                     // The tab stop used to say "Date picker" whatever the
+                     // field was, so every date in an app was announced alike
+                     // and none by its label (Vector I-1264: Returned on, New
+                     // expiration). Chain, FormField's effAriaLabel plus a last
+                     // resort: `ariaLabel`, else `label`, else "Date picker".
+                     //
+                     // Declaring it also opts DatePicker into the compiler's
+                     // inferred names (ast-to-ir inferAccessibleNames): a
+                     // `text('Returned on')` rendered just before the call is
+                     // passed in here, so pass it by hand only when the label
+                     // is out of the compiler's sight (a FormField slot, a
+                     // wrapper block) or the spoken name should differ.
+                     ariaLabel: text = "") {
   @state {
     open: false
     viewYear: 2026
@@ -683,7 +698,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         padding: spacing.2
         cursor: "text"
         tabindex: "0"
-        aria-label: "Date picker"
+        aria-label: ariaLabel != "" ? ariaLabel : (label != "" ? label : "Date picker")
         // On the tab stop, not the combobox wrapper: this is the node a screen
         // reader lands on and reads.
         aria-invalid: invalidAttr
