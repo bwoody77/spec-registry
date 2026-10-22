@@ -1205,6 +1205,9 @@ component DataGrid(
     firstColKey: visibleColumns.length > 0 ? visibleColumns[0].key : ''
     pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1), visibleColumns) : []
     scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1), visibleColumns) : gridSizedCols(visibleColumns, visibleColumns)
+    // The filter row's one loop: both halves, in screen order, sized exactly
+    // as the body's cells are.
+    filterColumns: pinnedColumns.concat(scrollColumns)
     // How far the scrolling loop's `colIdx` sits from the SAME column's index
     // in `visibleColumns` — which is the index space `focusedCol` counts in
     // (`moveRight` caps it at `visibleColumns.length - 1`). Zero unpinned, one
@@ -2242,72 +2245,100 @@ component DataGrid(
           }
         }
 
-        // Filter row (only when any column is filterable)
+        // Filter row (only when any column is filterable).
+        //
+        // Shaped like a BODY row, from the same sized columns: the cell is the
+        // flex item and carries grow / min-width / max-width and the borders a
+        // body cell draws, and its padding sits on the block inside it (THE
+        // PADDING INVARIANT). It used to loop the raw `visibleColumns`, which
+        // carry no `_min` / `_max`, with the padding on the sizing box, so
+        // every slot was an equal flex share: on spectest's Product Catalog
+        // the header narrowed a `width: 60` ID and the filters beside it sat
+        // under the wrong headings (Vector #1277).
+        //
+        // ONE loop over both halves, where the header and body have two: the
+        // pinned cell differs only by being sticky over an opaque backing,
+        // which a binding can say. Without the pin a sideways scroll slid the
+        // first filter out from under the heading that stays put.
         block {
           visibility: hasFilters
           layout: horizontal
           background: semantic.surface
           border-bottom: borders.subtle
           data-grid-row: "filter"
+          // `min-width` too, because this spacer is EMPTY. The header's and
+          // the body's hold 40px through their checkbox, but a flex item
+          // shrinks to its content when the row overflows (a narrow container:
+          // `trackMin` does not count this column), and with no content this
+          // one went to 0 and slid every filter 40px left of its heading.
           block {
             visibility: selection == "multi"
             width: 40px
+            min-width: 40px
           }
-          each visibleColumns as col {
+          each filterColumns as col {
             block {
-              padding: spacing.1
               grow: true
               min-width: col._min
               max-width: col._max
-              // Free-text filter — the default, and everything that does not
-              // opt into the option list below.
+              border-left: columnRules && col._col.key != firstColKey ? bracketRule
+                : (groupRules && col._gFirst && !col._gSolo ? bracketRule : "none")
+              border-right: !columnRules && groupRules && col._gLast && !col._gSolo ? bracketRule : "none"
+              position: col._col.key == pinnedKey ? "sticky" : "static"
+              left: 0px
+              background: col._col.key == pinnedKey ? semantic.surface : "transparent"
               block {
-                visibility: col.filterable == true && col.filter != "select"
-                textInput(filters.find(f => f.key == col.key) != null ? filters.find(f => f.key == col.key).value : "") {
-                  placeholder: "Filter..."
-                  border: borders.default
-                  border-radius: radius.sm
-                  width: 100%
-                  on input(e): setFilter(col.key, e.target.value)
-                }
-              }
-              // Option-list filter: `filter: "select"` plus `filterOptions`.
-              // Runs through the SAME setFilter / `filter` event as the text
-              // variant — a preset is a filter value, not a second mechanism.
-              block {
-                visibility: col.filterable == true && col.filter == "select"
-                layout: horizontal, gap: spacing.1, align: center, wrap
-                // "All" is the reset, and carries the empty value so the
-                // active-option test is one comparison rather than a special case.
-                button {
-                  data-grid-filter-option: ""
-                  background: filterValueOf(col.key) == "" ? semantic.interactive-bg : 'transparent'
-                  border: 'none'
-                  border-radius: radius.sm
-                  padding-y: 4px
-                  padding-x: 8px
-                  cursor: 'pointer'
-                  on click: setFilter(col.key, "")
-                  text("All") {
-                    style: type.body-sm
-                    weight: filterValueOf(col.key) == "" ? 700 : 400
-                    color: filterValueOf(col.key) == "" ? semantic.interactive-text : semantic.text-primary
+                padding: spacing.1
+                // Free-text filter — the default, and everything that does not
+                // opt into the option list below.
+                block {
+                  visibility: col._col.filterable == true && col._col.filter != "select"
+                  textInput(filters.find(f => f.key == col._col.key) != null ? filters.find(f => f.key == col._col.key).value : "") {
+                    placeholder: "Filter..."
+                    border: borders.default
+                    border-radius: radius.sm
+                    width: 100%
+                    on input(e): setFilter(col._col.key, e.target.value)
                   }
                 }
-                each col.filterOptions as opt (opt.value) {
+                // Option-list filter: `filter: "select"` plus `filterOptions`.
+                // Runs through the SAME setFilter / `filter` event as the text
+                // variant — a preset is a filter value, not a second mechanism.
+                block {
+                  visibility: col._col.filterable == true && col._col.filter == "select"
+                  layout: horizontal, gap: spacing.1, align: center, wrap
+                  // "All" is the reset, and carries the empty value so the
+                  // active-option test is one comparison rather than a special case.
                   button {
-                    data-grid-filter-option: opt.value
-                    background: filterValueOf(col.key) == opt.value ? semantic.interactive-bg : 'transparent'
+                    data-grid-filter-option: ""
+                    background: filterValueOf(col._col.key) == "" ? semantic.interactive-bg : 'transparent'
                     border: 'none'
                     border-radius: radius.sm
                     padding-y: 4px
                     padding-x: 8px
                     cursor: 'pointer'
-                    on click: setFilter(col.key, opt.value)
-                    text(opt.label) {
+                    on click: setFilter(col._col.key, "")
+                    text("All") {
                       style: type.body-sm
-                      weight: filterValueOf(col.key) == opt.value ? 700 : 400
-                      color: filterValueOf(col.key) == opt.value ? semantic.interactive-text : semantic.text-primary
+                      weight: filterValueOf(col._col.key) == "" ? 700 : 400
+                      color: filterValueOf(col._col.key) == "" ? semantic.interactive-text : semantic.text-primary
+                    }
+                  }
+                  each col._col.filterOptions as opt (opt.value) {
+                    button {
+                      data-grid-filter-option: opt.value
+                      background: filterValueOf(col._col.key) == opt.value ? semantic.interactive-bg : 'transparent'
+                      border: 'none'
+                      border-radius: radius.sm
+                      padding-y: 4px
+                      padding-x: 8px
+                      cursor: 'pointer'
+                      on click: setFilter(col._col.key, opt.value)
+                      text(opt.label) {
+                        style: type.body-sm
+                        weight: filterValueOf(col._col.key) == opt.value ? 700 : 400
+                        color: filterValueOf(col._col.key) == opt.value ? semantic.interactive-text : semantic.text-primary
+                      }
                     }
                   }
                 }

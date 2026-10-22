@@ -1,0 +1,58 @@
+{
+  "All": {
+    "value": "Todos",
+    "draft": true
+  },
+  "Clear selection": {
+    "value": "Borrar selección",
+    "draft": true
+  },
+  "Collapse row": {
+    "value": "Contraer fila",
+    "draft": true
+  },
+  "Could not load these rows": {
+    "value": "No se pudieron cargar estas filas",
+    "draft": true
+  },
+  "Expand row": {
+    "value": "Expandir fila",
+    "draft": true
+  },
+  "Filter...": {
+    "value": "Filtrar...",
+    "draft": true
+  },
+  "Load more": {
+    "value": "Cargar más",
+    "draft": true
+  },
+  "No rows": {
+    "value": "No hay filas",
+    "draft": true
+  },
+  "Retry": {
+    "value": "Reintentar",
+    "draft": true
+  },
+  "Select all rows": {
+    "value": "Seleccionar todas las filas",
+    "draft": true
+  },
+  "Select all {rowCount} matching": {
+    "value": "Seleccionar las {rowCount} coincidentes",
+    "draft": true
+  },
+  "Select row": {
+    "value": "Seleccionar fila",
+    "draft": true
+  },
+  "Some rows could not be loaded. Use the Retry button in the grid to try again.": {
+    "value": "No se pudieron cargar algunas filas. Use el botón Reintentar de la tabla para intentar de nuevo.",
+    "draft": true
+  },
+  "Toggle group": {
+    "value": "Mostrar u ocultar grupo",
+    "draft": true
+  }
+}
