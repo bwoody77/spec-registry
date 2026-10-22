@@ -1,0 +1,42 @@
+{
+  "Choose a month": {
+    "value": "Elegir un mes",
+    "draft": true
+  },
+  "Choose a year": {
+    "value": "Elegir un año",
+    "draft": true
+  },
+  "Date picker": {
+    "value": "Selector de fecha",
+    "draft": true
+  },
+  "Earlier years": {
+    "value": "Años anteriores",
+    "draft": true
+  },
+  "Later years": {
+    "value": "Años posteriores",
+    "draft": true
+  },
+  "Next month": {
+    "value": "Mes siguiente",
+    "draft": true
+  },
+  "Open the calendar": {
+    "value": "Abrir el calendario",
+    "draft": true
+  },
+  "Previous month": {
+    "value": "Mes anterior",
+    "draft": true
+  },
+  "Select month": {
+    "value": "Seleccionar mes",
+    "draft": true
+  },
+  "Today": {
+    "value": "Hoy",
+    "draft": true
+  }
+}

@@ -57,9 +57,36 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     userArmed: false
     popupView: 0
     yearGridStart: 2020
+    // The error line's id, which the date field's aria-describedby names.
+    // Minted per mount: a literal would repeat on every DatePicker on a page.
+    msgId: uniqueId('spec-field-msg')
+    // The words the error line says, through followError() (TextInput's
+    // "Saying it again", Vector #987).
+    errWords: error == true ? errorMessage : ''
+    // True for 100ms after the line went empty.
+    errHeld: false
   }
 
   @computed {
+    // ── The error, said as well as painted (Vector #989) ─────────────────────
+    //
+    // TextInput's pattern (Vector #874, #987), and its comments say why. The
+    // caption used to be gated by `visibility: error == true`, which is
+    // display:none: a live region that enters the accessibility tree together
+    // with its words is never announced, and the field said neither that it
+    // was invalid nor what was wrong. Now the line is always here, holds the
+    // words while `error` is on, and is out of the flow while it is empty, so
+    // a DatePicker with no error takes exactly the room it took before.
+    errText: error == true ? errorMessage : ''
+    errShown: errWords != ''
+    errPosition: errShown ? 'static' : 'absolute'
+    errStandIn: errHeld ? errText : ''
+    errStandInShown: errStandIn != ''
+    // null, not "false" or "": bindAttr removes the attribute, so a field with
+    // no error carries neither.
+    invalidAttr: error == true ? 'true' : null
+    describedBy: errShown ? msgId : null
+
     valueISO: value != "" ? toISODate(value, format) : ""
     displayValue: value != "" ? value : ""
     // The letters a date-entry mask shows, in the build's language (es: A for
@@ -118,9 +145,33 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // action as emit() drops the picked date. This fires on the resulting value
     // change instead. Does not fire on mount, so it won't fight an open popup.
     value: { closeAfterPick() }
+    // Both props: a watch on one reads its sibling's old value when the
+    // caller changes both.
+    error: { followError() }
+    errorMessage: { followError() }
   }
 
   @actions {
+    // Words that arrive within 100ms of the line going empty wait out those
+    // 100ms, so the empty line reaches the page before the same words come
+    // back and a second failure is heard (TextInput's followError).
+    followError() {
+      let words = error == true ? errorMessage : ''
+      if words == '' {
+        if errWords != '' {
+          errWords = ''
+          errHeld = true
+          delay("errRefill", 100) {
+            errHeld = false
+            errWords = error == true ? errorMessage : ''
+          }
+        }
+        return
+      }
+      if !errHeld {
+        errWords = words
+      }
+    }
     toggle() {
       if disabled == false {
         open = open == false
@@ -633,6 +684,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         cursor: "text"
         tabindex: "0"
         aria-label: "Date picker"
+        // On the tab stop, not the combobox wrapper: this is the node a screen
+        // reader lands on and reads.
+        aria-invalid: invalidAttr
+        aria-describedby: describedBy
         focus: refocusField
         on focus: {
           focused = true
@@ -1037,10 +1092,22 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
       on click: close()
     }
 
-    // Error caption
+    // Error caption — a live region that is always here (see errText above).
+    // role alert (assertive), as TextInput and Vector's kit ErrorLine.
     block {
-      visibility: error == true
-      text(errorMessage) { style: type.caption, color: semantic.destructive }
+      id: msgId
+      role: 'alert'
+      aria-live: 'assertive'
+      position: errPosition
+      text(errWords) { style: type.caption, color: semantic.destructive }
+    }
+
+    // The same words while the line above waits out its empty moment,
+    // painted in its place and aria-hidden (TextInput's stand-in).
+    block {
+      visibility: errStandInShown
+      aria-hidden: 'true'
+      text(errStandIn) { style: type.caption, color: semantic.destructive }
     }
   }
 }
