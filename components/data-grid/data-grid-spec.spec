@@ -44,14 +44,69 @@ fn applySortAndFilter(rows: list, sortState: list, filters: list) -> list {
 // So: if you add padding to a cell, put it on the inner block. Padding on the
 // box that carries min-width silently re-breaks alignment for every consumer.
 fn gridColMin(col: map) -> string {
-  if col.width != null { return (col.width + '') + 'px' }
-  if col.minWidth != null { return (col.minWidth + '') + 'px' }
+  if col.width != null { return gridCssLength(col.width) }
+  if col.minWidth != null { return gridCssLength(col.minWidth) }
   return '100px'
 }
 
 fn gridColMax(col: map) -> string {
-  if col.width != null { return (col.width + '') + 'px' }
+  if col.width != null { return gridCssLength(col.width) }
   return '100000px'
+}
+
+// ── CSS LENGTHS ─────────────────────────────────────────────────────────────
+// `width` / `minWidth` take a number of px (`60`) or a CSS length (`"60px"`,
+// `"8rem"`), EditableGrid's rule (egCssLength): a number or a string of digits
+// gets "px", anything else passes through. Appending "px" to everything made
+// `"60px"` into `60pxpx`, which the browser drops, and the column lost its
+// width with no error anywhere (Vector #1529).
+fn gridCssLength(v: any) -> string {
+  let s = trim(toString(v))
+  if regexTest(s, "^[0-9.]+$") { return s + 'px' }
+  return s
+}
+
+// The px a length adds to a sum, or -1 for a length that is not in px.
+fn gridLenPx(s: string) -> number {
+  if regexTest(s, "^[0-9.]+px$") { return regexReplace(s, "px$", "") * 1 }
+  return -1
+}
+
+// The share of the row a percentage declares, or -1 for a length that is not
+// one. A column's percentage is of its ROW, which is the width track, and the
+// two places that size against anything else restate it (gridTrackMin,
+// gridSegSizedCols).
+fn gridLenPct(s: string) -> number {
+  if regexTest(s, "^[0-9.]+%$") { return regexReplace(s, "%$", "") * 1 }
+  return -1
+}
+
+fn gridPctTotal(lens: list) -> number {
+  return lens |> filter(l => gridLenPct(l) >= 0) |> reduce((acc, l) => acc + gridLenPct(l), 0)
+}
+
+fn gridNonPct(lens: list) -> list {
+  return lens |> filter(l => gridLenPct(l) < 0)
+}
+
+// A keyword (`auto`, `min-content`) has no size until layout, so it cannot sit
+// in a calc(): it adds nothing to a floor and leaves a ceiling unbounded.
+fn gridLenIsKeyword(s: string) -> boolean {
+  return regexTest(s, "^[a-z-]+$")
+}
+
+// The width of a run of columns. The px lengths add as numbers, so `"60px"`
+// sums exactly as `60` does and a grid of number widths gets the same string
+// it always did; any other length goes into a calc() beside them. Summing the
+// raw fields with `+` concatenated a string instead: `0 + "60px"` is `"060px"`.
+fn gridLengthSum(lens: list, extraPx: number) -> string {
+  let px = lens |> filter(l => gridLenPx(l) >= 0) |> reduce((acc, l) => acc + gridLenPx(l), 0)
+  let terms = lens |> filter(l => gridLenPx(l) < 0 && !gridLenIsKeyword(l))
+  let total = px + extraPx
+  if length(terms) == 0 { return (total + '') + 'px' }
+  let parts = total != 0 ? terms |> concat([(total + '') + 'px']) : terms
+  if length(parts) == 1 { return parts[0] }
+  return 'calc(' + (parts |> join(' + ')) + ')'
 }
 
 // The horizontal half of a `padding` value, for the rows that can only take a
@@ -94,9 +149,18 @@ fn gridRulePx(cols: list, rules: boolean, firstKey: string) -> number {
 
 // Total of every visible column's floor — the width the rows must not shrink
 // below. Set on the track so a narrow container scrolls instead of crushing.
+//
+// A percentage column is a share of the track itself, while the track's own
+// min-width resolves against the scroller, so `calc(20% + 160px)` comes out
+// short as soon as the track is wider than the scroller. The floor W solves
+// W = pct% of W + the rest instead: W = rest * 100 / (100 - pct). At 100% or
+// more there is no finite floor and the plain sum is the best there is.
 fn gridTrackMin(cols: list, rules: boolean, firstKey: string) -> string {
-  let total = cols |> reduce((acc, c) => acc + (c.width != null ? c.width : (c.minWidth != null ? c.minWidth : 100)), 0)
-  return ((total + gridRulePx(cols, rules, firstKey)) + '') + 'px'
+  let lens = cols |> map(c => gridColMin(c))
+  let pct = gridPctTotal(lens)
+  if pct <= 0 || pct >= 100 { return gridLengthSum(lens, gridRulePx(cols, rules, firstKey)) }
+  let rest = gridLengthSum(gridNonPct(lens), gridRulePx(cols, rules, firstKey))
+  return 'calc(' + rest + ' * 100 / ' + toString(100 - pct) + ')'
 }
 
 // ─── Header groups ──────────────────────────────────────────────────────────
@@ -252,15 +316,43 @@ fn gridSizedCols(cols: list, all: list) -> list {
 // column, with the sign flipping halfway because the flexible column absorbs
 // whatever the fixed ones saved).
 fn gridSegMin(seg: map, rules: boolean, firstKey: string) -> string {
-  let total = seg.cols |> reduce((acc, c) => acc + (c.width != null ? c.width : (c.minWidth != null ? c.minWidth : 100)), 0)
-  return ((total + gridRulePx(seg.cols, rules, firstKey)) + '') + 'px'
+  return gridLengthSum(seg.cols |> map(c => gridColMin(c)), gridRulePx(seg.cols, rules, firstKey))
 }
 
 fn gridSegMax(seg: map, rules: boolean, firstKey: string) -> string {
+  let lens = seg.cols |> map(c => gridColMax(c))
   let flexible = seg.cols |> some(c => c.width == null)
-  if flexible { return '100000px' }
-  let total = seg.cols |> reduce((acc, c) => acc + c.width, 0)
-  return ((total + gridRulePx(seg.cols, rules, firstKey)) + '') + 'px'
+  if flexible || (lens |> some(l => gridLenIsKeyword(l))) { return '100000px' }
+  return gridLengthSum(lens, gridRulePx(seg.cols, rules, firstKey))
+}
+
+// A segment's member headings, sized. A heading cell sits INSIDE its segment,
+// so a percentage on it resolves against the segment, where the body cell's
+// resolves against the row: `width: "20%"` drew a heading 20% of its own
+// column wide. The segment is pct% of the row plus the rest (px, rem, the
+// columnRules it pays for), so a p% column is p/pct of (100% - rest) of it.
+// A segment with no percentage is sized exactly as gridSizedCols sizes it.
+fn gridSegSizedCols(seg: map, all: list, rules: boolean, firstKey: string) -> list {
+  let sized = gridSizedCols(seg.cols, all)
+  let lens = seg.cols |> map(c => gridColMin(c))
+  let pct = gridPctTotal(lens)
+  if pct <= 0 { return sized }
+  let rest = gridLengthSum(gridNonPct(lens), gridRulePx(seg.cols, rules, firstKey))
+  return sized |> map(sc => gridPctSized(sc, pct, rest))
+}
+
+fn gridPctSized(sc: map, pct: number, rest: string) -> map {
+  return {
+    ...sc,
+    _min: gridLenPct(sc._min) >= 0 ? gridPctShare(gridLenPct(sc._min), pct, rest) : sc._min,
+    _max: gridLenPct(sc._max) >= 0 ? gridPctShare(gridLenPct(sc._max), pct, rest) : sc._max
+  }
+}
+
+fn gridPctShare(p: number, pct: number, rest: string) -> string {
+  if p == pct { return rest == '0px' ? '100%' : 'calc(100% - ' + rest + ')' }
+  let room = rest == '0px' ? '100%' : '(100% - ' + rest + ')'
+  return 'calc(' + room + ' * ' + toString(p) + ' / ' + toString(pct) + ')'
 }
 
 // ─── Row kinds ──────────────────────────────────────────────────────────────
@@ -1253,12 +1345,12 @@ component DataGrid(
     // binding will not parse a function call — the same reason the widths are
     // resolved in this block rather than at the use site. `_segId` is here for
     // the same reason: it is read by an attribute binding.
-    sizedPinnedSegments: pinnedSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSizedCols(s.cols, visibleColumns),
+    sizedPinnedSegments: pinnedSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSegSizedCols(s, visibleColumns, columnRules, firstColKey),
       _segId: 'p:' + (pinnedSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
       _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
-    sizedScrollSegments: scrollSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSizedCols(s.cols, visibleColumns),
+    sizedScrollSegments: scrollSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSegSizedCols(s, visibleColumns, columnRules, firstColKey),
       _segId: 's:' + (scrollSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
