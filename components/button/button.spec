@@ -17,6 +17,7 @@
 //   iconRight      icon name rendered after label
 //   iconOnly       icon name; renders square button with label as aria-label
 //   ariaLabel      overrides the accessible name; the visible label is unchanged
+//   truncate       opt in: a label longer than the button's column ends in "…"
 //
 // PRESSED IS A PAINT UNTIL YOU SAY WHAT IT MEANS.
 //   `pressed` darkens the background and insets the shadow. That is all it did:
@@ -132,7 +133,26 @@ component Button(
   // until 2026-10-15 — measured on the simulator, five screens in a row. The
   // iOS emitter also fills a Button that is a direct child of a `layout:
   // vertical` block with no cross-axis pin, matching what the web does there.
-  fullWidth:    bool    = false
+  fullWidth:    bool    = false,
+  // Cut a label too long for the button's column with an ellipsis. The label
+  // never wraps (see `white-space` below), and by default it never shrinks
+  // either: a link Button under an item name in a 150px table column, labelled
+  // with a user-typed reference ("Notes · C90 MM 32-40-00 Rev 12 section 4"),
+  // ran 175px out of its column and over the two columns beside it (Vector
+  // I-1275). Nothing at the call site could stop it: the label's own box is
+  // inside this component.
+  //
+  // `truncate: true` caps the button at its container's width and lets the
+  // label, not the icons, give way. Opt in, because the default is the other
+  // half of the nowrap rule — a button squeezed by a sibling keeps its whole
+  // label and the sibling reflows — and every existing call site relies on
+  // it. Off, nothing below emits a style. The full label is gone from sight
+  // when it is cut, so pass it (or what it stands for) as `ariaLabel`.
+  //
+  // Web only for now: the iOS emitter lowers a one-line text to a tail
+  // truncation only when its overflow is a LITERAL, and here it is a prop,
+  // so an iOS label keeps its natural width, as it always has.
+  truncate:     boolean = false
 ) {
   @computed {
     isIconOnly: iconOnly != ""
@@ -190,6 +210,15 @@ component Button(
     labelStyle: size == "xs" ? type.label-sm : type.label-md
 
     btnWidth: fullWidth ? "100%" : "auto"
+
+    // `truncate`. '' sets no style at all, so an untouched call site renders
+    // exactly what it did before the prop. On: the button is capped at its
+    // container, the label box may shrink below its text (a flex item will not
+    // by default), and the text clips with an ellipsis.
+    btnMaxWidth: truncate ? "100%" : ""
+    labelMinWidth: truncate ? "0px" : ""
+    labelOverflow: truncate ? "hidden" : ""
+    labelEllipsis: truncate ? "ellipsis" : ""
   }
 
   // NOTE: Conditional rendering uses `visibility:` on always-emitted nodes
@@ -225,6 +254,7 @@ component Button(
     padding-x: padX
     padding-y: padY
     width: btnWidth
+    max-width: btnMaxWidth
     border-radius: radius
     shadow: match pressed {
       true -> "inset 0 1px 3px rgba(0,0,0,0.2)",
@@ -322,10 +352,13 @@ component Button(
     block {
       visibility: !isIconOnly
       layout: horizontal, align: center, justify: center
+      min-width: labelMinWidth
 
       text(effectiveLabel) {
         style: labelStyle
         font-weight: token.btn-fontWeight
+        overflow: labelOverflow
+        text-overflow: labelEllipsis
         // Button labels must never wrap to a second line — a button squeezed
         // by a flex sibling should keep its width and let the sibling reflow,
         // not break "Reload saved" across two lines.
