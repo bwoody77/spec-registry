@@ -155,11 +155,18 @@ fn gridRulePx(cols: list, rules: boolean, firstKey: string) -> number {
 // short as soon as the track is wider than the scroller. The floor W solves
 // W = pct% of W + the rest instead: W = rest * 100 / (100 - pct). At 100% or
 // more there is no finite floor and the plain sum is the best there is.
-fn gridTrackMin(cols: list, rules: boolean, firstKey: string) -> string {
+//
+// `selection: "multi"` draws a 40px checkbox column at the start of every row,
+// so it is width the rows hold and the floor counts it, inside the rest a
+// percentage is solved against. Without it the track was 40px short in a
+// narrow container and each row overflowed it: the row's background and bottom
+// border stopped 40px before the last column (Vector #1715).
+fn gridTrackMin(cols: list, rules: boolean, firstKey: string, selection: string) -> string {
   let lens = cols |> map(c => gridColMin(c))
   let pct = gridPctTotal(lens)
-  if pct <= 0 || pct >= 100 { return gridLengthSum(lens, gridRulePx(cols, rules, firstKey)) }
-  let rest = gridLengthSum(gridNonPct(lens), gridRulePx(cols, rules, firstKey))
+  let extra = gridRulePx(cols, rules, firstKey) + (selection == "multi" ? 40 : 0)
+  if pct <= 0 || pct >= 100 { return gridLengthSum(lens, extra) }
+  let rest = gridLengthSum(gridNonPct(lens), extra)
   return 'calc(' + rest + ' * 100 / ' + toString(100 - pct) + ')'
 }
 
@@ -1329,7 +1336,7 @@ component DataGrid(
     // colour in the two places most likely to be edited separately is exactly
     // the shape that let the pinned cell's paint drift in the first place.
     focusBg: "rgba(59,130,246,0.08)"
-    trackMin: gridTrackMin(visibleColumns, columnRules, firstColKey)
+    trackMin: gridTrackMin(visibleColumns, columnRules, firstColKey, selection)
     // Header segments. The pinned column renders outside the scrolling loop, so
     // a segment may never straddle that boundary — with pinFirst the first
     // column is segmented on its own. `_cols` sizes each segment's members from
@@ -2360,9 +2367,11 @@ component DataGrid(
           data-grid-row: "filter"
           // `min-width` too, because this spacer is EMPTY. The header's and
           // the body's hold 40px through their checkbox, but a flex item
-          // shrinks to its content when the row overflows (a narrow container:
-          // `trackMin` does not count this column), and with no content this
-          // one went to 0 and slid every filter 40px left of its heading.
+          // shrinks to its content when the row overflows, and with no content
+          // this one went to 0 and slid every filter 40px left of its heading.
+          // `trackMin` counts this column since 1.18.4 (#1715), so the row no
+          // longer overflows at the floor; the min-width stays for a track a
+          // percentage of 100% or more leaves without a finite floor.
           block {
             visibility: selection == "multi"
             width: 40px
