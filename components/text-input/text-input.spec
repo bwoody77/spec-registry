@@ -198,8 +198,16 @@ component TextInput(
   @watch {
     // Both props, not `errText`: a watch on one prop reads its sibling's old
     // value when the caller changes both, so each runs the same follow.
-    error: { followError() }
-    errorMessage: { followError() }
+    //
+    // Immediate (`!:`, 0.12.2, Vector #1351). The line FOLLOWS these props; it
+    // latches nothing, and the @state seed already shows an error set at
+    // mount, so running followError() at construction is a no-op (words equal
+    // the seed, or both are ''). A plain watch has Modal's `open` shape, which
+    // a `visibility:` gate constructs already true and which then never sees
+    // its edge; written this way, the field says the same at construction as
+    // on every change, and a gated TextInput(error: true) is plainly safe.
+    error!: { followError() }
+    errorMessage!: { followError() }
   }
 
   @actions {
