@@ -14,9 +14,36 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     query: ""
     highlightIndex: 0
     focused: false
+    // The error line's id, which the trigger's aria-describedby names. Minted
+    // per mount: a literal would repeat on every Select on the page.
+    msgId: uniqueId('spec-field-msg')
+    // The words the error line says, through followError() (TextInput's
+    // "Saying it again", Vector #987).
+    errWords: error == true ? errorMessage : ''
+    // True for 100ms after the line went empty.
+    errHeld: false
   }
 
   @computed {
+    // ── The error, said as well as painted (Vector #989) ─────────────────────
+    //
+    // TextInput's pattern (Vector #874, #987), and its comments say why. The
+    // line used to be gated by `visibility: error == true`, which is
+    // display:none: a live region that enters the accessibility tree together
+    // with its words is never announced, and the trigger said neither that it
+    // was invalid nor what was wrong. Now the line is always here, holds the
+    // words while `error` is on, and is out of the flow while it is empty, so
+    // a Select with no error takes exactly the room it took before.
+    errText: error == true ? errorMessage : ''
+    errShown: errWords != ''
+    errPosition: errShown ? 'static' : 'absolute'
+    errStandIn: errHeld ? errText : ''
+    errStandInShown: errStandIn != ''
+    // null, not "false" or "": bindAttr removes the attribute, so a Select
+    // with no error carries neither.
+    invalidAttr: error == true ? 'true' : null
+    describedBy: errShown ? msgId : null
+
     // ── size: "md" (default, unchanged) | "sm" ───────────────────────────────
     //
     // BOTH of these move together or neither does anything, which is the whole
@@ -90,7 +117,34 @@ component Select(options: array = [], value: string = "", highlight: string = ""
                  : selectedIndex
   }
 
+  @watch {
+    // Both props: a watch on one reads its sibling's old value when the
+    // caller changes both.
+    error: { followError() }
+    errorMessage: { followError() }
+  }
+
   @actions {
+    // Words that arrive within 100ms of the line going empty wait out those
+    // 100ms, so the empty line reaches the page before the same words come
+    // back and a second failure is heard (TextInput's followError).
+    followError() {
+      let words = error == true ? errorMessage : ''
+      if words == '' {
+        if errWords != '' {
+          errWords = ''
+          errHeld = true
+          delay("errRefill", 100) {
+            errHeld = false
+            errWords = error == true ? errorMessage : ''
+          }
+        }
+        return
+      }
+      if !errHeld {
+        errWords = words
+      }
+    }
     toggleOpen() {
       if disabled == false {
         open = open == false
@@ -181,6 +235,8 @@ component Select(options: array = [], value: string = "", highlight: string = ""
       // then this component's own rendered `label`, and only fall back to the
       // generic word when there is genuinely nothing to say.
       aria-label: ariaLabel != "" ? ariaLabel : (label != "" ? label : "Select")
+      aria-invalid: invalidAttr
+      aria-describedby: describedBy
       on hover { background: disabled ? token.select-bg : semantic.surface-raised }
       on click: toggleOpen()
       on focus: { focused = true }
@@ -376,10 +432,25 @@ component Select(options: array = [], value: string = "", highlight: string = ""
         on click: closeDropdown()
       }
 
-    // Error message
+    // Error message — a live region that is always here (see errText above).
+    // role alert (assertive), as TextInput and Vector's kit ErrorLine.
     block {
-      visibility: error == true
-      text(errorMessage) {
+      id: msgId
+      role: 'alert'
+      aria-live: 'assertive'
+      position: errPosition
+      text(errWords) {
+        style: type.caption
+        color: semantic.destructive
+      }
+    }
+
+    // The same words while the line above waits out its empty moment,
+    // painted in its place and aria-hidden (TextInput's stand-in).
+    block {
+      visibility: errStandInShown
+      aria-hidden: 'true'
+      text(errStandIn) {
         style: type.caption
         color: semantic.destructive
       }
