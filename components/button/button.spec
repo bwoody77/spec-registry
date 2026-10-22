@@ -142,16 +142,21 @@ component Button(
   // I-1275). Nothing at the call site could stop it: the label's own box is
   // inside this component.
   //
-  // `truncate: true` caps the button at its container's width and lets the
+  // `truncate: true` lets the button shrink to its container's width and the
   // label, not the icons, give way. Opt in, because the default is the other
   // half of the nowrap rule — a button squeezed by a sibling keeps its whole
   // label and the sibling reflows — and every existing call site relies on
   // it. Off, nothing below emits a style. The full label is gone from sight
   // when it is cut, so pass it (or what it stands for) as `ariaLabel`.
   //
-  // Web only for now: the iOS emitter lowers a one-line text to a tail
-  // truncation only when its overflow is a LITERAL, and here it is a prop,
-  // so an iOS label keeps its natural width, as it always has.
+  // Web only for now, and it is all `overflow:` on purpose. A flex item with
+  // overflow hidden may shrink below its content, which is all the button and
+  // the label box need, and the iOS emitter emits nothing for a BOUND
+  // overflow, so every Button's Swift is what it was. 0.10.0 capped the
+  // button with a bound `max-width:` instead, which iOS lowers to
+  // `.frame(maxWidth: specMaxPx(…))`, and specMaxPx("") is .infinity: every
+  // Button in every phone app would have filled its row. An iOS label keeps
+  // its natural width, as it always has.
   truncate:     boolean = false
 ) {
   @computed {
@@ -212,12 +217,12 @@ component Button(
     btnWidth: fullWidth ? "100%" : "auto"
 
     // `truncate`. '' sets no style at all, so an untouched call site renders
-    // exactly what it did before the prop. On: the button is capped at its
-    // container, the label box may shrink below its text (a flex item will not
-    // by default), and the text clips with an ellipsis.
-    btnMaxWidth: truncate ? "100%" : ""
-    labelMinWidth: truncate ? "0px" : ""
-    labelOverflow: truncate ? "hidden" : ""
+    // exactly what it did before the prop. On: the button and the label box
+    // may shrink below their content (a flex item will not by default; one
+    // with overflow hidden will), and the text clips with an ellipsis. One
+    // value serves all three overflows. No width or min-width here: see the
+    // prop's note on iOS.
+    clipOverflow: truncate ? "hidden" : ""
     labelEllipsis: truncate ? "ellipsis" : ""
   }
 
@@ -254,7 +259,7 @@ component Button(
     padding-x: padX
     padding-y: padY
     width: btnWidth
-    max-width: btnMaxWidth
+    overflow: clipOverflow
     border-radius: radius
     shadow: match pressed {
       true -> "inset 0 1px 3px rgba(0,0,0,0.2)",
@@ -352,12 +357,12 @@ component Button(
     block {
       visibility: !isIconOnly
       layout: horizontal, align: center, justify: center
-      min-width: labelMinWidth
+      overflow: clipOverflow
 
       text(effectiveLabel) {
         style: labelStyle
         font-weight: token.btn-fontWeight
-        overflow: labelOverflow
+        overflow: clipOverflow
         text-overflow: labelEllipsis
         // Button labels must never wrap to a second line — a button squeezed
         // by a flex sibling should keep its width and let the sibling reflow,
