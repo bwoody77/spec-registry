@@ -76,6 +76,13 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
     // rows.
     const prev = wires.get(gridId);
     const handed = prev ? prev.handOff(opts.blockSize) : null;
+    // A replacement at a NEW rowHeight (a caller re-pitching under a live grid,
+    // Vector #1944) attaches before the rows redraw, so what is on screen is
+    // still the old pitch. Read it off the outgoing wire while it can answer:
+    // see `stalePitch` at calibrate().
+    const prevPitch = prev && prev.declaredRowHeight != null && prev.declaredRowHeight !== opts.rowHeight
+        ? { declared: prev.declaredRowHeight, measured: prev.effectiveRowHeight() }
+        : null;
     prev?.destroy();
     const cache = handed ? handed.cache : createBlockCache(opts.blockSize);
     // Unconditional: prev.destroy() above unregistered this id while it was
@@ -200,13 +207,28 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
      * So: measure a real row the first time one exists, and use that from then
      * on. Re-measured only while uncalibrated, so this costs one layout read in
      * the life of the wire, not one per scroll.
+     *
+     * ── EXCEPT A ROW STILL DRAWN AT THE PREVIOUS WIRE'S PITCH ────────────────
+     * A replacement built for a new `rowHeight` attaches at once (the scroller is
+     * there) and its first recompute runs before the rows redraw. Measuring then
+     * latched the OLD height for the wire's whole life: Vector's maintenance
+     * history re-pitched 62 → 76 for a larger Text size, drew its rows at 76,
+     * and sized every spacer at 62, so the scroll range came up ~300px short on
+     * 40 rows (#1944). So while `stalePitch` is set, a row at exactly that
+     * height is not a measurement, and the wire uses the new declaration plus
+     * the old rows' border (`pitchDrift`) until a redrawn row says otherwise.
+     * recheckPitch() looks again each frame and gives up after PITCH_FRAMES,
+     * accepting the old height, for a caller whose rows never follow rowHeight.
      */
     let measuredRowHeight = 0;
+    let stalePitch = prevPitch ? prevPitch.measured : 0;
+    const pitchDrift = prevPitch ? prevPitch.measured - prevPitch.declared : 0;
     function calibrate() {
         if (measuredRowHeight > 0)
             return measuredRowHeight;
+        const fallback = opts.rowHeight + pitchDrift;
         if (!scroller)
-            return opts.rowHeight;
+            return fallback;
         // EVERY row, not the first. `data-grid-row-index` sits on the same block
         // as `visibility: row._unloaded != true`, so an undelivered slot carries
         // the attribute and reports a ZERO box — and in a real grid the first
@@ -220,11 +242,27 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         for (const row of scroller.querySelectorAll('[data-grid-row-index]')) {
             const h = row.getBoundingClientRect().height;
             if (h > 0) {
+                // One row answers for all of them: they share the pitch.
+                if (stalePitch > 0 && Math.abs(h - stalePitch) < 0.5)
+                    return fallback;
                 measuredRowHeight = h;
                 return h;
             }
         }
-        return opts.rowHeight;
+        return fallback;
+    }
+    const PITCH_FRAMES = 30;
+    let pitchFrames = 0;
+    function recheckPitch() {
+        if (destroyed || measuredRowHeight > 0)
+            return;
+        if (pitchFrames++ >= PITCH_FRAMES)
+            stalePitch = 0;
+        // Not forced: a row measured at the height already guessed moves nothing.
+        recompute(false);
+        if (stalePitch > 0 && measuredRowHeight === 0 && typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(recheckPitch);
+        }
     }
     function recomputeInner(force) {
         const rowH = calibrate();
@@ -587,6 +625,9 @@ export function wireGridWindow(gridId, opts, onWindow, onRangeNeeded) {
         destroy: () => handle.destroy(),
     };
     handle.stickyHeader = opts.stickyHeader !== false;
+    handle.declaredRowHeight = opts.rowHeight;
+    if (stalePitch > 0 && typeof requestAnimationFrame !== 'undefined')
+        requestAnimationFrame(recheckPitch);
     wires.set(gridId, handle);
     watchForDetach(reapable);
     return handle;
