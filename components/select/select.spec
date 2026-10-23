@@ -97,7 +97,6 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     triggerHoverBg: disabled || isInline ? triggerBg : semantic.surface-raised
     triggerJustify: isInline ? "end" : "between"
     triggerGap: isInline ? spacing.1 : '0px'
-    caretName: isInline ? 'chevrons-up-down' : 'chevron-down'
     caretColor: isInline ? semantic.interactive : semantic.text-tertiary
 
     safeOptions: options != null ? options : []
@@ -307,7 +306,19 @@ component Select(options: array = [], value: string = "", highlight: string = ""
         // since column-chooser and Vector's hand-rolled dropdown triggers all
         // draw `chevron-down`. Every combobox in the registry now uses this
         // exact mark at this exact size.
-        Icon(name: caretName, size: 16, color: caretColor)
+        // Two literal names, not one computed: an app's icon subset is
+        // collected from the names written at Icon calls, so a computed name
+        // drew an empty box (Vector #1293).
+        block {
+          visibility: !isInline
+          layout: horizontal
+          Icon(name: 'chevron-down', size: 16, color: caretColor)
+        }
+        block {
+          visibility: isInline
+          layout: horizontal
+          Icon(name: 'chevrons-up-down', size: 16, color: caretColor)
+        }
       }
     }
 
