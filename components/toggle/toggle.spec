@@ -22,6 +22,8 @@
 // makes that unnecessary. The label is still drawn when it is given.
 //
 // `appearance` (0.6.0): what the control looks like, never what it means.
+// Typed `string` since 0.6.1: a keyword, not copy, so `spec i18n extract`
+// leaves a call site's "check" out of its catalogs (Vector #1807).
 // "switch" (the default, byte-identical to 0.5.x) is the track and thumb.
 // "check" is a round tick at the LEADING edge, for a list row the user ticks
 // (a task done, a passenger aboard, an item picked): iOS has no checkbox, and
@@ -42,7 +44,7 @@
 // `tint` colors the on state (the check's fill, the chip's fill); empty keeps
 // the toggle tokens. `fullWidth` stretches a check or chip across its parent.
 // Vector #1295.
-component Toggle(label: text, checked: boolean = false, disabled: boolean = false, ariaLabel: text = "", appearance: text = "switch", tint: text = "", fullWidth: boolean = false) {
+component Toggle(label: text, checked: boolean = false, disabled: boolean = false, ariaLabel: text = "", appearance: string = "switch", tint: string = "", fullWidth: boolean = false) {
   @computed {
     accessibleName: ariaLabel != "" ? ariaLabel : label
     hasLabel: label != ""
