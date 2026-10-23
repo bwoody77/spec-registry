@@ -8,7 +8,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
 // visible label is somewhere the compiler can't see, or when the control needs
 // a longer name than the one on screen.
-component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md") {
+component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: text = "field") {
   @state {
     open: false
     query: ""
@@ -80,10 +80,31 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     triggerMinHeight: size == "sm" ? '30px' : '40px'
     triggerPad: size == "sm" ? spacing.1 : spacing.2
 
+    // ── appearance: "field" (default, unchanged) | "inline" (0.12.0) ─────────
+    //
+    // "inline" is the trailing value of a settings row, the shape iOS
+    // Settings draws for a menu picker: no box, the picked value in the
+    // interactive color at the row's end, an up-down caret beside it. The
+    // row around it carries the label; the Select fills what is left of it,
+    // so its open list is as wide as that space. On iOS it is the same Menu
+    // Picker with a plain label (Vector #1293). An error still draws the
+    // destructive border, since an inline field has no other place to say it.
+    isInline: appearance == "inline"
+    triggerBorder: error == true
+      ? token.input-borderWidth + " solid " + semantic.destructive
+      : (isInline ? "none" : (focused ? token.input-borderWidth + " solid " + token.input-focusBorder : token.input-borderWidth + " solid " + token.select-border))
+    triggerBg: isInline ? "transparent" : token.select-bg
+    triggerHoverBg: disabled || isInline ? triggerBg : semantic.surface-raised
+    triggerJustify: isInline ? "end" : "between"
+    triggerGap: isInline ? spacing.1 : '0px'
+    caretName: isInline ? 'chevrons-up-down' : 'chevron-down'
+    caretColor: isInline ? semantic.interactive : semantic.text-tertiary
+
     safeOptions: options != null ? options : []
     filteredOptions: searchable && query != "" ? safeOptions.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : safeOptions
     selectedOption: safeOptions.find(o => o.value == value)
     displayText: selectedOption != null ? selectedOption.label : placeholder
+    displayColor: selectedOption != null ? (isInline ? semantic.interactive : semantic.text-primary) : semantic.text-tertiary
     hasOptions: filteredOptions.length > 0
     // Option groups. An option may carry `group: string`; a non-interactive
     // header row renders above the FIRST option of each contiguous run of the
@@ -204,14 +225,8 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     block {
       layout: horizontal
       min-height: triggerMinHeight
-      background: token.select-bg
-      border: match error {
-        true -> token.input-borderWidth + " solid " + semantic.destructive,
-        _ -> match focused {
-          true -> token.input-borderWidth + " solid " + token.input-focusBorder,
-          _ -> token.input-borderWidth + " solid " + token.select-border
-        }
-      }
+      background: triggerBg
+      border: triggerBorder
       shadow: match focused {
         true -> "0 0 0 3px " + token.input-focusRing,
         _ -> "none"
@@ -237,7 +252,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
       aria-label: ariaLabel != "" ? ariaLabel : (label != "" ? label : "Select")
       aria-invalid: invalidAttr
       aria-describedby: describedBy
-      on hover { background: disabled ? token.select-bg : semantic.surface-raised }
+      on hover { background: triggerHoverBg }
       on click: toggleOpen()
       on focus: { focused = true }
       on blur: { focused = false }
@@ -280,11 +295,11 @@ component Select(options: array = [], value: string = "", highlight: string = ""
 
       block {
         grow: true
-        layout: horizontal, justify: between, align: center
+        layout: horizontal, justify: triggerJustify, align: center, gap: triggerGap
         padding: triggerPad
         text(displayText) {
           style: type.body-md
-          color: selectedOption != null ? semantic.text-primary : semantic.text-tertiary
+          color: displayColor
         }
         // Caret. An Icon, not the "\u25BE" text glyph it used to be: that glyph
         // is font-dependent (it renders at a different weight and baseline
@@ -292,7 +307,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
         // since column-chooser and Vector's hand-rolled dropdown triggers all
         // draw `chevron-down`. Every combobox in the registry now uses this
         // exact mark at this exact size.
-        Icon(name: 'chevron-down', size: 16, color: semantic.text-tertiary)
+        Icon(name: caretName, size: 16, color: caretColor)
       }
     }
 
@@ -401,6 +416,15 @@ component Select(options: array = [], value: string = "", highlight: string = ""
                 style: type.body-md
                 color: g._opt.value == value ? semantic.interactive : semantic.text-primary
                 weight: g._opt.value == value ? 500 : 400
+              }
+              // An option may carry `sub: string` (0.12.0): a second line
+              // under its label, as an iOS menu item's subtitle.
+              block {
+                visibility: g._opt.sub != null && g._opt.sub != ''
+                text(g._opt.sub != null ? g._opt.sub : '') {
+                  style: type.caption
+                  color: semantic.text-tertiary
+                }
               }
             }
           }
