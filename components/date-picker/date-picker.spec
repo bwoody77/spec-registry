@@ -649,8 +649,9 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     }
 
     // Trigger — styled to match TextInput.spec
+    // No role here: the combobox is the date field inside, the node that takes
+    // focus and carries the name (Vector I-1142).
     block {
-      role: "combobox"
       layout: horizontal, align: center, gap: 0px
       min-height: 36px
       // Ordering mirrors TextInput.spec exactly: error first, then tone, then
@@ -698,9 +699,14 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         padding: spacing.2
         cursor: "text"
         tabindex: "0"
+        // The combobox is the tab stop, not the trigger wrapper around it: the
+        // node a screen reader lands on carries the role, the name and the
+        // error together. On a role-less node Chrome read the field as
+        // "generic", where aria-invalid is deprecated in ARIA 1.2 (Vector
+        // I-1142). The compiler binds aria-expanded to `open` on any
+        // role:"combobox" block, so the open state moved here with the role.
+        role: "combobox"
         aria-label: ariaLabel != "" ? ariaLabel : (label != "" ? label : "Date picker")
-        // On the tab stop, not the combobox wrapper: this is the node a screen
-        // reader lands on and reads.
         aria-invalid: invalidAttr
         aria-describedby: describedBy
         focus: refocusField
