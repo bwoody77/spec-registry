@@ -8,7 +8,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
 // visible label is somewhere the compiler can't see, or when the control needs
 // a longer name than the one on screen.
-component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: string = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: text = "field") {
+component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: text = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: string = "field") {
   @state {
     open: false
     query: ""
@@ -81,6 +81,8 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     triggerPad: size == "sm" ? spacing.1 : spacing.2
 
     // ── appearance: "field" (default, unchanged) | "inline" (0.12.0) ─────────
+    // Typed `string` since 0.12.2: a keyword, not copy, so `spec i18n extract`
+    // leaves a call site's "inline" out of its catalogs (Vector #1807).
     //
     // "inline" is the trailing value of a settings row, the shape iOS
     // Settings draws for a menu picker: no box, the picked value in the
