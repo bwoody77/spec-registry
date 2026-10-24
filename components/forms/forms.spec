@@ -393,7 +393,7 @@ component FormErrorSummary(
   title:      text  = 'Fix these to continue:',
   items:      array   = [],
   firstField: string  = '',
-  jumpLabel:  string  = 'Go to first problem'
+  jumpLabel:  text    = 'Go to first problem'
 ) {
   // Top-level `visibility:` binds the COMPONENT ROOT's display, not a child's.
   // Every component is emitted inside a `_root` div, and that div is a flex
