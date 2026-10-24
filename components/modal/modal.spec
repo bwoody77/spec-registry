@@ -170,40 +170,48 @@ component Modal(
 
       layout: vertical
 
-      // Header — suppressed when the caller supplies its own.
-      block {
-        visibility: chrome
-        layout: horizontal, justify: between, align: center
-        padding: spacing.4
-        border-bottom: borders.default
+      // Header — not built at all when the caller supplies its own. A `match`,
+      // not `visibility: chrome`: hidden is not absent, and a hidden header left
+      // the title's words and a Close button in every chrome-off dialog, so a
+      // strict getByText on the title matched twice (Vector #1979). `chrome` is
+      // fixed per call site; the arm not taken costs one comment node.
+      match chrome {
+        true -> {
+          block {
+            layout: horizontal, justify: between, align: center
+            padding: spacing.4
+            border-bottom: borders.default
 
-        text(title) {
-          visibility: title != ""
-          style: type.heading-sm
-          color: semantic.text-primary
-        }
+            text(title) {
+              visibility: title != ""
+              style: type.heading-sm
+              color: semantic.text-primary
+            }
 
-        // Close — a real button, so it is keyboard reachable and announced as a
-        // control. A div with an on-click is invisible to assistive tech.
-        button {
-          width: 32px
-          height: 32px
-          border-radius: 8px
-          border: "none"
-          background: "transparent"
-          cursor: "pointer"
-          aria-label: "Close dialog"
-          layout: horizontal, align: center, justify: center
-          on click: doClose()
-          on hover {
-            background: semantic.surface-raised
+            // Close — a real button, so it is keyboard reachable and announced as a
+            // control. A div with an on-click is invisible to assistive tech.
+            button {
+              width: 32px
+              height: 32px
+              border-radius: 8px
+              border: "none"
+              background: "transparent"
+              cursor: "pointer"
+              aria-label: "Close dialog"
+              layout: horizontal, align: center, justify: center
+              on click: doClose()
+              on hover {
+                background: semantic.surface-raised
+              }
+
+              text("×") {
+                style: type.heading-sm
+                color: semantic.text-tertiary
+              }
+            }
           }
-
-          text("×") {
-            style: type.heading-sm
-            color: semantic.text-tertiary
-          }
-        }
+        },
+        _ -> {}
       }
 
       // Body — one slot, padding computed. Two visibility-gated blocks each
