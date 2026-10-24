@@ -96,7 +96,7 @@ component ModalSelect(
   columns: array = [],
   rows: array = [],
   loading: boolean = false,
-  emptyMessage: string = "Nothing to choose from",
+  emptyMessage: text = "Nothing to choose from",
   searchable: boolean = true,
   multi: boolean = false,
   confirmLabel: text = "Add"

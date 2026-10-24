@@ -1,0 +1,30 @@
+{
+  "Add": {
+    "value": "Agregar",
+    "draft": true
+  },
+  "Cancel": {
+    "value": "Cancelar",
+    "draft": true
+  },
+  "No matches for “{query}”": {
+    "value": "No hay coincidencias para “{query}”",
+    "draft": true
+  },
+  "Nothing to choose from": {
+    "value": "No hay nada para elegir",
+    "draft": true
+  },
+  "Search": {
+    "value": "Buscar",
+    "draft": true
+  },
+  "Select": {
+    "value": "Seleccionar",
+    "draft": true
+  },
+  "Try a shorter search, or clear it to see everything.": {
+    "value": "Pruebe una búsqueda más corta, o bórrela para ver todo.",
+    "draft": true
+  }
+}
