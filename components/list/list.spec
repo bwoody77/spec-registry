@@ -1,4 +1,4 @@
-component List(items: array = [], selection: string = "none", selected: array = [], searchable: boolean = false, searchPlaceholder: string = "Search...", height: string = "") {
+component List(items: array = [], selection: string = "none", selected: array = [], searchable: boolean = false, searchPlaceholder: text = "Search...", height: string = "") {
   @state {
     selectedIds: selected
     searchQuery: ""
