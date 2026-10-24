@@ -2129,14 +2129,22 @@ component DataGrid(
                 // not null: a binding only REMOVES an attribute for null.)
                 data-grid-seg-label: seg._seg.label != '' ? seg._segId : null
                 @slot("group-header", seg._seg)
-                block {
-                  visibility: !hasSlot("group-header")
-                  text(seg._seg.label) {
-                    style: type.label-sm
-                    weight: 700
-                    color: semantic.text-secondary
-                    text-transform: 'uppercase'
-                    letter-spacing: '0.09em'
+                // A `match`, not `visibility: !hasSlot("group-header")`: hidden is not absent,
+                // and the hidden default left a second copy of these words in the DOM
+                // for every slotted grid (Vector #1979). hasSlot is answered once at
+                // mount, so the arm not taken costs one comment node.
+                match hasSlot("group-header") {
+                  true -> {},
+                  _ -> {
+                    block {
+                      text(seg._seg.label) {
+                        style: type.label-sm
+                        weight: 700
+                        color: semantic.text-secondary
+                        text-transform: 'uppercase'
+                        letter-spacing: '0.09em'
+                      }
+                    }
                   }
                 }
               }
@@ -2178,35 +2186,50 @@ component DataGrid(
                       // keyboard and unannounced by a screen reader. Vector's
                       // DataTable rendered a real button, and its e2e asserts
                       // getByRole('button', { name: 'STUDENT' }).
-                      block {
-                        visibility: !hasSlot("header") && col._col.sortable
-                        button {
-                          background: "transparent"
-                          border: "none"
-                          padding: 0px
-                          width: 100%
-                          cursor: "pointer"
-                          layout: horizontal, gap: spacing.1, align: center
-                          on click: toggleSortCol(col._col.key)
-                          text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                            style: type.label-sm
-                            weight: 600
+                      // `match`es, not `visibility:` gates: hidden is not absent. The
+                      // hidden alternatives left a second copy of every heading in the DOM
+                      // (the inert label behind each sortable button, the button behind each
+                      // inert label, both behind a header slot), so a strict getByText on a
+                      // heading matched twice (Vector #1979). A column's `sortable` is re-read
+                      // when the row of headings rebuilds, as the gate was.
+                      match hasSlot("header") {
+                        true -> {},
+                        _ -> {
+                          match col._col.sortable == true {
+                            true -> {
+                              block {
+                                button {
+                                  background: "transparent"
+                                  border: "none"
+                                  padding: 0px
+                                  width: 100%
+                                  cursor: "pointer"
+                                  layout: horizontal, gap: spacing.1, align: center
+                                  on click: toggleSortCol(col._col.key)
+                                  text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                                    style: type.label-sm
+                                    weight: 600
+                                  }
+                                  text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
+                                    style: type.caption
+                                    color: semantic.interactive
+                                  }
+                                }
+                              }
+                            },
+                            // Not sortable: inert text. Exposing it as a control too
+                            // would be a different a11y bug, not a fix — activating
+                            // it does nothing.
+                            _ -> {
+                              block {
+                                layout: horizontal, gap: spacing.1, align: center
+                                text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                                  style: type.label-sm
+                                  weight: 600
+                                }
+                              }
+                            }
                           }
-                          text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
-                            style: type.caption
-                            color: semantic.interactive
-                          }
-                        }
-                      }
-                      // Not sortable: inert text. Exposing it as a control too
-                      // would be a different a11y bug, not a fix — activating
-                      // it does nothing.
-                      block {
-                        visibility: !hasSlot("header") && !col._col.sortable
-                        layout: horizontal, gap: spacing.1, align: center
-                        text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                          style: type.label-sm
-                          weight: 600
                         }
                       }
                     }
@@ -2256,14 +2279,22 @@ component DataGrid(
                 // not null: a binding only REMOVES an attribute for null.)
                 data-grid-seg-label: seg._seg.label != '' ? seg._segId : null
                 @slot("group-header", seg._seg)
-                block {
-                  visibility: !hasSlot("group-header")
-                  text(seg._seg.label) {
-                    style: type.label-sm
-                    weight: 700
-                    color: semantic.text-secondary
-                    text-transform: 'uppercase'
-                    letter-spacing: '0.09em'
+                // A `match`, not `visibility: !hasSlot("group-header")`: hidden is not absent,
+                // and the hidden default left a second copy of these words in the DOM
+                // for every slotted grid (Vector #1979). hasSlot is answered once at
+                // mount, so the arm not taken costs one comment node.
+                match hasSlot("group-header") {
+                  true -> {},
+                  _ -> {
+                    block {
+                      text(seg._seg.label) {
+                        style: type.label-sm
+                        weight: 700
+                        color: semantic.text-secondary
+                        text-transform: 'uppercase'
+                        letter-spacing: '0.09em'
+                      }
+                    }
                   }
                 }
               }
@@ -2305,35 +2336,50 @@ component DataGrid(
                       // keyboard and unannounced by a screen reader. Vector's
                       // DataTable rendered a real button, and its e2e asserts
                       // getByRole('button', { name: 'STUDENT' }).
-                      block {
-                        visibility: !hasSlot("header") && col._col.sortable
-                        button {
-                          background: "transparent"
-                          border: "none"
-                          padding: 0px
-                          width: 100%
-                          cursor: "pointer"
-                          layout: horizontal, gap: spacing.1, align: center
-                          on click: toggleSortCol(col._col.key)
-                          text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                            style: type.label-sm
-                            weight: 600
+                      // `match`es, not `visibility:` gates: hidden is not absent. The
+                      // hidden alternatives left a second copy of every heading in the DOM
+                      // (the inert label behind each sortable button, the button behind each
+                      // inert label, both behind a header slot), so a strict getByText on a
+                      // heading matched twice (Vector #1979). A column's `sortable` is re-read
+                      // when the row of headings rebuilds, as the gate was.
+                      match hasSlot("header") {
+                        true -> {},
+                        _ -> {
+                          match col._col.sortable == true {
+                            true -> {
+                              block {
+                                button {
+                                  background: "transparent"
+                                  border: "none"
+                                  padding: 0px
+                                  width: 100%
+                                  cursor: "pointer"
+                                  layout: horizontal, gap: spacing.1, align: center
+                                  on click: toggleSortCol(col._col.key)
+                                  text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                                    style: type.label-sm
+                                    weight: 600
+                                  }
+                                  text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
+                                    style: type.caption
+                                    color: semantic.interactive
+                                  }
+                                }
+                              }
+                            },
+                            // Not sortable: inert text. Exposing it as a control too
+                            // would be a different a11y bug, not a fix — activating
+                            // it does nothing.
+                            _ -> {
+                              block {
+                                layout: horizontal, gap: spacing.1, align: center
+                                text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
+                                  style: type.label-sm
+                                  weight: 600
+                                }
+                              }
+                            }
                           }
-                          text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
-                            style: type.caption
-                            color: semantic.interactive
-                          }
-                        }
-                      }
-                      // Not sortable: inert text. Exposing it as a control too
-                      // would be a different a11y bug, not a fix — activating
-                      // it does nothing.
-                      block {
-                        visibility: !hasSlot("header") && !col._col.sortable
-                        layout: horizontal, gap: spacing.1, align: center
-                        text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                          style: type.label-sm
-                          weight: 600
                         }
                       }
                     }
@@ -2765,11 +2811,19 @@ component DataGrid(
                       // to be aligned means.
                       grow: col._col.align == null
                       @slot("cell", col._col, row)
-                      block {
-                        visibility: !hasSlot("cell")
-                        text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
-                          style: type.body-sm
-                          color: semantic.text-primary
+                      // A `match`, not `visibility: !hasSlot("cell")`: hidden is not absent,
+                      // and the hidden default left a second copy of these words in the DOM
+                      // for every slotted grid (Vector #1979). hasSlot is answered once at
+                      // mount, so the arm not taken costs one comment node.
+                      match hasSlot("cell") {
+                        true -> {},
+                        _ -> {
+                          block {
+                            text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
+                              style: type.body-sm
+                              color: semantic.text-primary
+                            }
+                          }
                         }
                       }
                     }
@@ -2933,11 +2987,19 @@ component DataGrid(
                       // to be aligned means.
                       grow: col._col.align == null
                       @slot("cell", col._col, row)
-                      block {
-                        visibility: !hasSlot("cell")
-                        text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
-                          style: type.body-sm
-                          color: semantic.text-primary
+                      // A `match`, not `visibility: !hasSlot("cell")`: hidden is not absent,
+                      // and the hidden default left a second copy of these words in the DOM
+                      // for every slotted grid (Vector #1979). hasSlot is answered once at
+                      // mount, so the arm not taken costs one comment node.
+                      match hasSlot("cell") {
+                        true -> {},
+                        _ -> {
+                          block {
+                            text(row[col._col.key] != null ? row[col._col.key] + "" : "") {
+                              style: type.body-sm
+                              color: semantic.text-primary
+                            }
+                          }
                         }
                       }
                     }
