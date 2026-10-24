@@ -3,7 +3,7 @@
 // become invalid, auto-advances it. Emits a single change with the clamped
 // { start, end } pair so consumers never re-implement the rule. Values are
 // 24h "HH:MM"; `format` controls only the visible labels.
-component TimeRangePicker(startValue: string = "09:00", endValue: string = "10:00", minHour: number = 6, maxHour: number = 22, stepMinutes: number = 30, gapMinutes: number = 30, format: string = "24", startLabel: string = "", endLabel: string = "", disabled: boolean = false) {
+component TimeRangePicker(startValue: string = "09:00", endValue: string = "10:00", minHour: number = 6, maxHour: number = 22, stepMinutes: number = 30, gapMinutes: number = 30, format: string = "24", startLabel: text = "", endLabel: text = "", disabled: boolean = false) {
   @computed {
     startOpts: timeRangeStartOptions(minHour, maxHour, stepMinutes, gapMinutes, format)
     endOpts: timeRangeEndOptions(startValue, minHour, maxHour, stepMinutes, gapMinutes, format)
@@ -94,8 +94,9 @@ fn timeOptions(minHour: number, maxHour: number, stepMinutes: number, format: st
   if stepMinutes <= 0 { return out }
   let first = minHour * 60
   let count = floor((maxHour * 60 - first) / stepMinutes) + 1
-  // maxHour before minHour. JavaScript's range() would answer [], but Swift's
-  // `0..<count` traps on a negative count.
+  // maxHour before minHour. range() answers [] on every target (on iOS it
+  // lowers to specRange, which returns [] when end <= start), so this guard is
+  // belt-and-braces.
   if count <= 0 { return out }
   for i in range(0, count) {
     let value = trpFromMinutes(first + i * stepMinutes)
