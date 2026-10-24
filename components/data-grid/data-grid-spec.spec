@@ -1454,6 +1454,8 @@ component DataGrid(
     // — it takes the whole grid down. A grid-level signal HAS real deps, so the
     // outer arm can be a match and the per-row test stays a `visibility:`
     // inside it. Feature off => nothing is built; on => exactly as before.
+    // (Those matches have no `_ -> {}` arm: until Vector #2030 they did, and
+    // the empty arm, being the one picked, built an empty host div per cell.)
     //
     // Derived from the rows, not from `groupBy`: a caller can hand in
     // `_kind: 'group'` rows without ever setting groupBy.
@@ -2066,18 +2068,28 @@ component DataGrid(
           z-index: 4
           data-grid-row: "header"
 
-          block {
-            visibility: selection == "multi"
-            width: 40px
-            layout: vertical, justify: center
-            block {
-              padding: headerPad
-              layout: horizontal, align: center, justify: center
-              // The grid's own two unnamed checkboxes, named. A select-all in a
-              // header cell has nothing to take a name from, so before Checkbox
-              // 0.5.0 it announced as "checkbox, not checked" and nothing else.
-              Checkbox(label: "", ariaLabel: "Select all rows", checked: allSelected) {
-                on change(isChecked): { if isChecked { selectAllRows() } else { if windowed { deselectRenderedRows() } else { clearSelection() } } }
+          // A `match`, not `visibility: selection == "multi"`: hidden is not
+          // absent, and the hidden gate left a "Select all rows" checkbox in the
+          // header of every grid without multi-select (Vector #2030). `destroy`,
+          // so a grid switched back from multi drops it instead of hiding it.
+          // No `_ -> {}` arm: an empty arm still builds a host div when picked,
+          // and in the rows below that is one per row; with none, a subject no
+          // arm matches builds nothing.
+          match selection == "multi" destroy {
+            true -> {
+              block {
+                width: 40px
+                layout: vertical, justify: center
+                block {
+                  padding: headerPad
+                  layout: horizontal, align: center, justify: center
+                  // The grid's own two unnamed checkboxes, named. A select-all in a
+                  // header cell has nothing to take a name from, so before Checkbox
+                  // 0.5.0 it announced as "checkbox, not checked" and nothing else.
+                  Checkbox(label: "", ariaLabel: "Select all rows", checked: allSelected) {
+                    on change(isChecked): { if isChecked { selectAllRows() } else { if windowed { deselectRenderedRows() } else { clearSelection() } } }
+                  }
+                }
               }
             }
           }
@@ -2418,10 +2430,14 @@ component DataGrid(
           // `trackMin` counts this column since 1.18.4 (#1715), so the row no
           // longer overflows at the floor; the min-width stays for a track a
           // percentage of 100% or more leaves without a finite floor.
-          block {
-            visibility: selection == "multi"
-            width: 40px
-            min-width: 40px
+          // A `match` like the header's select-all (Vector #2030).
+          match selection == "multi" destroy {
+            true -> {
+              block {
+                width: 40px
+                min-width: 40px
+              }
+            }
           }
           each filterColumns as col {
             block {
@@ -2610,21 +2626,27 @@ component DataGrid(
             data-grid-row-index: windowed ? gridAbsIdx(windowed, winStart, rowIdx) + '' : null
             data-testid: gridRowKind(row) == "row" ? rowTestIdAttr : null
 
-            block {
-              visibility: selection == "multi"
-              width: 40px
-              layout: horizontal
-              block {
-                padding: pad
-                grow: true
-                layout: horizontal, align: center, justify: center
-                on click(event): swallowRowClick(event)
-                // "Select row", not "Select row <key>": rowKeyField is usually a
-                // uuid, and announcing one is worse than announcing nothing
-                // specific. The row's own cells follow immediately in the
-                // reading order, which is where the identity actually lives.
-                Checkbox(label: "", ariaLabel: "Select row", checked: gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField])) {
-                  on change(isChecked): selectRow(row)
+            // A `match`, not `visibility: selection == "multi"`: the hidden gate
+            // built a Checkbox in every drawn row of every grid without
+            // multi-select, never shown (Vector #2030). See the header's.
+            match selection == "multi" destroy {
+              true -> {
+                block {
+                  width: 40px
+                  layout: horizontal
+                  block {
+                    padding: pad
+                    grow: true
+                    layout: horizontal, align: center, justify: center
+                    on click(event): swallowRowClick(event)
+                    // "Select row", not "Select row <key>": rowKeyField is usually a
+                    // uuid, and announcing one is worse than announcing nothing
+                    // specific. The row's own cells follow immediately in the
+                    // reading order, which is where the identity actually lives.
+                    Checkbox(label: "", ariaLabel: "Select row", checked: gridRowChecked(selectAllMatching, excludedKeys, selectedSet, row[rowKeyField])) {
+                      on change(isChecked): selectRow(row)
+                    }
+                  }
                 }
               }
             }
@@ -2714,8 +2736,7 @@ component DataGrid(
                         color: semantic.text-secondary
                       }
                     }
-                  },
-                  _ -> {}
+                  }
                 }
                 // A DERIVED group row has no caller cell content \u2014 the grid
                 // made it \u2014 so it names itself. A structural group row still
@@ -2728,22 +2749,29 @@ component DataGrid(
                 // not stack the name over the count. The other cells of a derived
                 // header are empty and nothing here clips, so a long name runs on
                 // over them instead of wrapping.
-                block {
-                  visibility: gridIsDerivedGroup(row)
-                  layout: horizontal, gap: spacing.1, align: center
-                  white-space: 'nowrap'
-                  text(row._groupLabel != null ? row._groupLabel : "") {
-                    style: type.label-sm
-                    weight: 700
-                    color: semantic.text-secondary
-                  }
-                  // Guarded: a row with no count must render nothing, not the
-                  // string "undefined". The block above is visibility-gated, so
-                  // an unguarded concat is invisible \u2014 and still sits in the
-                  // DOM's textContent for anything that reads it.
-                  text(row._groupCount != null ? ("\u00b7 " + (row._groupCount + "")) : "") {
-                    style: type.label-sm
-                    color: semantic.text-tertiary
+                //
+                // A `match`, not `visibility: gridIsDerivedGroup(row)`: the gate
+                // built this label, hidden, in every cell of every ordinary row
+                // (Vector #2030). The subject is the row alone, like the cell
+                // match below, so it is picked when `each` builds the row.
+                match gridIsDerivedGroup(row) {
+                  true -> {
+                    block {
+                      layout: horizontal, gap: spacing.1, align: center
+                      white-space: 'nowrap'
+                      text(row._groupLabel != null ? row._groupLabel : "") {
+                        style: type.label-sm
+                        weight: 700
+                        color: semantic.text-secondary
+                      }
+                      // Guarded: a row with no count must render nothing, not the
+                      // string "undefined", which would sit in the DOM's
+                      // textContent for anything that reads it.
+                      text(row._groupCount != null ? ("\u00b7 " + (row._groupCount + "")) : "") {
+                        style: type.label-sm
+                        color: semantic.text-tertiary
+                      }
+                    }
                   }
                 }
                 // The row-detail caret, for the same reason the group control
@@ -2772,8 +2800,7 @@ component DataGrid(
                         color: semantic.text-secondary
                       }
                     }
-                  },
-                  _ -> {}
+                  }
                 }
                 // The cell's content fills the cell. Without this the slot's own
                 // wrapper is a `flex: 0 1 auto` item in this row and shrink-fits
@@ -2895,28 +2922,32 @@ component DataGrid(
                         color: semantic.text-secondary
                       }
                     }
-                  },
-                  _ -> {}
+                  }
                 }
                 // A DERIVED group row names itself \u2014 see the pinned half. Here
                 // only in column 0 of an unpinned grid: the caret's own gate, so
                 // the label and its caret cannot land in different cells.
-                block {
-                  visibility: gridIsDerivedGroup(row) && colIdx == 0 && !pinFirst
-                  layout: horizontal, gap: spacing.1, align: center
-                  white-space: 'nowrap'
-                  text(row._groupLabel != null ? row._groupLabel : "") {
-                    style: type.label-sm
-                    weight: 700
-                    color: semantic.text-secondary
-                  }
-                  // Guarded: a row with no count must render nothing, not the
-                  // string "undefined". The block above is visibility-gated, so
-                  // an unguarded concat is invisible \u2014 and still sits in the
-                  // DOM's textContent for anything that reads it.
-                  text(row._groupCount != null ? ("\u00b7 " + (row._groupCount + "")) : "") {
-                    style: type.label-sm
-                    color: semantic.text-tertiary
+                // Matched on the row like the pinned half, so an ordinary row
+                // builds nothing; the column test stays a `visibility:` inside.
+                match gridIsDerivedGroup(row) {
+                  true -> {
+                    block {
+                      visibility: colIdx == 0 && !pinFirst
+                      layout: horizontal, gap: spacing.1, align: center
+                      white-space: 'nowrap'
+                      text(row._groupLabel != null ? row._groupLabel : "") {
+                        style: type.label-sm
+                        weight: 700
+                        color: semantic.text-secondary
+                      }
+                      // Guarded: a row with no count must render nothing, not the
+                      // string "undefined". In a column the gate hides, an
+                      // unguarded concat would still sit in the DOM's textContent.
+                      text(row._groupCount != null ? ("\u00b7 " + (row._groupCount + "")) : "") {
+                        style: type.label-sm
+                        color: semantic.text-tertiary
+                      }
+                    }
                   }
                 }
                 // The row-detail caret again, for the scrolling columns. The
@@ -2948,8 +2979,7 @@ component DataGrid(
                         color: semantic.text-secondary
                       }
                     }
-                  },
-                  _ -> {}
+                  }
                 }
                 // The cell's content fills the cell. Without this the slot's own
                 // wrapper is a `flex: 0 1 auto` item in this row and shrink-fits
