@@ -2,7 +2,7 @@ component Snackbar(
   open: boolean = false,
   message: text = "",
   duration: number = 4000,
-  actionLabel: string = ""
+  actionLabel: text = ""
 ) {
   @state {
     showing: false

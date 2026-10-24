@@ -1,6 +1,6 @@
 [package]
 name = "snackbar"
-version = "0.3.0"
+version = "0.3.1"
 category = "components"
 description = "Brief message bar at the bottom of the screen with optional action"
 license = "MIT"
