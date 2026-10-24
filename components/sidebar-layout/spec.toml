@@ -1,0 +1,13 @@
+[package]
+name = "sidebar-layout"
+version = "0.1.0"
+category = "components"
+description = "App shell with a collapsible sidebar, a breadcrumb header and a command palette"
+license = "MIT"
+
+[compatibility]
+spec = ">=0.1.0"
+
+[source]
+origin = "@spec/components"
+file = "sidebar-layout.spec"
