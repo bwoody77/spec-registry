@@ -138,7 +138,7 @@ component ModalSelect(
     // `selectedCount` computed would be one more name for the same value.
     hasSelection: selected.length > 0
     confirmText:  confirmLabel + " " + toString(selected.length)
-    countText:    toString(selected.length) + " selected"
+    countText:    t("{selected.length} selected")
   }
 
   @actions {

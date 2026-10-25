@@ -26,5 +26,9 @@
   "Try a shorter search, or clear it to see everything.": {
     "value": "Pruebe una búsqueda más corta, o bórrela para ver todo.",
     "draft": true
+  },
+  "{selected.length} selected": {
+    "value": "{selected.length} seleccionados",
+    "draft": true
   }
 }
