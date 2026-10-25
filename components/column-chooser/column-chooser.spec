@@ -41,7 +41,7 @@ component ColumnChooserRow(row: object) {
     // anything is dragged, rather than only when a drag is refused.
     railColor: row.indent ? semantic.border-strong : 'transparent'
     nameColor: row.hidden ? semantic.text-tertiary : semantic.text-primary
-    groupCount: toString(row.count) + ' cols'
+    groupCount: plural(row.count, one: "{row.count} col", other: "{row.count} cols")
   }
 
   block {

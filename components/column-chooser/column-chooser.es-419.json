@@ -1,0 +1,41 @@
+{
+  "Columns": {
+    "value": "Columnas",
+    "draft": true
+  },
+  "Hide all": {
+    "value": "Ocultar todas",
+    "draft": true
+  },
+  "No columns match “{_query}”": {
+    "value": "Ninguna columna coincide con “{_query}”",
+    "draft": true
+  },
+  "Reset": {
+    "value": "Restablecer",
+    "draft": true
+  },
+  "Search columns": {
+    "value": "Buscar columnas",
+    "draft": true
+  },
+  "Search columns…": {
+    "value": "Buscar columnas…",
+    "draft": true
+  },
+  "Show all": {
+    "value": "Mostrar todas",
+    "draft": true
+  },
+  "pinned": {
+    "value": "fijada",
+    "draft": true
+  },
+  "{row.count} cols": {
+    "value": {
+      "one": "{row.count} columna",
+      "other": "{row.count} columnas"
+    },
+    "draft": true
+  }
+}
