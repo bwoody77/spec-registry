@@ -1,4 +1,4 @@
-component ConfirmDialog(open: boolean = false, title: text = "Confirm", message: text = "", confirmLabel: text = "Confirm", cancelLabel: text = "Cancel", destructive: boolean = false) {
+component ConfirmDialog(open: boolean = false, title: text = "Confirm", message: text = "", confirmLabel: text = "Confirm", cancelLabel: text = "Cancel", destructive: boolean = false, loading: boolean = false, loadingLabel: text = "") {
   @state {
     showing: false
   }
@@ -16,11 +16,17 @@ component ConfirmDialog(open: boolean = false, title: text = "Confirm", message:
       unlockScroll()
       releaseFocus()
     }
+    // While `loading`, the caller owns the close: it sets loading in its
+    // `on confirm` handler and closes the dialog through `open` when its
+    // request ends. Without loading the dialog closes itself, as it always has.
     confirm() {
+      if loading { return }
       emit("confirm")
+      if loading { return }
       doClose()
     }
     cancel() {
+      if loading { return }
       emit("cancel")
       doClose()
     }
@@ -67,14 +73,14 @@ component ConfirmDialog(open: boolean = false, title: text = "Confirm", message:
         layout: horizontal, justify: end, gap: spacing.2
         margin: spacing.2
 
-        Button(label: cancelLabel, variant: "secondary") {
+        Button(label: cancelLabel, variant: "secondary", disabled: loading) {
           on click: cancel()
         }
 
         // Non-destructive confirm
         block {
           visibility: destructive == false
-          Button(label: confirmLabel, variant: "primary") {
+          Button(label: confirmLabel, variant: "primary", loading: loading, loadingLabel: loadingLabel) {
             on click: confirm()
           }
         }
@@ -82,7 +88,7 @@ component ConfirmDialog(open: boolean = false, title: text = "Confirm", message:
         // Destructive confirm
         block {
           visibility: destructive == true
-          Button(label: confirmLabel, variant: "destructive") {
+          Button(label: confirmLabel, variant: "destructive", loading: loading, loadingLabel: loadingLabel) {
             on click: confirm()
           }
         }

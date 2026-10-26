@@ -1,0 +1,14 @@
+{
+  "Cancel": {
+    "value": "Cancelar",
+    "draft": true
+  },
+  "Confirm": {
+    "value": "Confirmar",
+    "draft": true
+  },
+  "Confirm dialog": {
+    "value": "Diálogo de confirmación",
+    "draft": true
+  }
+}
