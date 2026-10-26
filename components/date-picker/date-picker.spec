@@ -1,4 +1,4 @@
-@extern { calendarGrid, todayStr, parseDateInput, daysInMonth, todayParts, formatDateOutput, formatSegments, formatSeparator, toISODate, isoToOutput } from "@spec/components/date-utils.js"
+@extern { calendarGrid, todayStr, parseDateInput, daysInMonth, todayParts, formatDateOutput, formatSegments, formatSeparator, toISODate, isoToOutput, segmentsTakeTyping } from "@spec/components/date-utils.js"
 
 component DatePicker(value: string = "", label: text = "", placeholder: text = "",
                      disabled: boolean = false, format: string = "MM/DD/YYYY",
@@ -360,6 +360,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // Arm the segments because focus arrived, not because the user asked. Same
     // setup, but Escape stays available to the dialog (see escapeSegments).
     armFromFocus() {
+      if segmentsTakeTyping() == false { return }
       activateSegments()
       userArmed = false
     }
@@ -369,7 +370,17 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // (typing "07" "10" produced year 0710). Clicking a segment moves the
     // active cursor there. `on focus` runs first and arms editing; this then
     // re-targets the clicked segment.
+    //
+    // Where no keyboard reaches the segments (Android: the field is a
+    // focusable box, not a text field, so a tap raised none), a tap on the
+    // date opens the calendar, as the button does and as iOS's native picker
+    // does (Vector #2369). Arming there left a highlighted segment that
+    // nothing could type into.
     focusSegment(idx) {
+      if segmentsTakeTyping() == false {
+        if open == false { toggle() }
+        return
+      }
       if disabled == false {
         if editing == false { activateSegments() }
         // Commit what was typed into the segment being LEFT. Clicking straight

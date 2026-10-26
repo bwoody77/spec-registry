@@ -181,6 +181,17 @@ export function isoToOutput(dateStr, format) {
         return '';
     return formatDateOutput(parts.year, parts.month, parts.day, format);
 }
+/**
+ * Does a keyboard reach the date field's typing segments? In a browser it
+ * does: a click on a segment arms it and digits type the date. The Android
+ * target's twin (the app's Kotlin `segmentsTakeTyping`) answers false: there the
+ * segments are a focusable box that raises no keyboard, so DatePicker opens
+ * its calendar on a tap of the date instead (Vector #2369). iOS swaps in a
+ * native picker and never asks.
+ */
+export function segmentsTakeTyping() {
+    return true;
+}
 // Internal helper
 function formatDateStr(year, month, day) {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
