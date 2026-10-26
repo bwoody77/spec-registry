@@ -98,15 +98,39 @@ component SkeletonCard() {
   }
 }
 
-// Back-compat: original fixed shape (rectangle + avatar row), now wave.
-component Skeleton(width: string = "100%", height: string = "") {
+// The text variant's bars: full width, the last one shorter so the stack
+// reads as a paragraph (one line stays full width). Keyed by position.
+fn skeletonTextLines(lines: number) -> list {
+  let out = []
+  for i in range(0, lines) {
+    let width = "100%"
+    if lines > 1 && i == lines - 1 {
+      width = "60%"
+    }
+    push(out, { key: i, width: width })
+  }
+  return out
+}
+
+// Back-compat: original fixed shape (rectangle + avatar row), now wave. That is
+// still the default; `variant: "text"` draws `lines` bars instead (0.4.0).
+component Skeleton(width: string = "100%", height: string = "", variant: string = "block", lines: number = 3) {
   block {
     width: width
     height: height
     layout: vertical, gap: spacing.3
     overflow: hidden
 
-    SkeletonBlock(width: "100%", height: "80px", radius: "10px")
-    SkeletonRow()
+    match variant {
+      "text" -> {
+        each skeletonTextLines(lines) as line (line.key) {
+          SkeletonLine(width: line.width, height: "12px")
+        }
+      }
+      _ -> {
+        SkeletonBlock(width: "100%", height: "80px", radius: "10px")
+        SkeletonRow()
+      }
+    }
   }
 }
