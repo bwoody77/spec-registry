@@ -10,10 +10,18 @@
 // (z-index below the panel) instead of `overlay(...)` so the panel's
 // positioning stays in the same `anchor:` mechanism comboboxes use.
 //
+// Keyboard dismissal (Vector #2726): focus leaving trigger and panel closes
+// the popover (the backdrop only hears the mouse, so Tab past an open one
+// left the backdrop over the page), and Escape closes it and puts focus back
+// on the trigger, not on <body>. The DOM half is anchored-menu.js; on iOS and
+// Android its stand-ins answer null, which reads as "stay open".
+//
 // Caveat: if any ancestor of the trigger has a non-`none` `transform`,
 // `filter`, or `perspective`, browsers re-root the panel's `position:fixed`
 // against that ancestor (CSS Transforms spec). Audit ancestors if the panel
 // lands at the wrong coordinates.
+
+@extern { menuFocusLeft, menuFocusTrigger } from "@spec/components/anchored-menu.js"
 
 component Popover(placement: string = "bottom", closeOnContentClick: boolean = false) {
   @state {
@@ -23,6 +31,17 @@ component Popover(placement: string = "bottom", closeOnContentClick: boolean = f
   @actions {
     toggle() { open = open == false }
     close() { open = false }
+    // Escape is consumed only when it closed something: stopped here, so an
+    // enclosing dialog or page does not close too; while closed it bubbles.
+    onKey(event) {
+      if event.key != 'Escape' || open == false { return }
+      event.stopPropagation()
+      close()
+      menuFocusTrigger(event)
+    }
+    onFocusOut(event) {
+      if open && menuFocusLeft(event) { close() }
+    }
   }
 
   block {
@@ -33,12 +52,15 @@ component Popover(placement: string = "bottom", closeOnContentClick: boolean = f
     // from the focused child to this root block; there is no document-level
     // listener, so Escape with focus elsewhere on the page is the caller's
     // responsibility (see Vector's bubble-to-root pattern for pages).
-    on key-down(event): {
-      if event.key == 'Escape' { close() }
-    }
+    // focus-out BUBBLES (plain blur does not), so this hears focus leaving
+    // any of the three children; menuFocusLeft says whether it left them all.
+    on key-down(event): onKey(event)
+    on focus-out(event): onFocusOut(event)
 
     // Trigger — caller-supplied content via @slot("trigger")
+    // data-menu-trigger is where Escape sends focus back to.
     block {
+      data-menu-trigger: 'true'
       on click: toggle()
       @slot("trigger")
     }
