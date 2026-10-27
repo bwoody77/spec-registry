@@ -102,7 +102,12 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     caretColor: isInline ? semantic.interactive : semantic.text-tertiary
 
     safeOptions: options != null ? options : []
-    filteredOptions: searchable && query != "" ? safeOptions.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : safeOptions
+    // An option may carry `pinned: true` (0.13.0): the search never filters it
+    // out, and it keeps its place in the list. For a trailing action row ("Add
+    // a new issue type…", Vector #2657): a search that matches nothing is when
+    // the user most needs it, and it stays last after whatever did match. It is
+    // an ordinary row otherwise, so the arrows and Enter reach it.
+    filteredOptions: searchable && query != "" ? safeOptions.filter(o => o.pinned == true || o.label.toLowerCase().includes(query.toLowerCase())) : safeOptions
     selectedOption: safeOptions.find(o => o.value == value)
     displayText: selectedOption != null ? selectedOption.label : placeholder
     displayColor: selectedOption != null ? (isInline ? semantic.interactive : semantic.text-primary) : semantic.text-tertiary
