@@ -59,8 +59,16 @@ component Popover(placement: string = "bottom", closeOnContentClick: boolean = f
 
     // Trigger — caller-supplied content via @slot("trigger")
     // data-menu-trigger is where Escape sends focus back to.
+    // tabindex "-1" keeps this wrapper OUT of the tab order (Vector #2781):
+    // the caller's button is the single tab stop, and its click bubbles here.
+    // Without it the click handler makes the compiler add tabindex="0", an
+    // unnamed stop before every trigger. So the slot must be focusable (a
+    // Button or `button {}`), as HoverCard's is. The explicit cursor keeps
+    // the pointer the compiler's default gave.
     block {
       data-menu-trigger: 'true'
+      tabindex: "-1"
+      cursor: 'pointer'
       on click: toggle()
       @slot("trigger")
     }
