@@ -45,10 +45,9 @@ fn validateFields(checks: list) -> map {
 // The wrapper always renders `data-field` when `field` is set. That is how
 // FormErrorSummary's jump link finds it (forms-focus.js).
 //
-// Re-toning the label: use `labelTone: 'secondary' | 'primary'`, NOT
-// `labelColor: semantic.text-secondary`. A token passed in through `labelColor`
-// arrives already resolved and stops tracking the theme — see the note on
-// `effLabelColor` below.
+// Re-toning the label: use `labelTone: 'secondary' | 'primary'`. `labelColor`
+// is for a color that is not a theme token — see the note on `effLabelColor`
+// below.
 //
 // Naming: this component renders the visible label ITSELF and mounts TextInput
 // in a different block, so `label` alone named nothing — see `effAriaLabel`.
@@ -145,24 +144,17 @@ component FormField(
     // now declines to infer for a call that passes its own `label:`
     // (ast-to-ir inferAccessibleNames), which keeps that ordering safe.
     effAriaLabel: ariaLabel != '' ? ariaLabel : label
-    // `labelTone` — NOT `labelColor` — is how a caller re-tones the label.
+    // `labelTone` is how a caller re-tones the label: it names the tone, and
+    // the token lookup below stays in this file, where the computed subscribes
+    // to it (the emitted computed carries `_ts`/`_tv` in its dependency list),
+    // so a theme change re-runs it.
     //
-    // A theme token has to be resolved INSIDE the component to stay live. Write
-    // `labelColor: semantic.text-secondary` at a call site and the *caller*
-    // compiles it to a one-shot `_tok("text-secondary")()`, so what arrives here
-    // is the string "#3d4a5f" — a colour frozen at mount. Nothing this component
-    // does can thaw it: the freeze happened before the prop was passed. Switch
-    // the app to a dark theme and every such label keeps the light-theme colour
-    // while its plain-`text()` neighbours move. (Confirmed in a browser
-    // 2026-08-10, four labels stuck at rgb(61,74,95) on a dark canvas.)
-    //
-    // Naming the tone instead keeps the token reference in this file, where the
-    // computed below subscribes to it — the emitted computed carries `_ts`/`_tv`
-    // in its dependency list, so a theme change re-runs it.
-    //
-    // `labelColor` still wins when set, and is the escape hatch for a colour
-    // that is not a token at all (a brand hex, a computed rgba). Passing a
-    // token through it is the one thing it cannot do.
+    // `labelColor` wins when set, and is the escape hatch for a color that is
+    // not a token at all (a brand hex, a computed rgba). A token passed through
+    // it follows the theme too: since Vector #2620 the caller forwards a
+    // token-only argument live (`_tok("text-secondary")`) rather than as a
+    // value resolved at mount. Prefer `labelTone` for a token anyway, so the
+    // set of tones a label can take stays in one place.
     effLabelColor: labelColor != '' ? labelColor
                  : (labelTone == 'secondary' ? semantic.text-secondary
                  : (labelTone == 'primary'   ? semantic.text-primary
