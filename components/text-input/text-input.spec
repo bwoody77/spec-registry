@@ -17,6 +17,12 @@ component TextInput(
   // more, so a paragraph field could not grow into the pane it was given.
   // Defaulted to 4, so every existing consumer renders exactly as before.
   rows: number = 4,
+  // Character cap for the input or textarea; 0 means no limit, so every
+  // consumer that never passed one renders exactly as before. A call site
+  // that passed `maxLength` before this existed had it dropped without a
+  // word (Vector #2228: outside-endorsement Notes took any length while the
+  // server cut the saved text at 2000).
+  maxLength: number = 0,
   label: text = "",
   placeholder: text = "",
   value: string = "",
@@ -89,6 +95,10 @@ component TextInput(
     // valid keyboard token — it would land on all ~577 call sites that never
     // asked for one.
     inputModeAttr: inputMode != "" ? inputMode : null
+
+    // null, not 0, for the same reason: `maxlength="0"` refuses every
+    // character. iOS reads a bound null as no cap too (specMaxLength).
+    maxLengthAttr: maxLength > 0 ? maxLength : null
 
     // ── The error, said as well as painted (Vector #874) ─────────────────────
     //
@@ -328,6 +338,7 @@ component TextInput(
               aria-invalid: invalidAttr
               aria-describedby: describedBy
               inputMode: inputModeAttr
+              maxLength: maxLengthAttr
               disabled: disabled
               readonly: readonly
               rows: rows
@@ -351,6 +362,7 @@ component TextInput(
               aria-describedby: describedBy
               type: type
               inputMode: inputModeAttr
+              maxLength: maxLengthAttr
               disabled: disabled
               readonly: readonly
               border: "none"
