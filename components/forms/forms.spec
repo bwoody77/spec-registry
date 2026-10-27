@@ -59,6 +59,13 @@ component FormField(
   value:        string  = '',
   placeholder:  text  = '',
   inputType:    string  = 'text',
+  // Forwarded to the built-in TextInput's `autocomplete` (0.14.0+): the
+  // browser's fill hint. Empty omits the attribute. A password field that is
+  // not the viewer's own sign-in says 'new-password': on a page with no
+  // <form> Chrome otherwise reads it as a login and fills the saved email
+  // into the text field before it, and 'off' does not stop that (Vector
+  // #2757, an S3 key ID).
+  autocomplete: string  = '',
   validation:   map     = null,
   field:        string  = '',
   showErrors:   boolean = false,
@@ -294,6 +301,7 @@ component FormField(
       // `ariaLabel:`, never `label:` — see the note on effAriaLabel. `label:`
       // would render a second visible copy of every field's label.
       TextInput(value: value, placeholder: placeholder, type: inputType,
+                autocomplete: autocomplete,
                 ariaLabel: effAriaLabel, tone: tone,
                 error: effError, errorMessage: effMsg) {
         on change(x): emit("input", x)
