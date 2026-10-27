@@ -1,5 +1,19 @@
 component Text(content: string, variant: string = "body-md", selectable: boolean = true) {
   block {
+    visibility: variant == "display-lg"
+    text(content) {
+      style: type.display-lg
+      color: semantic.text-primary
+    }
+  }
+  block {
+    visibility: variant == "display-md"
+    text(content) {
+      style: type.display-md
+      color: semantic.text-primary
+    }
+  }
+  block {
     visibility: variant == "heading-xl"
     text(content) {
       style: type.heading-xl
@@ -24,6 +38,13 @@ component Text(content: string, variant: string = "body-md", selectable: boolean
     visibility: variant == "heading-sm"
     text(content) {
       style: type.heading-sm
+      color: semantic.text-primary
+    }
+  }
+  block {
+    visibility: variant == "heading-xs"
+    text(content) {
+      style: type.heading-xs
       color: semantic.text-primary
     }
   }
@@ -60,6 +81,20 @@ component Text(content: string, variant: string = "body-md", selectable: boolean
     text(content) {
       style: type.caption
       color: semantic.text-tertiary
+    }
+  }
+  block {
+    visibility: variant == "code"
+    text(content) {
+      style: type.mono-md
+      color: semantic.text-primary
+    }
+  }
+  block {
+    visibility: variant == "mono"
+    text(content) {
+      style: type.mono-md
+      color: semantic.text-primary
     }
   }
 }
