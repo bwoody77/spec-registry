@@ -12,7 +12,7 @@
 //             active segment raised on a surface chip — for a strip that
 //             switches views of ONE thing, like a leg's Preflight / Times /
 //             Receipts, where it is what an iOS build draws natively)
-// overflow: 'wrap' (grid auto-fill) | 'scroll' (single row, auto-scroll)
+// overflow: 'wrap' (grid auto-fit) | 'scroll' (single row, auto-scroll)
 //           | 'grow' (equal-width columns filling the row)
 //
 // 'wrap' gives every tab a 110px minimum so the wrapped rows line up as a
@@ -148,12 +148,29 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     cells: _tabCells(tabs)
 
     // Overflow is expressed entirely through the grid column template.
+    //
+    // 'wrap' is auto-FIT, not auto-fill (Vector #2613). auto-fill keeps its
+    // empty tracks at the 110px floor, and they take width from the real ones:
+    // a two-tab strip with 870px to fill laid out seven tracks, so the second
+    // tab lost 2.3px of its label and "Aircraft Type Defaults" broke onto two
+    // centered lines. auto-fit collapses the empty tracks to 0. A strip with
+    // more tabs than fit on a row fills every track either way, so it wraps
+    // exactly as before.
     gridColumns: overflow == 'grow'
                    ? ('repeat(' + (cells.length + '') + ', 1fr)')
                    : (overflow == 'scroll'
                        ? ('repeat(' + (cells.length + '') + ', max-content)')
-                       : 'repeat(auto-fill, minmax(110px, max-content))')
+                       : 'repeat(auto-fit, minmax(110px, max-content))')
     scrollMode:  overflow == 'scroll' ? 'auto' : 'visible'
+    // A scrolling strip is a scroll container, and a scroll container's
+    // automatic minimum size is 0: as a direct item of a height-bound flex
+    // column it shrank to 15px with its 44px tabs clipped (Vector #2613, the
+    // settings page body). `min-content` floors it at its own height and
+    // leaves sideways scrolling alone. Not `flex-shrink: 0`, which would also
+    // stop the strip narrowing in a flex ROW, the way a toolbar strip scrolls.
+    // Empty off the scroll path, so that strip declares nothing (its visible
+    // overflow already keeps its content height).
+    stripMinHeight: overflow == 'scroll' ? 'min-content' : ''
     // The same test that picks the column template decides whether a label may
     // wrap, because it is the same fact: `max-content` columns give a label
     // nothing to break against, so a break there is never a fit. The other two
@@ -254,6 +271,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     }
     layout: grid, columns: gridColumns, gap: 4px, align: center
     overflow: scrollMode
+    min-height: stripMinHeight
     // The strip scrolls, and it does NOT draw a bar to do it.
     //
     // The active tab is marked with a 2px bottom border, and a phone draws its
