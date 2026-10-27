@@ -7,7 +7,7 @@
 //   size           sm | md | lg
 //   shape          rect | pill
 //   disabled       disables interaction
-//   loading        shows loading state; also disables
+//   loading        busy: a small spinner before the label, dimmed, disabled
 //   loadingLabel   text shown when loading (falls back to label if empty)
 //   pressed        the "on" position — visual by default, announced when
 //                  `toggle` or `disclosure` says what it MEANS
@@ -69,6 +69,23 @@
 //   amber-themed dark mode render amber — with no per-app token overrides.
 //   Shape tokens (radius, padding, font-weight, shadow) still come from
 //   `token.btn-*` because those don't change between themes.
+//
+// LOADING DRAWS A SPINNER (0.11.0, Vector #2539).
+//   An icon-sized ring in the label's own color (iconColor), open at the top
+//   and turning with the `spin` preset, sits first in the row while `loading`
+//   is true. Before 0.11.0 loading only dimmed (0.7), disabled and swapped to
+//   `loadingLabel`, and ConfirmDialog's Delete gave no sign of a request in
+//   flight. Bryan chose this over a ring that REPLACES the label (it would hide
+//   every "Saving…" a caller wrote) and over no ring at all.
+//   - Idle, the ring's box is display:none: no width, no shift.
+//   - It takes the place of a left icon, and of an icon-only button's icon, so
+//     those buttons keep their width. A plain label grows by the ring + gap.
+//   - aria-hidden: the label swap and `disabled` already say "busy" once.
+//   - It keeps turning under reduced motion: the compiler parks pulse and wave
+//     there but not spin, a busy indicator (ir-to-js.ts ANIMATION_KEYFRAMES).
+//   - Sized for border-box (Vector sets it globally, as Spinner assumes); a
+//     content-box app draws it 4px wider.
+//   - iOS lowers Button by name and does not draw it yet (Vector I-2091).
 //
 // Layout rules:
 //   - Icons sit on the same horizontal line as the label, gap=spacing.2.
@@ -190,6 +207,10 @@ component Button(
       variant == "warning"     ? semantic.warning-text :
       variant == "link"        ? semantic.interactive-text :
       semantic.on-interactive
+
+    // The loading ring (see the header): an icon's size, in an icon's color.
+    spinnerPx: "{iconSize}px"
+    spinnerBorder: "2px solid " + iconColor
 
     isInactive: disabled || loading
 
@@ -340,16 +361,32 @@ component Button(
     // ignore the extra argument.
     on click(event): emit("click", event)
 
+    // The loading ring, first in the row (see the header). Its box is
+    // display:none while idle; the two icon blocks below step aside for it.
+    block {
+      visibility: loading
+      aria-hidden: "true"
+      layout: horizontal, align: center, justify: center
+      block {
+        width: spinnerPx
+        height: spinnerPx
+        border: spinnerBorder
+        border-top: "2px solid transparent"
+        border-radius: 9999px
+        animation: "spin"
+      }
+    }
+
     // Icon-only mode
     block {
-      visibility: isIconOnly
+      visibility: isIconOnly && !loading
       layout: horizontal, align: center, justify: center
       Icon(name: iconOnly, size: iconSize, color: iconColor, label: label)
     }
 
     // Label mode: optional left icon + text + optional right icon
     block {
-      visibility: !isIconOnly && hasIconLeft
+      visibility: !isIconOnly && hasIconLeft && !loading
       layout: horizontal, align: center, justify: center
       Icon(name: iconLeft, size: iconSize, color: iconColor)
     }
