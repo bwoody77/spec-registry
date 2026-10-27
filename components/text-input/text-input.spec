@@ -23,6 +23,13 @@ component TextInput(
   // word (Vector #2228: outside-endorsement Notes took any length while the
   // server cut the saved text at 2000).
   maxLength: number = 0,
+  // The browser's fill hint: "off", "one-time-code" (a PIN), "new-password",
+  // "current-password", "email", … Empty means "say nothing", so every
+  // consumer that never passed one renders exactly as before. A field could
+  // not say it before this existed (Vector #2741: a pilot-record comment box
+  // sat before a closed PIN step's password inputs, Chrome read it as the
+  // username, and filled the editor's saved login email into it).
+  autocomplete: string = "",
   label: text = "",
   placeholder: text = "",
   value: string = "",
@@ -99,6 +106,11 @@ component TextInput(
     // null, not 0, for the same reason: `maxlength="0"` refuses every
     // character. iOS reads a bound null as no cap too (specMaxLength).
     maxLengthAttr: maxLength > 0 ? maxLength : null
+
+    // null, not "": `autocomplete=""` is an invalid token, not the absence
+    // of one. The one-line input only: the textArea primitive takes no
+    // `autocomplete`, and Chrome never reads a textarea as a username.
+    autocompleteAttr: autocomplete != "" ? autocomplete : null
 
     // ── The error, said as well as painted (Vector #874) ─────────────────────
     //
@@ -363,6 +375,7 @@ component TextInput(
               type: type
               inputMode: inputModeAttr
               maxLength: maxLengthAttr
+              autocomplete: autocompleteAttr
               disabled: disabled
               readonly: readonly
               border: "none"
