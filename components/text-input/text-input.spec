@@ -35,8 +35,15 @@ component TextInput(
   value: string = "",
   disabled: boolean = false,
   readonly: boolean = false,
+  // Which adornments hold copy (Vector #2514). `suffix` ("ft", "pts") and
+  // `unit` ("gal", "months") are words, so they are `text`: a literal a call
+  // site passes lands in that caller's catalog and reads in Spanish there.
+  // `prefix` stays `string` because every caller passes a symbol ("$", "≥",
+  // "≤") that reads the same in every language; a word belongs in `suffix`.
+  // A unit that comes from data (a shop's own servicing unit) is passed
+  // through as given, as any expression is.
   prefix: string = "",
-  suffix: string = "",
+  suffix: text = "",
   icon: string = "",
   // Trailing adornment icon, rendered INSIDE the field's border at its right
   // edge. Exists for combobox wrappers (Autocomplete, Vector's UserPicker)
@@ -48,7 +55,7 @@ component TextInput(
   // wrapper's own `on focus` handler opens its dropdown. Do NOT give it a
   // click handler — that would double-fire against the label delegation.
   trailingIcon: string = "",
-  unit: string = "",
+  unit: text = "",
   tone: string = "default",
   error: boolean = false,
   errorMessage: text = "",
