@@ -1,6 +1,6 @@
 [package]
 name = "confirm-dialog"
-version = "0.4.0"
+version = "0.4.1"
 category = "components"
 description = "Modal prompt requiring user confirmation before a destructive action"
 license = "MIT"

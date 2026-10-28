@@ -1,6 +1,13 @@
-component ConfirmDialog(open: boolean = false, title: text = "Confirm", message: text = "", confirmLabel: text = "Confirm", cancelLabel: text = "Cancel", destructive: boolean = false, loading: boolean = false, loadingLabel: text = "") {
+component ConfirmDialog(open: boolean = false, title: text = "Confirm", message: text = "", confirmLabel: text = "Confirm", cancelLabel: text = "Cancel", destructive: boolean = false, loading: boolean = false, loadingLabel: text = "", ariaLabel: text = "") {
   @state {
     showing: false
+  }
+
+  @computed {
+    // The accessible name. A fixed "Confirm dialog" told a screen-reader user
+    // nothing about what this one asks, so prefer the caller's label, then the
+    // visible title (Vector I-2852, as Modal does).
+    label: ariaLabel != "" ? ariaLabel : (title != "" ? title : t("Confirm"))
   }
 
   @actions {
@@ -52,7 +59,7 @@ component ConfirmDialog(open: boolean = false, title: text = "Confirm", message:
       border-radius: 12px
       shadow: elevation.floating
       role: "dialog"
-      aria-label: "Confirm dialog"
+      aria-label: label
 
       layout: vertical, gap: spacing.3
 
