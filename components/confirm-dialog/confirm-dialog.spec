@@ -8,6 +8,11 @@ component ConfirmDialog(open: boolean = false, title: text = "Confirm", message:
     // nothing about what this one asks, so prefer the caller's label, then the
     // visible title (Vector I-2852, as Modal does).
     label: ariaLabel != "" ? ariaLabel : (title != "" ? title : t("Confirm"))
+    // While `loading`, both buttons are disabled, so the focus trap holds focus
+    // on this panel (Vector I-2859) and a screen reader announces it by name;
+    // aria-busy makes that announcement say a request is running. Absent, not
+    // "false", when idle (Button's aria-pressed idiom).
+    busy: loading ? true : null
   }
 
   @actions {
@@ -60,6 +65,7 @@ component ConfirmDialog(open: boolean = false, title: text = "Confirm", message:
       shadow: elevation.floating
       role: "dialog"
       aria-label: label
+      aria-busy: busy
 
       layout: vertical, gap: spacing.3
 
