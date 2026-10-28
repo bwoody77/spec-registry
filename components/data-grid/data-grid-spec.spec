@@ -26,6 +26,23 @@ fn applySortAndFilter(rows: list, sortState: list, filters: list) -> list {
 // This is deliberate — `grow` is resolved at parse time and cannot vary per
 // column, and it is what keeps the header, body, group and total rows sharing
 // ONE width source so their columns cannot drift apart.
+//
+// ── GROW WEIGHTS (Vector #2885) ─────────────────────────────────────────────
+// Equal flex shares mean that once every floor is below the even share, every
+// flexible column comes out the same width: Vector's Curriculum Progress grid
+// drew Hours as wide as Stage at 1680px and wrapped stage names that fit. A
+// column may declare `grow: <weight>`, and since `grow` cannot vary per cell
+// the weight goes into the FLOOR instead (gridWeightedMin): a flexible column
+// asks for its floor plus weight/total of the row's slack, the slack being
+// 100% of the row less every floor and every px of border and checkbox the
+// row holds (gridWeigh). Those floors sum to the whole row, so the flex has
+// nothing left to share and each column sits at its share. `max()` keeps it
+// at its floor when the row is at the track's minimum.
+//
+// A grid with no `grow` anywhere is not weighted at all and keeps its plain
+// floors, byte for byte; a `width` column has weight 0 and stays pinned. A
+// heading inside a header segment restates the same split against the
+// segment (gridSegWeighCols), so header and body agree.
 
 // ── THE PADDING INVARIANT ───────────────────────────────────────────────────
 // A cell's width-bearing box carries NO padding. Every cell is an outer block
@@ -52,6 +69,91 @@ fn gridColMin(col: map) -> string {
 fn gridColMax(col: map) -> string {
   if col.width != null { return gridCssLength(col.width) }
   return '100000px'
+}
+
+// A column's share of the slack: 0 for a pinned (`width`) column, its `grow`
+// for a flexible one that declares a usable number, else 1 (today's equal
+// share). A keyword floor has no size to add a share to, so it takes none.
+fn gridColWeight(col: map) -> number {
+  if col.width != null { return 0 }
+  if gridLenIsKeyword(gridColMin(col)) { return 0 }
+  if col.grow == null || typeOf(col.grow) != 'number' { return 1 }
+  if col.grow < 0 { return 1 }
+  return col.grow
+}
+
+// Weighting is on only when a flexible column asks for it, so a grid with no
+// `grow` lays out exactly as it always has. A keyword floor (`auto`) turns it
+// off: its column's width is unknown until layout, so the slack cannot be
+// computed and the weighted floors would push the row past its track.
+fn gridIsWeighted(cols: list) -> boolean {
+  if cols |> some(c => c.width == null && gridLenIsKeyword(gridColMin(c))) { return false }
+  return cols |> some(c => c.width == null && c.grow != null)
+}
+
+// The floor that gives `col` its weighted share of the slack in a container
+// holding exactly `cols` plus `extraPx` of borders and fixed cells. `100%` is
+// that container: the row for a body, filter or header-segment cell, the
+// segment for a heading inside one.
+fn gridWeightedMin(col: map, cols: list, extraPx: number) -> string {
+  let floor = gridColMin(col)
+  let w = gridColWeight(col)
+  if w <= 0 { return floor }
+  let total = cols |> reduce((acc, c) => acc + gridColWeight(c), 0)
+  let used = gridLengthSum(cols |> map(c => gridColMin(c)), extraPx)
+  return 'max(' + floor + ', calc(' + floor + ' + (100% - ' + used + ') * ' + toString(w) + ' / ' + toString(total) + '))'
+}
+
+// The px of `groupRules` bracket a run of columns draws: a 1px border at each
+// end of every labelled run of two or more (a solo group draws none), on the
+// body's edge cells and on the header's segment alike. Weighted floors fill
+// the row exactly, so every px a cell holds outside its min-width must be in
+// the slack or the row overflows its track.
+fn gridBracketPx(cols: list, all: list, on: boolean) -> number {
+  if !on { return 0 }
+  return gridSizedCols(cols, all) |> reduce((acc, c) => acc + (c._gFirst && !c._gSolo ? 1 : 0) + (c._gLast && !c._gSolo ? 1 : 0), 0)
+}
+
+// Every px a row holds outside its columns' floors: the columnRules, the
+// groupRules brackets (per pin split, as the cells draw them) and the
+// multi-select checkbox column.
+fn gridWeighExtra(cols: list, rules: boolean, groupRules: boolean, firstKey: string, pinFirst: boolean, selection: string) -> number {
+  let brackets = groupRules && !rules
+  let pinned = pinFirst ? gridBracketPx(cols.slice(0, 1), cols, brackets) : 0
+  let rest = gridBracketPx(pinFirst ? cols.slice(1) : cols, cols, brackets)
+  return gridRulePx(cols, rules, firstKey) + pinned + rest + (selection == "multi" ? 40 : 0)
+}
+
+// Swap a row's sized columns' floors for their weighted ones. `weigh` is the
+// grid's `{ on, all, extra }` (see `weigh` in the component).
+fn gridWeighCols(sized: list, weigh: map) -> list {
+  if !weigh.on { return sized }
+  return sized |> map(sc => gridWithMin(sc, gridWeightedMin(sc._col, weigh.all, weigh.extra)))
+}
+
+fn gridWithMin(sc: map, min: string) -> map {
+  return { ...sc, _min: min }
+}
+
+// A header segment's floor in a weighted grid: the sum of its members' row
+// shares plus the rules they draw, so the segment is exactly as wide as the
+// body cells under it.
+fn gridSegWeighMin(seg: map, rules: boolean, firstKey: string, weigh: map) -> string {
+  if !weigh.on { return gridSegMin(seg, rules, firstKey) }
+  return gridLengthSum(seg.cols |> map(c => gridWeightedMin(c, weigh.all, weigh.extra)), gridRulePx(seg.cols, rules, firstKey))
+}
+
+// A segment's headings, weighted against the SEGMENT: its slack is its own
+// width less its members' floors and rules, split by their weights, which
+// lands each heading on the body cell's share of the row. A segment holding a
+// percentage column keeps gridSegSizedCols's restated floors: the two
+// restatements do not compose, so weights inside such a group are not
+// supported.
+fn gridSegWeighCols(sized: list, seg: map, rules: boolean, firstKey: string, weigh: map) -> list {
+  if !weigh.on { return sized }
+  if gridPctTotal(seg.cols |> map(c => gridColMin(c))) > 0 { return sized }
+  let extra = gridRulePx(seg.cols, rules, firstKey)
+  return sized |> map(sc => gridWithMin(sc, gridWeightedMin(sc._col, seg.cols, extra)))
 }
 
 // ── CSS LENGTHS ─────────────────────────────────────────────────────────────
@@ -1302,8 +1404,11 @@ component DataGrid(
     // reads a later one in this block is the cascade-staleness trap, not a
     // forward reference the compiler resolves.
     firstColKey: visibleColumns.length > 0 ? visibleColumns[0].key : ''
-    pinnedColumns: pinFirst ? gridSizedCols(visibleColumns.slice(0, 1), visibleColumns) : []
-    scrollColumns: pinFirst ? gridSizedCols(visibleColumns.slice(1), visibleColumns) : gridSizedCols(visibleColumns, visibleColumns)
+    // The grow-weight context every width below reads (see GROW WEIGHTS at
+    // the top).
+    weigh: { on: gridIsWeighted(visibleColumns), all: visibleColumns, extra: gridWeighExtra(visibleColumns, columnRules, groupRules, firstColKey, pinFirst, selection) }
+    pinnedColumns: pinFirst ? gridWeighCols(gridSizedCols(visibleColumns.slice(0, 1), visibleColumns), weigh) : []
+    scrollColumns: gridWeighCols(pinFirst ? gridSizedCols(visibleColumns.slice(1), visibleColumns) : gridSizedCols(visibleColumns, visibleColumns), weigh)
     // The filter row's one loop: both halves, in screen order, sized exactly
     // as the body's cells are.
     filterColumns: pinnedColumns.concat(scrollColumns)
@@ -1352,12 +1457,12 @@ component DataGrid(
     // binding will not parse a function call — the same reason the widths are
     // resolved in this block rather than at the use site. `_segId` is here for
     // the same reason: it is read by an attribute binding.
-    sizedPinnedSegments: pinnedSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSegSizedCols(s, visibleColumns, columnRules, firstColKey),
+    sizedPinnedSegments: pinnedSegments |> map((s, i) => { _seg: s, _min: gridSegWeighMin(s, columnRules, firstColKey, weigh), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSegWeighCols(gridSegSizedCols(s, visibleColumns, columnRules, firstColKey), s, columnRules, firstColKey, weigh),
       _segId: 'p:' + (pinnedSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
       _soloKey: gridGroupSize(visibleColumns, s.label) == 1 ? s.cols[0].key : '' })
-    sizedScrollSegments: scrollSegments |> map((s, i) => { _seg: s, _min: gridSegMin(s, columnRules, firstColKey), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSegSizedCols(s, visibleColumns, columnRules, firstColKey),
+    sizedScrollSegments: scrollSegments |> map((s, i) => { _seg: s, _min: gridSegWeighMin(s, columnRules, firstColKey, weigh), _max: gridSegMax(s, columnRules, firstColKey), _cols: gridSegWeighCols(gridSegSizedCols(s, visibleColumns, columnRules, firstColKey), s, columnRules, firstColKey, weigh),
       _segId: 's:' + (scrollSegRuns[i] + ''),
       _solo: gridGroupSize(visibleColumns, s.label) == 1,
       _soloSortable: gridGroupSize(visibleColumns, s.label) == 1 && s.cols[0].sortable == true,
