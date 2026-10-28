@@ -1,5 +1,6 @@
 // Radio — custom visual radio button with event forwarding
-// Group radios by using the same on-change handler and checked expression:
+// Group radios by using the same on-change handler and checked expression,
+// inside a RadioGroup (its default slot) or on their own:
 //   Radio(label: "A", value: "a", checked: selected == "a") { on change(v): setSelected(v) }
 //   Radio(label: "B", value: "b", checked: selected == "b") { on change(v): setSelected(v) }
 component RadioGroup(options: array = [], value: string = "", disabled: boolean = false) {
@@ -17,6 +18,12 @@ component RadioGroup(options: array = [], value: string = "", disabled: boolean 
         on change(v): emit("change", v)
       }
     }
+
+    // Radio children written inside the group draw here, after `options`.
+    // iOS takes one choice per Radio child, so without this slot the same
+    // source drew radios on the phone and nothing on the web (Vector #2868).
+    // Each child keeps its own `checked` and `on change`.
+    @children
   }
 }
 
