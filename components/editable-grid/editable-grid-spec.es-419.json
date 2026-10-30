@@ -1,0 +1,10 @@
+{
+  "No rows": {
+    "value": "No hay filas",
+    "draft": true
+  },
+  "{label} is required": {
+    "value": "El campo {label} es obligatorio",
+    "draft": true
+  }
+}
