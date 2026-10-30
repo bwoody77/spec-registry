@@ -1,0 +1,10 @@
+{
+  "Close drawer": {
+    "value": "Cerrar panel",
+    "draft": true
+  },
+  "Drawer": {
+    "value": "Panel lateral",
+    "draft": true
+  }
+}
