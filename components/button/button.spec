@@ -174,7 +174,11 @@ component Button(
   // `.frame(maxWidth: specMaxPx(…))`, and specMaxPx("") is .infinity: every
   // Button in every phone app would have filled its row. An iOS label keeps
   // its natural width, as it always has.
-  truncate:     boolean = false
+  truncate:     boolean = false,
+  // `data-testid` on the root element, for an end-to-end test to find this
+  // one control by (Vector #24). Empty, the default, emits no attribute, so
+  // every caller that never passed one renders exactly as before.
+  testId:       string  = ""
 ) {
   @computed {
     isIconOnly: iconOnly != ""
@@ -245,6 +249,9 @@ component Button(
     // prop's note on iOS.
     clipOverflow: truncate ? "hidden" : ""
     labelEllipsis: truncate ? "ellipsis" : ""
+
+    // null removes the attribute; "" would set data-testid="".
+    testIdAttr: testId != "" ? testId : null
   }
 
   // NOTE: Conditional rendering uses `visibility:` on always-emitted nodes
@@ -270,6 +277,7 @@ component Button(
     aria-label: accessibleName
     aria-pressed: ariaPressed
     aria-expanded: ariaExpanded
+    data-testid: testIdAttr
     // `justify:` takes an expression (ast-to-ir.ts `buildMappedAlignment`),
     // which lowers to a bindStyle carrying Spec's word→CSS table inline — so
     // "start" reaches the element as `flex-start` and "between" as
