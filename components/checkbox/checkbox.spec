@@ -28,7 +28,11 @@ component Checkbox(
   checked: boolean = false,
   disabled: boolean = false,
   size: string = "md",
-  ariaLabel: text = ""
+  ariaLabel: text = "",
+  // `data-testid` on the root element, for an end-to-end test to find this
+  // one control by (Vector #24). Empty, the default, emits no attribute, so
+  // every caller that never passed one renders exactly as before.
+  testId: string = ""
 ) {
   @computed {
     isSm:      size == "sm"
@@ -44,6 +48,8 @@ component Checkbox(
     // empty name it gets today; naming it is the caller's job, and this is the
     // prop that finally lets them.
     accessibleName: ariaLabel != "" ? ariaLabel : label
+    // null removes the attribute; "" would set data-testid="".
+    testIdAttr: testId != "" ? testId : null
   }
   button {
     disabled: disabled
@@ -54,6 +60,7 @@ component Checkbox(
     aria-label: accessibleName
     aria-checked: checked
     aria-disabled: disabled
+    data-testid: testIdAttr
     layout: horizontal, gap: rowGap, align: center
     opacity: match disabled {
       true -> 0.5,
