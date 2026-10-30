@@ -105,12 +105,11 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     valueISO: value != "" ? toISODate(value, format) : ""
     displayValue: value != "" ? value : ""
     // The letters a date-entry mask shows, in the build's language (es: A for
-    // año). Declared before placeholderText and the seg*Label masks that read
-    // them — computeds evaluate in order.
+    // año). Declared before the seg*Label masks that read them — computeds
+    // evaluate in order.
     maskY: calendarMaskLetter('Y')
     maskM: calendarMaskLetter('M')
     maskD: calendarMaskLetter('D')
-    placeholderText: placeholder != "" ? placeholder : regexReplace(regexReplace(regexReplace(format, 'Y', maskY), 'M', maskM), 'D', maskD)
     daysInCurrentMonth: daysInMonth(viewYear, viewMonth)
     monthNames: calendarMonths('long')
     calendarCells: calendarGrid(viewYear, viewMonth)
@@ -152,6 +151,12 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     seg0Text: activeSegment == 0 && digitBuffer != "" ? digitBuffer : seg0Label
     seg1Text: activeSegment == 1 && digitBuffer != "" ? digitBuffer : seg1Label
     seg2Text: activeSegment == 2 && digitBuffer != "" ? digitBuffer : seg2Label
+    // An empty field the user is not typing into shows the caller's
+    // placeholder in place of the three masks. The prop was declared and never
+    // drawn, so every 'Pick a date…' a caller wrote was dead copy (Vector
+    // bwoody77/vector#3435). Focus arms the segments (`editing`), which brings
+    // the mask back for entry; no placeholder keeps the mask as before.
+    showPlaceholder: placeholder != "" && value == "" && editing == false
   }
 
   @watch {
@@ -776,8 +781,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
           }
         }
 
-        // Segmented date display (when editing segments)
+        // Segmented date display (when editing segments, or when there is no
+        // placeholder to show)
         block {
+          visibility: !showPlaceholder
           layout: horizontal, align: center, gap: 0px
 
           // Segment 0 — tabindex:"-1" removes it from the tab order so Tab
@@ -823,6 +830,28 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               style: type.body-md
               color: activeSegment == 2 ? semantic.surface : (mask2 ? semantic.text-tertiary : semantic.text-primary)
             }
+          }
+        }
+
+        // The placeholder, while the field is empty and not being typed into.
+        // A click on it does what a click on the first segment does: on web,
+        // focus has already armed the segments; where no keyboard reaches them
+        // (Android) focusSegment opens the calendar. truncate: 1 ends a long
+        // placeholder in "…" in a narrow field rather than running it under
+        // the calendar button. tabindex "-1", as on the segments: the field
+        // around it stays the one tab stop. It sits AFTER the segments so the
+        // first tabindex "-1" node in the field is still segment 0, which
+        // consumer tests click to start typing.
+        block {
+          visibility: showPlaceholder
+          padding-x: 2px
+          cursor: "text"
+          tabindex: "-1"
+          on click: focusSegment(0)
+          text(placeholder) {
+            style: type.body-md
+            color: semantic.text-tertiary
+            truncate: 1
           }
         }
       }
