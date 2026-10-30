@@ -1,0 +1,14 @@
+{
+  "Clear": {
+    "value": "Borrar",
+    "draft": true
+  },
+  "No matches for {query}": {
+    "value": "No hay coincidencias para {query}",
+    "draft": true
+  },
+  "Type to search…": {
+    "value": "Escriba para buscar…",
+    "draft": true
+  }
+}

@@ -113,7 +113,12 @@ component Autocomplete(
   highlight: string = "",
   // Supplied by the compiler from the adjacent visible label; forwarded
   // to the wrapped TextInput, which is the element that needs the name.
-  ariaLabel: text = ""
+  ariaLabel: text = "",
+  // `data-testid` on the root element, for an end-to-end test to find this
+  // one field by (Vector #24). Empty, the default, emits no attribute, so
+  // every caller that never passed one renders exactly as before. Not
+  // forwarded to the wrapped TextInput: one id names one element.
+  testId: string = ""
 ) {
   @state {
     query: ""
@@ -132,6 +137,8 @@ component Autocomplete(
 
   @computed {
     safeOptions:    options != null ? options : []
+    // null removes the attribute; "" would set data-testid="".
+    testIdAttr:     testId != "" ? testId : null
     selectedOption: safeOptions |> find(o => o.value == value)
     selectedLabel:  selectedOption != null ? selectedOption.label : ""
 
@@ -382,6 +389,7 @@ component Autocomplete(
 
   block {
     layout: vertical, gap: spacing.1
+    data-testid: testIdAttr
     opacity: match disabled { true -> 0.5, _ -> 1 }
 
     // Input row — listens for arrow / Enter / Escape via key-down
