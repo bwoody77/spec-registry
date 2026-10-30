@@ -1,0 +1,26 @@
+{
+  "Clear all": {
+    "value": "Borrar todo",
+    "draft": true
+  },
+  "Multi-select": {
+    "value": "Selección múltiple",
+    "draft": true
+  },
+  "No options": {
+    "value": "No hay opciones",
+    "draft": true
+  },
+  "Search...": {
+    "value": "Buscar...",
+    "draft": true
+  },
+  "Select all": {
+    "value": "Seleccionar todo",
+    "draft": true
+  },
+  "Select...": {
+    "value": "Seleccionar...",
+    "draft": true
+  }
+}
