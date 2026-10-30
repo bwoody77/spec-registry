@@ -8,7 +8,10 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
 // visible label is somewhere the compiler can't see, or when the control needs
 // a longer name than the one on screen.
-component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: text = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: string = "field") {
+//
+// `testId` puts `data-testid` on the root element, for an end-to-end test to
+// find this one field by (Vector #24). Empty, the default, emits no attribute.
+component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: text = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: string = "field", testId: string = "") {
   @state {
     open: false
     query: ""
@@ -25,6 +28,9 @@ component Select(options: array = [], value: string = "", highlight: string = ""
   }
 
   @computed {
+    // null removes the attribute; "" would set data-testid="".
+    testIdAttr: testId != "" ? testId : null
+
     // ── The error, said as well as painted (Vector #989) ─────────────────────
     //
     // TextInput's pattern (Vector #874, #987), and its comments say why. The
@@ -213,6 +219,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
 
   block {
     layout: vertical, gap: spacing.1
+    data-testid: testIdAttr
 
     // Label
     block {
