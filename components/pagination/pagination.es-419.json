@@ -1,0 +1,14 @@
+{
+  "Pagination": {
+    "value": "Paginación",
+    "draft": true
+  },
+  "Rows": {
+    "value": "Filas",
+    "draft": true
+  },
+  "{startItem}-{endItem} of {total}": {
+    "value": "{startItem}-{endItem} de {total}",
+    "draft": true
+  }
+}
