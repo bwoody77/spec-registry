@@ -1,0 +1,86 @@
+{
+  "Add a photo": {
+    "value": "Agregar una foto",
+    "draft": true
+  },
+  "Add a photo of {subjectName}": {
+    "value": "Agregar una foto de {subjectName}",
+    "draft": true
+  },
+  "Cancel": {
+    "value": "Cancelar",
+    "draft": true
+  },
+  "Close": {
+    "value": "Cerrar",
+    "draft": true
+  },
+  "Couldn't process that photo. Try uploading it again.": {
+    "value": "No se pudo procesar esa foto. Intente subirla de nuevo.",
+    "draft": true
+  },
+  "Delete": {
+    "value": "Eliminar",
+    "draft": true
+  },
+  "Delete photo": {
+    "value": "Eliminar foto",
+    "draft": true
+  },
+  "Delete this photo?": {
+    "value": "¿Eliminar esta foto?",
+    "draft": true
+  },
+  "Drag to move it. Scroll, pinch or use the slider to zoom.": {
+    "value": "Arrástrela para moverla. Desplácese, pellizque o use el control deslizante para acercar o alejar.",
+    "draft": true
+  },
+  "Edit your photo": {
+    "value": "Editar su foto",
+    "draft": true
+  },
+  "Edit {subjectName}'s photo": {
+    "value": "Editar la foto de {subjectName}",
+    "draft": true
+  },
+  "Keep photo": {
+    "value": "Conservar foto",
+    "draft": true
+  },
+  "Profile photo": {
+    "value": "Foto de perfil",
+    "draft": true
+  },
+  "Replace it to reframe.": {
+    "value": "Reemplácela para reencuadrarla.",
+    "draft": true
+  },
+  "Replace photo": {
+    "value": "Reemplazar foto",
+    "draft": true
+  },
+  "Save": {
+    "value": "Guardar",
+    "draft": true
+  },
+  "The placeholder icon will show instead.": {
+    "value": "Se mostrará el ícono de marcador de posición en su lugar.",
+    "draft": true
+  },
+  "This photo was saved before reframing was available.": {
+    "value": "Esta foto se guardó antes de que se pudiera reencuadrar.",
+    "draft": true
+  },
+  "Your initials will show instead.": {
+    "value": "En su lugar se mostrarán sus iniciales.",
+    "draft": true
+  },
+  "Zoom": {
+    "value": "Zoom",
+    "draft": true
+  },
+  "{subjectName}'s photo": {
+    "value": "Foto de {subjectName}",
+    "draft": true
+  }
+}
