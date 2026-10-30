@@ -1,0 +1,14 @@
+{
+  "Hr": {
+    "value": "Hora",
+    "draft": true
+  },
+  "Min": {
+    "value": "Min",
+    "draft": true
+  },
+  "Time picker": {
+    "value": "Selector de hora",
+    "draft": true
+  }
+}
