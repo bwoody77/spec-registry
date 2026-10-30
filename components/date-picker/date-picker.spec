@@ -157,6 +157,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // bwoody77/vector#3435). Focus arms the segments (`editing`), which brings
     // the mask back for entry; no placeholder keeps the mask as before.
     showPlaceholder: placeholder != "" && value == "" && editing == false
+    placeholderShown: showPlaceholder ? placeholder : ""
   }
 
   @watch {
@@ -841,14 +842,16 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         // the calendar button. tabindex "-1", as on the segments: the field
         // around it stays the one tab stop. It sits AFTER the segments so the
         // first tabindex "-1" node in the field is still segment 0, which
-        // consumer tests click to start typing.
+        // consumer tests click to start typing. The words are '' while hidden:
+        // text locators match hidden nodes, and a placeholder kept under a set
+        // date collided with any label or option that reads the same.
         block {
           visibility: showPlaceholder
           padding-x: 2px
           cursor: "text"
           tabindex: "-1"
           on click: focusSegment(0)
-          text(placeholder) {
+          text(placeholderShown) {
             style: type.body-md
             color: semantic.text-tertiary
             truncate: 1
