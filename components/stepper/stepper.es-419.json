@@ -1,0 +1,30 @@
+{
+  "Progress steps": {
+    "value": "Pasos del progreso",
+    "draft": true
+  },
+  "Step {stepNo} of {count}, {word}": {
+    "value": "Paso {stepNo} de {count}, {word}",
+    "draft": true
+  },
+  "completed": {
+    "value": "completado",
+    "draft": true
+  },
+  "current step": {
+    "value": "paso actual",
+    "draft": true
+  },
+  "incomplete": {
+    "value": "incompleto",
+    "draft": true
+  },
+  "not started": {
+    "value": "sin iniciar",
+    "draft": true
+  },
+  "skipped": {
+    "value": "omitido",
+    "draft": true
+  }
+}
