@@ -77,7 +77,11 @@ component TextInput(
   // the UA's 13.33px), and an author font-size on the control wins while it
   // has a value and falls back to that seed when it is '' (compiler,
   // block-font-size.test.ts) — which is what keeps sm and md as they were.
-  size: string = "md"
+  size: string = "md",
+  // `data-testid` on the root element, for an end-to-end test to find this
+  // one field by (Vector #24). Empty, the default, emits no attribute, so
+  // every caller that never passed one renders exactly as before.
+  testId: string = ""
 ) {
   @state {
     focused: false
@@ -118,6 +122,7 @@ component TextInput(
     // of one. The one-line input only: the textArea primitive takes no
     // `autocomplete`, and Chrome never reads a textarea as a username.
     autocompleteAttr: autocomplete != "" ? autocomplete : null
+    testIdAttr: testId != "" ? testId : null
 
     // ── The error, said as well as painted (Vector #874) ─────────────────────
     //
@@ -269,6 +274,7 @@ component TextInput(
 
   block {
     layout: vertical, gap: 6px
+    data-testid: testIdAttr
     opacity: match disabled { true -> 0.5, _ -> 1 }
 
     // Label
