@@ -1,0 +1,22 @@
+{
+  "Checking…": {
+    "value": "Verificando…",
+    "draft": true
+  },
+  "Offline": {
+    "value": "Sin conexión",
+    "draft": true
+  },
+  "Synced": {
+    "value": "Sincronizado",
+    "draft": true
+  },
+  "{held} held": {
+    "value": "{held} retenidos",
+    "draft": true
+  },
+  "{pending} waiting": {
+    "value": "{pending} en espera",
+    "draft": true
+  }
+}
