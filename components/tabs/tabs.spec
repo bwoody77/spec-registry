@@ -133,8 +133,14 @@ fn _tabCells(items: array) -> array {
 // default padding it stands 39px tall beside 32px dropdowns — measured on cf's
 // deals toolbar against its own mockup, which draws the segment at 28px. Same
 // prop, same two values, as Select and Button.
+//
+// ariaLabel — the tablist's accessible name, e.g. Vector's Scan a Record names
+// its one-tab-per-piece strip "Documents in this scan" (bwoody77/vector#3602).
+// Empty (the default) writes no aria-label at all, so a strip that passes none
+// renders exactly as before.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
-               countTone: string = "state", size: string = "md", labelScale: string = "") {
+               countTone: string = "state", size: string = "md", labelScale: string = "",
+               ariaLabel: string = "") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
@@ -258,6 +264,7 @@ component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", ov
     // role=tablist pairs with role=tab on each item, so assistive tech
     // announces "tab 2 of 5" instead of reading five unrelated buttons.
     role: "tablist"
+    aria-label: ariaLabel != "" ? ariaLabel : null
     // Keydown is bound on the STRIP, not each tab — the event bubbles from
     // whichever tab has focus, so one handler covers them all. `match event.key`
     // also makes the compiler preventDefault the matched keys, which stops
