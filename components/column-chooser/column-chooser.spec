@@ -257,7 +257,9 @@ component ColumnChooser(
   block {
     inline: true
 
-    Popover(placement: "bottom") {
+    // lazy: the panel (a row per column) is built on the first open, not on
+    // every grid's mount.
+    Popover(placement: "bottom", lazy: true) {
       slot("trigger") {
         // The block exists for `data-colchooser-trigger`: a stable hook for
         // tests and automation, scoped to this instance. Matching the button by
@@ -295,7 +297,7 @@ component ColumnChooser(
           }
 
           // The list. `data-colchooser-list` is what the wire polls for — the
-          // panel is mounted by the Popover only while it is open, so the wire
+          // lazy Popover builds the panel on its first open, so the wire
           // cannot find it at mount and watches for it instead.
           block {
             data-colchooser-list: _id
