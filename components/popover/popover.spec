@@ -16,6 +16,13 @@
 // on the trigger, not on <body>. The DOM half is anchored-menu.js; on iOS and
 // Android its stand-ins answer null, which reads as "stay open".
 //
+// `lazy: true` builds the content the first time the popover opens instead of
+// at mount (Vector #3603: a closed DataGrid column chooser was 391 of the 786
+// hidden elements on /fleet). Once built it stays, hidden while closed, so its
+// state survives a close. Positioning still lands right: the panel's
+// ResizeObserver re-places it when the content arrives after the open.
+// Default false, because a caller may read its closed content from the DOM.
+//
 // Caveat: if any ancestor of the trigger has a non-`none` `transform`,
 // `filter`, or `perspective`, browsers re-root the panel's `position:fixed`
 // against that ancestor (CSS Transforms spec). Audit ancestors if the panel
@@ -23,9 +30,15 @@
 
 @extern { menuFocusLeft, menuFocusTrigger } from "@spec/components/anchored-menu.js"
 
-component Popover(placement: string = "bottom", closeOnContentClick: boolean = false) {
+component Popover(placement: string = "bottom", closeOnContentClick: boolean = false, lazy: boolean = false) {
   @state {
     open: false
+  }
+
+  @computed {
+    // True from the first open on (a match arm is keep-alive), or always when
+    // the caller wants the content built at mount.
+    contentLive: open || lazy == false
   }
 
   @actions {
@@ -93,7 +106,10 @@ component Popover(placement: string = "bottom", closeOnContentClick: boolean = f
       layout: vertical, gap: spacing.2
       on click: closeOnContentClick ? close() : {}
 
-      @slot("content")
+      match contentLive {
+        true -> { @slot("content") }
+        _ -> {}
+      }
     }
 
     // Outside-click backdrop — a fixed-position fullscreen sibling sitting
