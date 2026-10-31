@@ -140,7 +140,7 @@ fn _tabCells(items: array) -> array {
 // renders exactly as before.
 component Tabs(tabs: array, activeTab: string = "", variant: string = "pill", overflow: string = "wrap",
                countTone: string = "state", size: string = "md", labelScale: string = "",
-               ariaLabel: string = "") {
+               ariaLabel: text = "") {
   @state {
     // Which tab currently holds DOM focus. Empty until the user actually moves
     // focus into the strip — otherwise `focus:` would steal focus on mount.
