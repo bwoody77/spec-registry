@@ -94,13 +94,14 @@ component FormField(
   // number here could stay heavier than the theme meant, and a consumer's
   // weight guard could not read it through the prop.
   //
-  // Wins over `labelStyle` and `labelWeight`. '' (the default) keeps the
-  // label as it always was: `labelStyle` (or the field-labelStyle token) at
-  // `labelWeight`, so every call site that does not pass it is untouched.
+  // Wins over `labelStyle` and `labelWeight`. '' (the default) draws the
+  // label as `labelStyle` (or the field-labelStyle token) at `labelWeight`.
   labelLevel:   string  = '',
   // The weight of a label with no `labelLevel`. Prefer `labelLevel`: a
-  // number here is the one weight the theme cannot move.
-  labelWeight:  number  = 700,
+  // number here is the one weight the theme cannot move. 600 since forms
+  // 0.12.0 (Vector #4001), label-sm-strong's weight, so a FormField label
+  // matches the other labels on its form; it was 700 before.
+  labelWeight:  number  = 600,
   labelSpacing: string  = '0.06em',
   labelTone:    "tertiary" | "secondary" | "primary" = 'tertiary',
   labelColor:   string  = '',
