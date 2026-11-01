@@ -69,8 +69,7 @@ component ColorPicker(value: string = "#1684ff", name: string = "color") {
 
       text(localColor) {
         color: semantic.text-secondary
-        weight: 600
-        style: type.label-sm
+        style: type.label-sm-strong
         grow: true
       }
       Icon(name: 'palette', size: 14, color: semantic.text-tertiary)
