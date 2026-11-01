@@ -69,12 +69,11 @@ component ActionSheet(
             }
 
             text(action.label) {
-              style: type.body
+              style: type.body-md
               color: match action.destructive {
                 true -> "rgb(239, 68, 68)",
                 _ -> semantic.accent
               }
-              weight: 500
             }
           }
         }
@@ -93,9 +92,8 @@ component ActionSheet(
         }
 
         text("Cancel") {
-          style: type.body
+          style: type.body-md-strong
           color: semantic.accent
-          weight: 600
         }
       }
     }
