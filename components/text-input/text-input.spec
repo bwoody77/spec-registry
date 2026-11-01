@@ -441,9 +441,8 @@ component TextInput(
           _ -> "1px solid " + token.input-border
         }
         text(unit) {
-          style: type.body-sm
+          style: type.body-sm-strong
           color: semantic.text-tertiary
-          weight: 600
         }
       }
     }
