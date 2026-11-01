@@ -51,8 +51,7 @@ component FAB(
       text(label) {
         visibility: label != ""
         color: "white"
-        style: type.label
-        weight: 600
+        style: type.label-md-strong
       }
     }
   }
