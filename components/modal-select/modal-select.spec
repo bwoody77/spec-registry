@@ -245,8 +245,7 @@ component ModalSelect(
               grow: true
               min-width: 80px
               text(col.header) {
-                style: type.label-sm
-                weight: 600
+                style: type.label-sm-strong
                 color: semantic.text-secondary
                 text-transform: "uppercase"
                 letter-spacing: "0.05em"
@@ -360,9 +359,8 @@ component ModalSelect(
                   block {
                     aria-hidden: true
                     text("✓") {
-                      style: type.body-md
+                      style: type.body-md-strong
                       color: semantic.interactive
-                      weight: 600
                     }
                   }
                 }
