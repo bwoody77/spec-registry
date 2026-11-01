@@ -309,6 +309,7 @@ component FormField(
         _ -> {
           text(label) {
             color: effLabelColor
+            // weight-allow: labelWeight is FormField's public prop (600 default, forms 0.12.0); labelLevel is the theme-owned path
             weight: labelWeight
             style: effLabelStyle
             letter-spacing: labelSpacing
@@ -454,9 +455,9 @@ component FormErrorSummary(
     // around it (measured in Vector at its 1.125 scale on 2026-08-10: 12.6px
     // against 15.75px controls, only 1.35px above a per-field caption). The
     // weights carry the emphasis — the size should not also whisper.
-    text(title) { color: semantic.destructive-hover, weight: 700, style: type.body-md }
+    text(title) { color: semantic.destructive-hover, style: type.body-md-strong }
     each items as it, i {
-      text('• ' + it) { color: semantic.destructive-hover, weight: 500, style: type.body-md }
+      text('• ' + it) { color: semantic.destructive-hover, style: type.body-md }
     }
 
     button {
@@ -471,8 +472,7 @@ component FormErrorSummary(
 
       text(jumpLabel) {
         color: semantic.destructive-hover
-        weight: 700
-        style: type.body-md
+        style: type.body-md-strong
         text-decoration: 'underline'
       }
     }
