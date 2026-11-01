@@ -125,7 +125,6 @@ component Checkbox(
     // ToggleRow carries the identical two lines for the identical reason.
     text(label) {
       style: labelType
-      weight: 500
       color: semantic.text-secondary
       text-align: start
     }
