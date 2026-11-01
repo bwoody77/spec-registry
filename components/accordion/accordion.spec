@@ -41,7 +41,6 @@ component Accordion(items: array, multiple: boolean = false) {
 
           text(item.title) {
             style: type.body-md
-            weight: 500
             color: semantic.text-primary
             grow: true
           }
