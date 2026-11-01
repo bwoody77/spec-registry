@@ -37,7 +37,6 @@ component Badge(text: text, variant: string = "neutral", shape: string = "pill")
 
     text(text) {
       style: type.label-sm
-      weight: 500
       color: match variant {
         "info" -> token.badge-info-color,
         "success" -> token.badge-success-color,
