@@ -76,6 +76,12 @@ component Checkbox(
     // Single box — always present, style changes based on checked
     block {
       width: boxSize
+      // A flex item shrinks by default, and an empty box's min-content is 0,
+      // so beside a label long enough to wrap the row squeezed the box a few
+      // pixels narrower than its height: an oval, not a square (Vector
+      // I-3850). Spec has no flex-shrink; a min-width equal to the width is
+      // the same guarantee, and only the label gives way.
+      min-width: boxSize
       height: boxSize
       border-radius: token.checkbox-radius
       // checkbox-border is a COLOUR; compose it into a full shorthand, the way
