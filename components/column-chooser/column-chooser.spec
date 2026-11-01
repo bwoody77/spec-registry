@@ -85,8 +85,7 @@ component ColumnChooserRow(row: object) {
       visibility: isGroup
       grow: true
       text(row.label) {
-        style: type.label-sm
-        weight: 700
+        style: type.label-sm-strong
         color: semantic.text-secondary
         letter-spacing: '0.07em'
         text-transform: 'uppercase'
