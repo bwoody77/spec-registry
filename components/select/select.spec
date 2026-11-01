@@ -386,7 +386,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
           block {
             layout: horizontal, gap: spacing.1, align: center
             text("✕") { style: type.body-md, color: semantic.text-tertiary }
-            text(clearLabel) { style: type.body-md, color: semantic.text-tertiary, weight: 500 }
+            text(clearLabel) { style: type.body-md, color: semantic.text-tertiary }
           }
         }
 
@@ -411,9 +411,8 @@ component Select(options: array = [], value: string = "", highlight: string = ""
               padding: spacing.2
               cursor: "default"
               text(g._gFirst ? g._opt.group : "") {
-                style: type.label-sm
+                style: type.label-sm-strong
                 color: semantic.text-tertiary
-                weight: 700
                 letter-spacing: '0.06em'
               }
             }
@@ -440,7 +439,6 @@ component Select(options: array = [], value: string = "", highlight: string = ""
               text(g._opt.label) {
                 style: type.body-md
                 color: g._opt.value == value ? semantic.interactive : semantic.text-primary
-                weight: g._opt.value == value ? 500 : 400
               }
               // An option may carry `sub: string` (0.12.0): a second line
               // under its label, as an iOS menu item's subtitle.
