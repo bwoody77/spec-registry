@@ -87,6 +87,19 @@ component FormField(
   //
   // Defaults to 'default', so every existing call site is untouched.
   tone:         string  = 'default',
+  // The label's TYPE LEVEL, size and weight both (Vector #3996): a caller
+  // that wants a lighter or bolder label names a level, `type.label-sm-strong`
+  // for emphasis or `type.label-sm` for a quiet one, and the label draws at
+  // that level's own weight. The theme owns weight (Vector #3947), so a
+  // number here could stay heavier than the theme meant, and a consumer's
+  // weight guard could not read it through the prop.
+  //
+  // Wins over `labelStyle` and `labelWeight`. '' (the default) keeps the
+  // label as it always was: `labelStyle` (or the field-labelStyle token) at
+  // `labelWeight`, so every call site that does not pass it is untouched.
+  labelLevel:   string  = '',
+  // The weight of a label with no `labelLevel`. Prefer `labelLevel`: a
+  // number here is the one weight the theme cannot move.
   labelWeight:  number  = 700,
   labelSpacing: string  = '0.06em',
   labelTone:    "tertiary" | "secondary" | "primary" = 'tertiary',
@@ -185,6 +198,12 @@ component FormField(
     // every labelled call site rather than accept the default. A default every
     // adopter overrides is the wrong default.
     effLabelStyle: labelStyle != '' ? labelStyle : token.field-labelStyle
+    // Which label draws: the level's (no `weight:`, so the level's own weight
+    // shows) or the old one (labelStyle at labelWeight). A text's `weight:`
+    // cannot be switched off by a value (an empty weight inherits the parent's,
+    // not the level's), so the two are two texts in a `match`, and only the
+    // arm a call site picks is ever built.
+    lblLeveled: labelLevel != ''
     // A style value that varies is a NAMED computed, never an inline
     // expression on the property. Normalised to an explicit 'none' rather than
     // passed through, so the emitted declaration is always a valid
@@ -277,12 +296,24 @@ component FormField(
 
     block {
       visibility: label != ''
-      text(label) {
-        color: effLabelColor
-        weight: labelWeight
-        style: effLabelStyle
-        letter-spacing: labelSpacing
-        text-transform: effLabelTransform
+      match lblLeveled {
+        true -> {
+          text(label) {
+            color: effLabelColor
+            style: labelLevel
+            letter-spacing: labelSpacing
+            text-transform: effLabelTransform
+          }
+        },
+        _ -> {
+          text(label) {
+            color: effLabelColor
+            weight: labelWeight
+            style: effLabelStyle
+            letter-spacing: labelSpacing
+            text-transform: effLabelTransform
+          }
+        }
       }
     }
 
