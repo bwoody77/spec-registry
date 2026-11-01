@@ -96,7 +96,6 @@ component Toggle(label: text, checked: boolean = false, disabled: boolean = fals
       text(label) {
         visibility: hasLabel
         style: type.body-md
-        weight: 500
         color: semantic.text-secondary
         text-align: start
       }
@@ -163,7 +162,6 @@ component Toggle(label: text, checked: boolean = false, disabled: boolean = fals
         visibility: hasLabel
         grow: true
         style: type.body-md
-        weight: 500
         color: semantic.text-primary
         text-align: start
       }
