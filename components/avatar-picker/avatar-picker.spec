@@ -427,8 +427,7 @@ component AvatarPicker(
           layout: horizontal, justify: center, align: center
           text(initials) {
             color: "#ffffff"
-            weight: 700
-            style: type.body-md
+            style: type.body-md-strong
           }
         }
         // 0.10.0: a glyph for a subject that has no initials (an aircraft).
@@ -621,8 +620,7 @@ component AvatarPicker(
         padding-bottom: 4px
         text(cropError) {
           color: semantic.destructive
-          weight: 600
-          style: type.label-sm
+          style: type.label-sm-strong
         }
       }
 
@@ -650,8 +648,7 @@ component AvatarPicker(
 
             text("Replace photo") {
               color: semantic.text-secondary
-              weight: 600
-              style: type.label-sm
+              style: type.label-sm-strong
             }
           }
 
@@ -668,8 +665,7 @@ component AvatarPicker(
 
             text("Delete photo") {
               color: semantic.destructive
-              weight: 600
-              style: type.label-sm
+              style: type.label-sm-strong
             }
           }
         }
@@ -688,8 +684,7 @@ component AvatarPicker(
 
             text(closeLabel) {
               color: semantic.text-secondary
-              weight: 600
-              style: type.label-sm
+              style: type.label-sm-strong
             }
           }
 
@@ -705,8 +700,7 @@ component AvatarPicker(
 
             text("Save") {
               color: semantic.on-interactive
-              weight: 600
-              style: type.label-sm
+              style: type.label-sm-strong
             }
           }
         }
@@ -725,8 +719,7 @@ component AvatarPicker(
           layout: vertical, gap: 2px
           text("Delete this photo?") {
             color: semantic.text-primary
-            weight: 600
-            style: type.label-sm
+            style: type.label-sm-strong
           }
           text(deleteNote) {
             color: semantic.text-tertiary
@@ -748,8 +741,7 @@ component AvatarPicker(
 
             text("Keep photo") {
               color: semantic.text-secondary
-              weight: 600
-              style: type.label-sm
+              style: type.label-sm-strong
             }
           }
 
@@ -764,8 +756,7 @@ component AvatarPicker(
 
             text("Delete") {
               color: semantic.on-interactive
-              weight: 600
-              style: type.label-sm
+              style: type.label-sm-strong
             }
           }
         }
