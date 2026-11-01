@@ -72,9 +72,8 @@ component TreeNode(node: object, level: number = 1, expandedIds: array = [], sel
 
       // Label
       text(node.label) {
-        style: type.body-md
+        style: isSelected ? type.body-md-strong : type.body-md
         color: isSelected ? semantic.interactive : semantic.text-primary
-        weight: isSelected ? 600 : 400
         padding-left: spacing.1
       }
     }
