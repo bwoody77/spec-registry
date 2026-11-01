@@ -22,7 +22,7 @@ component Stat(label: text, value: string, trend: string = "", trendValue: strin
           layout: vertical, align: start
 
           text(label) { style: type.label-md, color: semantic.text-secondary, text-transform: "uppercase", letter-spacing: "0.05em" }
-          text(value) { style: type.label-lg, weight: 700, color: semantic.text-primary }
+          text(value) { style: type.label-lg-strong, color: semantic.text-primary }
 
           block {
             visibility: trend != ""
@@ -43,7 +43,7 @@ component Stat(label: text, value: string, trend: string = "", trendValue: strin
       }
       _ -> {
         text(label) { style: type.label-md, color: semantic.text-secondary, text-transform: "uppercase", letter-spacing: "0.05em" }
-        text(value) { style: type.label-lg, weight: 700, color: semantic.text-primary }
+        text(value) { style: type.label-lg-strong, color: semantic.text-primary }
 
         block {
           visibility: trend != ""
