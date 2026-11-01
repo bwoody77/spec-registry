@@ -16,8 +16,7 @@ component Table(columns: array, rows: array, striped: boolean = false) {
           grow: true
           min-width: 120px
           text(col.header) {
-            style: type.label-sm
-            weight: 600
+            style: type.label-sm-strong
             color: semantic.text-secondary
             text-transform: "uppercase"
             letter-spacing: "0.05em"
