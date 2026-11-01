@@ -50,7 +50,6 @@ component NavStack(
         grow: true
         style: type.heading-sm
         color: semantic.text-primary
-        weight: 600
       }
 
       // Right actions slot
