@@ -601,8 +601,7 @@ component EditableGrid(
                 layout: horizontal, gap: spacing.1, align: center
 
                 text(col._heading) {
-                  style: type.label-sm
-                  weight: 600
+                  style: type.label-sm-strong
                 }
                 text(sortState.find(s => s.key == col.key) != null ? (sortState.find(s => s.key == col.key).direction == "asc" ? "\u2191" : "\u2193") : "") {
                   style: type.caption
@@ -673,9 +672,8 @@ component EditableGrid(
                   block {
                     visibility: rowIdx == activeRow && colIdx == activeCol && editing == true && col.type == "select"
                     text(editValue) {
-                      style: type.body-sm
+                      style: type.body-sm-strong
                       color: semantic.interactive
-                      weight: 600
                     }
                   }
 
