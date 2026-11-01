@@ -429,7 +429,7 @@ component DateRangePicker(start: string = "", end: string = "",
       on click: toggle()
       text("📅") { style: type.body-md, color: semantic.text-tertiary }
       text(triggerText) {
-        style: type.body-sm, weight: 600, text-align: start
+        style: type.body-sm-strong, text-align: start
         color: hasValue ? semantic.text-primary : semantic.text-tertiary
       }
       text(triggerMeta) {
@@ -475,7 +475,7 @@ component DateRangePicker(start: string = "", end: string = "",
             cursor: "pointer"
             on hover { background: semantic.surface-raised }
             on click: applyPreset(p.start, p.end)
-            text(p.label) { style: type.body-sm, weight: 600, color: semantic.text-primary, text-align: start }
+            text(p.label) { style: type.body-sm-strong, color: semantic.text-primary, text-align: start }
             text(drpLabel(p.start, p.end)) { style: type.caption, color: semantic.text-tertiary, text-align: start }
           }
         }
@@ -502,7 +502,7 @@ component DateRangePicker(start: string = "", end: string = "",
               border-radius: radius.sm
               cursor: "pointer"
               on click: applyPreset(p.start, p.end)
-              text(p.label) { style: type.caption, weight: 600, color: semantic.text-primary }
+              text(p.label) { style: type.caption-strong, color: semantic.text-primary }
             }
           }
         }
@@ -530,7 +530,7 @@ component DateRangePicker(start: string = "", end: string = "",
                 on click: prevMonth()
                 text("◀") { style: type.body-md, color: semantic.interactive }
               }
-              text(leftTitle) { style: type.body-md, weight: 600, color: semantic.text-primary }
+              text(leftTitle) { style: type.body-md-strong, color: semantic.text-primary }
               button {
                 visibility: wide == false
                 border: "none"
@@ -594,8 +594,7 @@ component DateRangePicker(start: string = "", end: string = "",
                     on mouse-enter: hoverDay(cell.iso)
                     on click: pickDay(cell.iso)
                     text(cell.day + "") {
-                      style: type.body-sm
-                      weight: cell.today ? 700 : 400
+                      style: cell.today ? type.body-sm-strong : type.body-sm
                       color: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.surface : semantic.text-primary
                     }
                   }
@@ -614,7 +613,7 @@ component DateRangePicker(start: string = "", end: string = "",
             block {
               layout: horizontal, justify: between, align: center
               block { width: 32px }
-              text(rightTitle) { style: type.body-md, weight: 600, color: semantic.text-primary }
+              text(rightTitle) { style: type.body-md-strong, color: semantic.text-primary }
               button {
                 border: "none"
                 background: "transparent"
@@ -671,8 +670,7 @@ component DateRangePicker(start: string = "", end: string = "",
                     on mouse-enter: hoverDay(cell.iso)
                     on click: pickDay(cell.iso)
                     text(cell.day + "") {
-                      style: type.body-sm
-                      weight: cell.today ? 700 : 400
+                      style: cell.today ? type.body-sm-strong : type.body-sm
                       color: drpIn(cell.iso, span) && (cell.iso == span.lo || (cell.iso == span.hi && span.tentative == false)) ? semantic.surface : semantic.text-primary
                     }
                   }
@@ -767,7 +765,7 @@ component DateRangePicker(start: string = "", end: string = "",
               cursor: "pointer"
               on hover { background: semantic.interactive-hover }
               on click: apply()
-              text("Apply") { style: type.label-sm, weight: 600, color: semantic.surface }
+              text("Apply") { style: type.label-sm-strong, color: semantic.surface }
             }
           }
 
