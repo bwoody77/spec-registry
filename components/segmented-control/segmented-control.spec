@@ -78,7 +78,6 @@ component SegmentedControlItem(
   @computed {
     bg:          active ? semantic.surface : 'transparent'
     fg:          active ? semantic.text-primary : semantic.text-tertiary
-    labelWeight: active ? 600 : 500
     chipShadow:  active ? '0 1px 2px rgba(14,22,38,0.06), 0 0 0 1px rgba(14,22,38,0.06)' : 'none'
     itemCursor:  disabled ? 'default' : 'pointer'
     itemOpacity: disabled ? 0.5 : 1
@@ -104,8 +103,7 @@ component SegmentedControlItem(
 
     text(label) {
       color: fg
-      weight: labelWeight
-      style: type.body-sm
+      style: active ? type.body-sm-strong : type.body-sm
       white-space: 'nowrap'
     }
   }
