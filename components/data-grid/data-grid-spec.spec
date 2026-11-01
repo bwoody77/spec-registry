@@ -2129,7 +2129,7 @@ component DataGrid(
         padding-x: 12px
         cursor: 'pointer'
         on click: emit("selectAllMatchingChange", true)
-        text(allMatchingLabel) { style: type.label-sm, weight: 700, color: semantic.text-secondary }
+        text(allMatchingLabel) { style: type.label-sm-strong, color: semantic.text-secondary }
       }
     }
 
@@ -2255,8 +2255,7 @@ component DataGrid(
                   _ -> {
                     block {
                       text(seg._seg.label) {
-                        style: type.label-sm
-                        weight: 700
+                        style: type.label-sm-strong
                         color: semantic.text-secondary
                         text-transform: 'uppercase'
                         letter-spacing: '0.09em'
@@ -2324,8 +2323,7 @@ component DataGrid(
                                   layout: horizontal, gap: spacing.1, align: center
                                   on click: toggleSortCol(col._col.key)
                                   text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                                    style: type.label-sm
-                                    weight: 600
+                                    style: type.label-sm-strong
                                   }
                                   text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
                                     style: type.caption
@@ -2341,8 +2339,7 @@ component DataGrid(
                               block {
                                 layout: horizontal, gap: spacing.1, align: center
                                 text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                                  style: type.label-sm
-                                  weight: 600
+                                  style: type.label-sm-strong
                                 }
                               }
                             }
@@ -2405,8 +2402,7 @@ component DataGrid(
                   _ -> {
                     block {
                       text(seg._seg.label) {
-                        style: type.label-sm
-                        weight: 700
+                        style: type.label-sm-strong
                         color: semantic.text-secondary
                         text-transform: 'uppercase'
                         letter-spacing: '0.09em'
@@ -2474,8 +2470,7 @@ component DataGrid(
                                   layout: horizontal, gap: spacing.1, align: center
                                   on click: toggleSortCol(col._col.key)
                                   text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                                    style: type.label-sm
-                                    weight: 600
+                                    style: type.label-sm-strong
                                   }
                                   text(sortState.find(s => s.key == col._col.key) != null ? (sortState.find(s => s.key == col._col.key).direction == "asc" ? "↑" : "↓") : "") {
                                     style: type.caption
@@ -2491,8 +2486,7 @@ component DataGrid(
                               block {
                                 layout: horizontal, gap: spacing.1, align: center
                                 text(col._col.header != null ? col._col.header : (col._col.label != null ? col._col.label : col._col.key)) {
-                                  style: type.label-sm
-                                  weight: 600
+                                  style: type.label-sm-strong
                                 }
                               }
                             }
@@ -2587,8 +2581,7 @@ component DataGrid(
                     cursor: 'pointer'
                     on click: setFilter(col._col.key, "")
                     text("All") {
-                      style: type.body-sm
-                      weight: filterValueOf(col._col.key) == "" ? 700 : 400
+                      style: filterValueOf(col._col.key) == "" ? type.body-sm-strong : type.body-sm
                       color: filterValueOf(col._col.key) == "" ? semantic.interactive-text : semantic.text-primary
                     }
                   }
@@ -2603,8 +2596,7 @@ component DataGrid(
                       cursor: 'pointer'
                       on click: setFilter(col._col.key, opt.value)
                       text(opt.label) {
-                        style: type.body-sm
-                        weight: filterValueOf(col._col.key) == opt.value ? 700 : 400
+                        style: filterValueOf(col._col.key) == opt.value ? type.body-sm-strong : type.body-sm
                         color: filterValueOf(col._col.key) == opt.value ? semantic.interactive-text : semantic.text-primary
                       }
                     }
@@ -2865,8 +2857,7 @@ component DataGrid(
                       layout: horizontal, gap: spacing.1, align: center
                       white-space: 'nowrap'
                       text(row._groupLabel != null ? row._groupLabel : "") {
-                        style: type.label-sm
-                        weight: 700
+                        style: type.label-sm-strong
                         color: semantic.text-secondary
                       }
                       // Guarded: a row with no count must render nothing, not the
@@ -3041,8 +3032,7 @@ component DataGrid(
                       layout: horizontal, gap: spacing.1, align: center
                       white-space: 'nowrap'
                       text(row._groupLabel != null ? row._groupLabel : "") {
-                        style: type.label-sm
-                        weight: 700
+                        style: type.label-sm-strong
                         color: semantic.text-secondary
                       }
                       // Guarded: a row with no count must render nothing, not the
@@ -3290,7 +3280,7 @@ component DataGrid(
               cursor: 'pointer'
               data-grid-block-retry: "true"
               on click: retryFailedBlock(gridBlockOf(winStart, rowIdx, blockSize))
-              text('Retry') { style: type.label-sm, weight: 500, color: semantic.text-secondary }
+              text('Retry') { style: type.label-sm, color: semantic.text-secondary }
             }
           }
 
@@ -3383,7 +3373,7 @@ component DataGrid(
           padding-x: 16px
           cursor: 'pointer'
           on click: loadMore()
-          text('Load more') { style: type.body-md, weight: 500, color: semantic.text-secondary }
+          text('Load more') { style: type.body-md, color: semantic.text-secondary }
         }
       }
     }
@@ -3414,8 +3404,7 @@ component DataGrid(
       // The SUMMARY's count, not the held keys: in predicate mode those are
       // two very different numbers and the held one is meaningless.
       text(toString(selectionSummary.count) + " selected") {
-        weight: 700
-        style: type.label-sm
+        style: type.label-sm-strong
         color: semantic.text-secondary
       }
       // The way out. Without it, predicate mode was one-way: nothing anywhere
@@ -3434,7 +3423,7 @@ component DataGrid(
           padding-x: 8px
           cursor: 'pointer'
           on click: exitAllMatching()
-          text('Clear selection') { style: type.label-sm, weight: 500, color: semantic.text-secondary }
+          text('Clear selection') { style: type.label-sm, color: semantic.text-secondary }
         }
       }
       // TWO arguments since 1.3.0. `selectedSet` is unchanged and stays first,
@@ -3458,7 +3447,6 @@ component DataGrid(
       background: semantic.destructive-bg
       text(guardMsg) {
         style: type.body-sm
-        weight: 500
         color: semantic.destructive
       }
     }
