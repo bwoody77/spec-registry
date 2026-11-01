@@ -578,7 +578,6 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
                    : (variant == 'segmented' ? 'transparent' : semantic.surface-hover)
     fg:          active ? (variant == 'segmented' ? semantic.text-primary : semantic.interactive-hover) : semantic.text-secondary
     iconFg:      active ? (variant == 'segmented' ? semantic.text-primary : semantic.interactive-hover) : semantic.text-tertiary
-    labelWeight: variant == 'segmented' ? (active ? 600 : 500) : (active ? 700 : 600)
     // Count badge. toString guards a null (the badge is hidden then anyway, but
     // the computed still evaluates).
     countText: tab.count != null ? toString(tab.count) : ''
@@ -706,8 +705,7 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
       Icon(name: tab.icon, size: 14, color: iconFg)
     }
     text(tab.label) {
-      style: type.body-sm
-      weight: labelWeight
+      style: variant == 'segmented' ? (active ? type.body-sm-strong : type.body-sm) : type.body-sm-strong
       color: fg
       // Both are empty unless the caller asked for them — see the computeds.
       // No `max-width`: a cap is what made a label wrap in the first place, and
@@ -738,8 +736,7 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
       border-radius: '9px'
       background: countBg
       text(countText) {
-        style: type.label-xs
-        weight: 700
+        style: type.label-xs-strong
         color: countFg
       }
     }
