@@ -1,6 +1,6 @@
 [package]
 name = "spinner"
-version = "0.3.0"
+version = "0.4.0"
 category = "components"
 description = "Ring loading indicator with size and tone variants"
 license = "MIT"

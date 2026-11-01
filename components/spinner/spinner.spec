@@ -51,8 +51,7 @@ component Spinner(
     block {
       visibility: label != ""
       text(label) {
-        style: type.label-sm
-        weight: 600
+        style: type.label-sm-strong
         color: arcColor
       }
     }
