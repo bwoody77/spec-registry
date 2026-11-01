@@ -24,7 +24,6 @@ component LoadingBlock(
       visibility: label != ""
       text(label) {
         style: type.body-sm
-        weight: 500
         color: labelColor
       }
     }
