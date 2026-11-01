@@ -77,6 +77,6 @@ component SyncStatus(isOnline: boolean = true, pending: number = 0, held: number
       border-radius: 999px
       background: dotBg
     }
-    text(label) { color: pillFg, weight: 800, style: type.label-sm, letter-spacing: "0.02em" }
+    text(label) { color: pillFg, style: type.label-sm-strong, letter-spacing: "0.02em" }
   }
 }

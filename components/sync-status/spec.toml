@@ -1,6 +1,6 @@
 [package]
 name = "sync-status"
-version = "0.1.0"
+version = "0.2.0"
 category = "components"
 description = "Offline-sync pill: held, waiting, checking, offline or synced, with the priority ladder as the syncPillState fn"
 license = "MIT"
