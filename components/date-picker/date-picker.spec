@@ -928,7 +928,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               border-radius: radius.sm
               on hover { background: semantic.surface-raised }
               on click: openMonthView()
-              text(monthNames[viewMonth]) { style: type.body-md, weight: 600, color: semantic.text-primary }
+              text(monthNames[viewMonth]) { style: type.body-md-strong, color: semantic.text-primary }
             }
             button {
               border: "none"
@@ -939,7 +939,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               border-radius: radius.sm
               on hover { background: semantic.surface-raised }
               on click: openYearView()
-              text(viewYear + "") { style: type.body-md, weight: 600, color: semantic.text-primary }
+              text(viewYear + "") { style: type.body-md-strong, color: semantic.text-primary }
             }
           }
           button {
@@ -1091,7 +1091,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               on click: prevDecade()
               text("◀") { style: type.body-md, color: semantic.interactive }
             }
-            text(yearRangeLabel) { style: type.body-md, weight: 600, color: semantic.text-primary }
+            text(yearRangeLabel) { style: type.body-md-strong, color: semantic.text-primary }
             button {
               border: "none"
               background: "transparent"
