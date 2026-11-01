@@ -64,8 +64,7 @@ component Snackbar(
 
         text(actionLabel) {
           color: semantic.accent
-          style: type.label
-          weight: 600
+          style: type.label-md-strong
         }
       }
 
