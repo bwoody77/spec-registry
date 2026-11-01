@@ -427,7 +427,7 @@ component Autocomplete(
         cursor: "pointer"
         on click: clearSelection()
         on hover { background: semantic.surface-raised }
-        text("Clear") { style: type.label-sm, color: semantic.text-secondary, weight: 600 }
+        text("Clear") { style: type.label-sm-strong, color: semantic.text-secondary }
       }
 
       // The dropdown caret used to be a third block here, outside the field.
@@ -473,9 +473,8 @@ component Autocomplete(
             on click: pickOption(opt)
             on hover { background: token.select-optionHover }
             text(opt.label) {
-              style: type.body-md
+              style: idx == safeIndex ? type.body-md-strong : type.body-md
               color: idx == safeIndex ? semantic.interactive : semantic.text-primary
-              weight: idx == safeIndex ? 700 : 500
             }
           }
         }
