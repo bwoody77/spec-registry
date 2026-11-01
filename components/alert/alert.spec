@@ -156,11 +156,11 @@ component Alert(
 
       block {
         visibility: hasTitle
-        text(title) { color: alertFg, weight: 600, style: type.body-md }
+        text(title) { color: alertFg, style: type.body-md-strong }
       }
       block {
         visibility: hasMessage
-        text(message) { color: alertFg, weight: 500, style: type.body-md }
+        text(message) { color: alertFg, style: type.body-md }
       }
       // Renders after the message, inside the box, for a trailing action link
       // ("View aircraft status ›") or a short list of rows.
