@@ -41,8 +41,10 @@
 // at the far end) stays a single control that the whole row toggles, instead
 // of a tick plus a second tap target. Children must not be interactive.
 //
-// `tint` colors the on state (the check's fill, the chip's fill); empty keeps
-// the toggle tokens. `fullWidth` stretches a check or chip across its parent.
+// `tint` colors the on state (the switch's track, the check's fill, the
+// chip's fill); empty keeps the toggle tokens. The switch honors it since
+// 0.7.1 (Vector I-4311: a switch passed tint and still drew the token).
+// `fullWidth` stretches a check or chip across its parent.
 // Vector #1295.
 component Toggle(label: text, checked: boolean = false, disabled: boolean = false, ariaLabel: text = "", appearance: string = "switch", tint: string = "", fullWidth: boolean = false) {
   @computed {
@@ -55,6 +57,7 @@ component Toggle(label: text, checked: boolean = false, disabled: boolean = fals
     boxWidth: fullWidth ? "100%" : "auto"
     tickRing: checked ? ("1.5px solid " + onFill) : ("1.5px solid " + semantic.border-strong)
     tickFill: checked ? onFill : "transparent"
+    trackFill: checked ? onFill : token.toggle-trackBg
     chipBg: checked ? onFill : semantic.surface
     chipFg: checked ? token.toggle-thumbBg : semantic.text-secondary
     chipBorder: checked ? ("1.5px solid " + onFill) : ("1.5px solid " + semantic.border)
@@ -105,7 +108,7 @@ component Toggle(label: text, checked: boolean = false, disabled: boolean = fals
         width: 44px
         height: 24px
         border-radius: token.toggle-radius
-        background: match checked { true -> token.toggle-trackBgOn, _ -> token.toggle-trackBg }
+        background: trackFill
         transition: transition.interactive-full
         position: "relative"
 
