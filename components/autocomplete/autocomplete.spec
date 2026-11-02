@@ -50,6 +50,8 @@
 //   placeholder:  string             — empty-state placeholder.
 //   error:        boolean            — destructive-tinted border.
 //   freeText:     boolean            — see modes above. Default false.
+//   clearable:    boolean            — draw the Clear pill while something
+//                                       is selected. Default true.
 //
 // Events
 //   change(v):    in strict mode, fires with the picked option's `value`
@@ -106,6 +108,11 @@ component Autocomplete(
   disabled: boolean = false,
   freeText: boolean = false,
   openOnFocus: boolean = false,
+  // Draw the inline Clear pill while something is selected. False is for a
+  // field that saves on pick and must never be emptied by one click (Vector's
+  // charter trip "Billed to", I-4171): there a pill that does nothing reads
+  // as broken. The default keeps every existing caller's pill.
+  clearable: boolean = true,
   // The option value the panel opens on. Empty (the default) means "open on
   // the value, as Select does" — see openIndex. It exists for the case a bound
   // value cannot express: an EMPTY field that still knows roughly where the
@@ -416,9 +423,10 @@ component Autocomplete(
       }
 
       // Inline "Clear" pill — only visible when something's selected and
-      // the field isn't being edited. Tapping it clears the selection.
+      // the field isn't being edited (and the caller allows it, `clearable`).
+      // Tapping it clears the selection.
       block {
-        visibility: hasSelection && !disabled
+        visibility: clearable && hasSelection && !disabled
         padding-y: spacing.1
         padding-x: spacing.2
         border-radius: radius.sm
