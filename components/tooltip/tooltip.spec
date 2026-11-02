@@ -29,17 +29,44 @@ component Tooltip(text: text = "", placement: string = "top") {
       clearDelay("show")
       visible = false
     }
+    // Keyboard focus shows at once (no 300ms delay: the delay only filters
+    // accidental hovers, and a keyboard user has already committed).
+    // Bound to focus-in/focus-out (the BUBBLING variants), as HoverCard is:
+    // plain focus/blur never bubble, so a wrapper listener would only fire
+    // for the wrapper itself (which has no tabindex), never for the caller's
+    // button inside it (Vector #4220).
+    focusTip() {
+      clearDelay("show")
+      visible = true
+    }
+    // Escape hides an open tip without moving focus (WAI-ARIA tooltip).
+    // Only an OPEN tip swallows it, so an Escape meant for an enclosing
+    // dialog still reaches it once the tip is shut. An explicit key-down
+    // handler also keeps the compiler's Enter/Space redirect off this block.
+    escapeTip(event) {
+      if event.key == "Escape" {
+        if visible {
+          event.stopPropagation()
+          clearDelay("show")
+          visible = false
+        }
+      }
+    }
   }
 
   // Outer wrap groups trigger + bubble so `anchor:` on the bubble resolves
   // to the trigger as previous sibling. `inline: true` keeps Tooltip
   // composable next to inline siblings (the prior version did the same).
+  // Content that cannot take focus (an icon, a role=img pill) is still not
+  // reachable by Tab: the caller gives it a tabindex, or uses
+  // HoverCard(tapAndFocus).
   block {
     inline: true
     on mouse-enter: showTip()
     on mouse-leave: hideTip()
-    on focus: showTip()
-    on blur: hideTip()
+    on focus-in: focusTip()
+    on focus-out: hideTip()
+    on key-down(event): escapeTip(event)
 
     // Trigger — caller-supplied content
     block {
