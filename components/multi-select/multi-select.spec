@@ -28,6 +28,10 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
     safeSelected: selected != null ? selected : []
     filteredOptions: searchable && query != "" ? safeOptions.filter(o => o.label.toLowerCase().includes(query.toLowerCase())) : safeOptions
     selectedOptions: safeOptions.filter(o => safeSelected.includes(o.value))
+    // Values of the disabled options: the user cannot change their state.
+    lockedValues: safeOptions.filter(o => o.disabled == true).map(o => o.value)
+    lockedSelected: safeSelected.filter(v => lockedValues.includes(v))
+    removableSelected: safeSelected.filter(v => lockedValues.includes(v) == false)
     // Chips are capped by COUNT, not by rendered rows: the approved design
     // capped at two rendered rows, which needs post-layout measurement.
     // Spec has no such primitive; a CSS max-height would slice chips
@@ -99,7 +103,14 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
         open = true
       }
     }
+    // A disabled control changes nothing, and a disabled option keeps the
+    // state it has (0.9.0, Vector #4028): every action that writes `selected`
+    // checks both. Before, only selectAll read `option.disabled`, so a click
+    // on a greyed option toggled it and a locked control's chip × removed.
     toggleOption(val) {
+      if disabled == true || lockedValues.includes(val) {
+        return
+      }
       if selected.includes(val) {
         selected = selected.filter(v => v != val)
       } else {
@@ -108,11 +119,18 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
       emit("change", selected)
     }
     removeTag(val) {
+      if disabled == true || lockedValues.includes(val) {
+        return
+      }
       selected = selected.filter(v => v != val)
       emit("change", selected)
     }
     selectAll() {
-      selected = filteredOptions.filter(o => o.disabled != true).map(o => o.value)
+      if disabled == true {
+        return
+      }
+      // A selected disabled option stays; an unselected one is not added.
+      selected = lockedSelected.concat(filteredOptions.filter(o => o.disabled != true).map(o => o.value))
       emit("change", selected)
       // Bulk actions are intentional terminals — once the user picks "every"
       // or "none", they're done with the dropdown. Closing automatically
@@ -121,7 +139,10 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
       query = ""
     }
     clearAll() {
-      selected = []
+      if disabled == true {
+        return
+      }
+      selected = lockedSelected
       emit("change", selected)
       open = false
       query = ""
@@ -137,9 +158,10 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
       }
     }
     removeLastTag() {
-      if safeSelected.length > 0 {
-        selected = selected.slice(0, selected.length - 1)
-        emit("change", selected)
+      // Backspace removes the last value the user may remove, never a
+      // disabled option's.
+      if disabled == false && removableSelected.length > 0 {
+        removeTag(removableSelected[removableSelected.length - 1])
       }
     }
   }
@@ -249,7 +271,10 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
 
               text(opt.label) { style: type.label-sm, color: semantic.text-primary }
 
+              // No × on a disabled control or a disabled option: removeTag
+              // ignores both, so a × there would offer what it cannot do.
               block {
+                visibility: disabled == false && opt.disabled != true
                 cursor: "pointer"
                 on click(event): { event.stopPropagation() removeTag(opt.value) }
                 text("\u00D7") { style: type.label-sm, color: semantic.text-tertiary }
@@ -395,6 +420,7 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
                 // role="option" comes from the compiler; which rows are
                 // selected only this component knows.
                 aria-selected: safeSelected.includes(option.value)
+                aria-disabled: option.disabled == true
                 on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
                 on click: toggleOption(option.value)
 
@@ -542,6 +568,7 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
             }
             scroll-to: idx == highlightIndex
             aria-selected: safeSelected.includes(option.value)
+            aria-disabled: option.disabled == true
             on hover { background: option.disabled == true ? "transparent" : token.select-optionHover }
             on click: toggleOption(option.value)
 
