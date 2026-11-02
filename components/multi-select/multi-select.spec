@@ -32,6 +32,15 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
     lockedValues: safeOptions.filter(o => o.disabled == true).map(o => o.value)
     lockedSelected: safeSelected.filter(v => lockedValues.includes(v))
     removableSelected: safeSelected.filter(v => lockedValues.includes(v) == false)
+    // With a search typed, Select all and Clear all act on the rows the user
+    // can SEE (0.9.1, Vector #4031). They used to replace the whole selection,
+    // so every pick the search hid was dropped without a word.
+    isSearching: searchable && query != ""
+    visibleValues: filteredOptions.map(o => o.value)
+    // Visible enabled matches not yet picked: what Select all adds under a search.
+    addableVisible: filteredOptions.filter(o => o.disabled != true && safeSelected.includes(o.value) == false).map(o => o.value)
+    // Picks Clear all keeps under a search: hidden ones and disabled ones.
+    keptOnVisibleClear: safeSelected.filter(v => lockedValues.includes(v) || visibleValues.includes(v) == false)
     // Chips are capped by COUNT, not by rendered rows: the approved design
     // capped at two rendered rows, which needs post-layout measurement.
     // Spec has no such primitive; a CSS max-height would slice chips
@@ -130,7 +139,12 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
         return
       }
       // A selected disabled option stays; an unselected one is not added.
-      selected = lockedSelected.concat(filteredOptions.filter(o => o.disabled != true).map(o => o.value))
+      // Under a search: add the visible matches, keep every pick (hidden too).
+      if isSearching {
+        selected = safeSelected.concat(addableVisible)
+      } else {
+        selected = lockedSelected.concat(safeOptions.filter(o => o.disabled != true).map(o => o.value))
+      }
       emit("change", selected)
       // Bulk actions are intentional terminals — once the user picks "every"
       // or "none", they're done with the dropdown. Closing automatically
@@ -142,7 +156,12 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
       if disabled == true {
         return
       }
-      selected = lockedSelected
+      // Under a search: remove only the visible matches; hidden picks stay.
+      if isSearching {
+        selected = keptOnVisibleClear
+      } else {
+        selected = lockedSelected
+      }
       emit("change", selected)
       open = false
       query = ""
