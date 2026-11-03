@@ -277,11 +277,12 @@ component TextInput(
     data-testid: testIdAttr
     opacity: match disabled { true -> 0.5, _ -> 1 }
 
-    // Label
+    // Label: label-sm-strong, the level every field control's label draws at
+    // (Select, DatePicker, FormField …), so a form mixing them reads as one (Vector #4292)
     block {
       visibility: label != ""
       text(label) {
-        style: type.label-md
+        style: type.label-sm-strong
         color: semantic.text-secondary
       }
     }
