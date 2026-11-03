@@ -224,7 +224,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     // Label
     block {
       visibility: label != ""
-      text(label) { style: type.label-sm, color: semantic.text-secondary }
+      text(label) { style: type.label-sm-strong, color: semantic.text-secondary }
     }
 
     // Trigger button
