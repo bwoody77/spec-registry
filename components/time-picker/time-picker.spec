@@ -43,7 +43,7 @@ component TimePicker(value: string = "12:00", format: string = "24", minuteStep:
     // Label
     block {
       visibility: label != ""
-      text(label) { style: type.label-sm, color: semantic.text-secondary }
+      text(label) { style: type.label-sm-strong, color: semantic.text-secondary }
     }
 
     block {
