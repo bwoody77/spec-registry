@@ -272,8 +272,12 @@ component TextInput(
     }
   }
 
+  // The label sits spacing.1 (4px) above the box, the same as Select and
+  // DatePicker, so labels line up across a form mixing them (Vector #4295).
+  // No label: the label row is display:none, so the gap never applies. A
+  // shown error line sits the same 4px under the box, as Select's does.
   block {
-    layout: vertical, gap: 6px
+    layout: vertical, gap: spacing.1
     data-testid: testIdAttr
     opacity: match disabled { true -> 0.5, _ -> 1 }
 
