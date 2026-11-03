@@ -401,7 +401,7 @@ component DateRangePicker(start: string = "", end: string = "",
 
     block {
       visibility: label != ""
-      text(label) { style: type.label-sm, color: semantic.text-secondary }
+      text(label) { style: type.label-sm-strong, color: semantic.text-secondary }
     }
 
     // Trigger — styled to match DatePicker's field.
