@@ -102,8 +102,12 @@ component FormField(
   // 0.12.0 (Vector #4001), label-sm-strong's weight, so a FormField label
   // matches the other labels on its form; it was 700 before.
   labelWeight:  number  = 600,
-  labelSpacing: string  = '0.06em',
-  labelTone:    "tertiary" | "secondary" | "primary" = 'tertiary',
+  // Tone and tracking default to what TextInput, Select and DatePicker draw
+  // their labels in (text-secondary, no tracking), so a form mixing them
+  // reads as one (forms 0.13.1, Vector #4295; 'tertiary' and 0.06em before).
+  // 'tertiary' is still there for a caller that wants the quieter label.
+  labelSpacing: string  = 'normal',
+  labelTone:    "tertiary" | "secondary" | "primary" = 'secondary',
   labelColor:   string  = '',
   labelStyle:   string  = '',
   // PAINT ONLY — the visible label's `text-transform`.
@@ -116,7 +120,9 @@ component FormField(
   //
   // Defaults to 'none', so every existing call site is untouched.
   labelTransform: "none" | "uppercase" = 'none',
-  fieldGap:     string  = '6px'
+  // Label to box: 4px, spacing.1, the registry controls' gap (forms 0.13.1,
+  // Vector #4295; 6px before).
+  fieldGap:     string  = '4px'
 ) {
   @state {
     // The words a slotted control's caption says. The props reach it through
@@ -344,7 +350,7 @@ component FormField(
 
     // `@slot` emits its `[data-slot]` container unconditionally — an empty
     // `display:block` div is still a flex item, so on a field using the
-    // built-in input it cost a full `fieldGap` (6px) of dead space under
+    // built-in input it cost a full `fieldGap` (6px then) of dead space under
     // every field. Gating the container on the slot being filled makes the
     // wrapper `display:none`, which is not a flex item and generates no gap.
     //
