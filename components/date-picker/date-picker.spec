@@ -165,7 +165,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // intentionally does NOT close (see closeAfterPick) — closing in the same
     // action as emit() drops the picked date. This fires on the resulting value
     // change instead. Does not fire on mount, so it won't fight an open popup.
-    value: { closeAfterPick() }
+    value: { valueChanged() }
     // Both props: a watch on one reads its sibling's old value when the
     // caller changes both.
     error: { followError() }
@@ -638,6 +638,50 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         open = false
         refocusField = true
       }
+    }
+    valueChanged() {
+      closeAfterPick()
+      followValue()
+    }
+    // The host owns `value`, even while the field is being typed in (Vector
+    // I-4379). The segments are this picker's copy of the date during an
+    // edit, and blur commits them, so a host change they did not take used to
+    // be undone: a form reset or a Clear button that left focus here kept
+    // showing the old date, and blur sent it back, refilling the cleared
+    // field. Not editing, nothing is held: the field reads `value` itself.
+    //
+    // This picker never emits '', so an empty value always comes from the
+    // host. A date it emitted itself comes back equal to the segments and
+    // changes nothing (emit reaches the host synchronously, so no newer
+    // keystroke can be waiting in digitBuffer behind it).
+    followValue() {
+      if editing == false { return }
+      if value == "" {
+        // As activateSegments leaves an empty field: today's prefill, masked,
+        // nothing typed or pending, so blur has nothing to send. Typing
+        // starts again at the first segment.
+        let today = todayParts()
+        segYear = today.year
+        segMonth = today.month + 1
+        segDay = today.day
+        monthTyped = false
+        dayTyped = false
+        yearTyped = false
+        digitBuffer = ""
+        dirty = false
+        activeSegment = 0
+        return
+      }
+      let parsed = parseDateInput(value, format)
+      if parsed == null { return }
+      if segmentsComplete && parsed.year == segYear && parsed.month + 1 == segMonth && parsed.day == segDay { return }
+      segYear = parsed.year
+      segMonth = parsed.month + 1
+      segDay = parsed.day
+      monthTyped = true
+      dayTyped = true
+      yearTyped = true
+      digitBuffer = ""
     }
   }
 
