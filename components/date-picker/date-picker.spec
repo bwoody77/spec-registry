@@ -662,7 +662,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // Label
     block {
       visibility: label != ""
-      text(label) { style: type.label-sm, color: semantic.text-secondary }
+      text(label) { style: type.label-sm-strong, color: semantic.text-secondary }
     }
 
     // Trigger — styled to match TextInput.spec
