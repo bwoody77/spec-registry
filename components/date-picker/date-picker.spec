@@ -884,16 +884,25 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         // (Android) focusSegment opens the calendar. truncate: 1 ends a long
         // placeholder in "…" in a narrow field rather than running it under
         // the calendar button. tabindex "-1", as on the segments: the field
-        // around it stays the one tab stop. It sits AFTER the segments so the
-        // first tabindex "-1" node in the field is still segment 0, which
-        // consumer tests click to start typing. The words are '' while hidden:
-        // text locators match hidden nodes, and a placeholder kept under a set
-        // date collided with any label or option that reads the same.
+        // around it stays the one tab stop (a clickable block with none gets
+        // tabindex "0"). pointer-events "none" on the web (0.11.3, found by a
+        // Vector e2e on the Access tab): a press focuses the focusable node
+        // under it, which was this one, and it hides the moment focus arms the
+        // segments, so the browser moved focus to the page and every digit
+        // typed after a click on an empty field went nowhere. Now the press
+        // lands on the combobox around it, whose `on focus` arms the segments
+        // and keeps the keys. iOS and Android do not read pointer-events, so a
+        // tap there still runs focusSegment (Android: the calendar). It sits
+        // AFTER the segments so the first tabindex "-1" node in the field is
+        // still segment 0. The words are '' while hidden: text locators match
+        // hidden nodes, and a placeholder kept under a set date collided with
+        // any label or option that reads the same.
         block {
           visibility: showPlaceholder
           padding-x: 2px
           cursor: "text"
           tabindex: "-1"
+          pointer-events: "none"
           on click: focusSegment(0)
           text(placeholderShown) {
             style: type.body-md
