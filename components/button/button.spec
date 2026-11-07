@@ -18,6 +18,8 @@
 //   iconOnly       icon name; renders square button with label as aria-label
 //   ariaLabel      overrides the accessible name; the visible label is unchanged
 //   truncate       opt in: a label longer than the button's column ends in "…"
+//   fontSize       opt in: the label at a fixed size ('13px'), for an app whose
+//                  type scale is fixed (Vector #4819); '' reads the size's level
 //
 // PRESSED IS A PAINT UNTIL YOU SAY WHAT IT MEANS.
 //   `pressed` darkens the background and insets the shadow. That is all it did:
@@ -178,7 +180,16 @@ component Button(
   // `data-testid` on the root element, for an end-to-end test to find this
   // one control by (Vector #24). Empty, the default, emits no attribute, so
   // every caller that never passed one renders exactly as before.
-  testId:       string  = ""
+  testId:       string  = "",
+  // `fontSize` (Vector #4819): the label at a fixed size, for an app whose
+  // type scale is FIXED (Vector's shop phone app draws every text at a
+  // literal, ForeFlight style, so a 14.9px sm label sat beside its 13px row
+  // text). '' (the default) draws the size's level exactly as before. A size
+  // keeps the level's weight and line height and replaces only its size; on
+  // iOS it lowers to `.font(.system(size:))`, which Dynamic Type leaves alone.
+  // The label is two arms of a `match` (see labelArm), not one bound
+  // `font-size:`, because a `font-size:` bound to '' clears the level's size.
+  fontSize:     string  = ""
 ) {
   @computed {
     isIconOnly: iconOnly != ""
@@ -242,6 +253,20 @@ component Button(
     // the 13px row text and toolbar controls it sits beside. With the 10px
     // side padding above it draws about 26px tall (28px with an outline).
     labelStyle: size == "xs" ? type.label-sm : (size == "sm" ? type.button-sm : type.label-md)
+
+    // `fontSize`'s arm. It never changes at a call site, so one arm mounts.
+    labelArm: fontSize != "" ? "fixed" : "level"
+    // The label's color, one value for both arms.
+    labelColor: match variant {
+      "primary" -> semantic.on-interactive,
+      "secondary" -> semantic.text-primary,
+      "ghost" -> semantic.text-secondary,
+      "destructive" -> semantic.on-destructive,
+      "destructive-outline" -> semantic.destructive,
+      "warning" -> semantic.warning-text,
+      "link" -> semantic.interactive-text,
+      _ -> semantic.on-interactive
+    }
 
     btnWidth: fullWidth ? "100%" : "auto"
 
@@ -403,29 +428,46 @@ component Button(
       Icon(name: iconLeft, size: iconSize, color: iconColor)
     }
 
-    block {
-      visibility: !isIconOnly
-      layout: horizontal, align: center, justify: center
-      overflow: clipOverflow
+    // The label box, in two arms, one per `fontSize` (see the prop): a fixed
+    // size is a literal over the level, '' the level alone. The match wraps
+    // the whole box, so the label's parent is still the box that clips it
+    // (button-truncate.test.ts), and the arm's `display: contents` host keeps
+    // the box a flex item of the button.
+    match labelArm {
+      "fixed" -> {
+        block {
+          visibility: !isIconOnly
+          layout: horizontal, align: center, justify: center
+          overflow: clipOverflow
 
-      text(effectiveLabel) {
-        style: labelStyle
-        font-weight: token.btn-fontWeight
-        overflow: clipOverflow
-        text-overflow: labelEllipsis
-        // Button labels must never wrap to a second line — a button squeezed
-        // by a flex sibling should keep its width and let the sibling reflow,
-        // not break "Reload saved" across two lines.
-        white-space: 'nowrap'
-        color: match variant {
-          "primary" -> semantic.on-interactive,
-          "secondary" -> semantic.text-primary,
-          "ghost" -> semantic.text-secondary,
-          "destructive" -> semantic.on-destructive,
-          "destructive-outline" -> semantic.destructive,
-          "warning" -> semantic.warning-text,
-          "link" -> semantic.interactive-text,
-          _ -> semantic.on-interactive
+          text(effectiveLabel) {
+            style: labelStyle
+            font-size: fontSize
+            font-weight: token.btn-fontWeight
+            overflow: clipOverflow
+            text-overflow: labelEllipsis
+            white-space: 'nowrap'
+            color: labelColor
+          }
+        }
+      },
+      _ -> {
+        block {
+          visibility: !isIconOnly
+          layout: horizontal, align: center, justify: center
+          overflow: clipOverflow
+
+          text(effectiveLabel) {
+            style: labelStyle
+            font-weight: token.btn-fontWeight
+            overflow: clipOverflow
+            text-overflow: labelEllipsis
+            // Button labels must never wrap to a second line — a button squeezed
+            // by a flex sibling should keep its width and let the sibling reflow,
+            // not break "Reload saved" across two lines.
+            white-space: 'nowrap'
+            color: labelColor
+          }
         }
       }
     }
