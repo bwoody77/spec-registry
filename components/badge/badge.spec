@@ -13,7 +13,26 @@
 // The radius comes from `token.badge-square-radius` rather than a literal, for
 // the same reason the pill's comes from a token: an app that wants softer or
 // sharper corners overrides a token instead of forking the component.
-component Badge(text: text, variant: string = "neutral", shape: string = "pill") {
+//
+// `fontSize` (Vector #4819): the text at a fixed size ('11px'), for an app
+// whose type scale is FIXED (Vector's shop phone app: an 11.5px label-sm badge
+// sat beside 11px captions). '' (the default) draws type.label-sm as before. A
+// size keeps label-sm's weight and line height and replaces only its size; on
+// iOS it lowers to `.font(.system(size:))`, which Dynamic Type leaves alone.
+// Two arms of a `match`, because a `font-size:` bound to '' clears the
+// level's size. The arm never changes at a call site, so one arm mounts.
+component Badge(text: text, variant: string = "neutral", shape: string = "pill", fontSize: string = "") {
+  @computed {
+    badgeArm: fontSize != "" ? "fixed" : "level"
+    badgeColor: match variant {
+      "info" -> token.badge-info-color,
+      "success" -> token.badge-success-color,
+      "warning" -> token.badge-warning-color,
+      "error" -> token.badge-error-color,
+      "neutral" -> token.badge-neutral-color,
+      _ -> token.badge-neutral-color
+    }
+  }
   block {
     inline: true
     layout: horizontal, gap: 4px, align: center
@@ -35,15 +54,23 @@ component Badge(text: text, variant: string = "neutral", shape: string = "pill")
     }
     role: "status"
 
-    text(text) {
-      style: type.label-sm
-      color: match variant {
-        "info" -> token.badge-info-color,
-        "success" -> token.badge-success-color,
-        "warning" -> token.badge-warning-color,
-        "error" -> token.badge-error-color,
-        "neutral" -> token.badge-neutral-color,
-        _ -> token.badge-neutral-color
+    match badgeArm {
+      "fixed" -> {
+        // `weight` is label-sm's own 500, written out for iOS: there an
+        // authored size lowers to `.system(size:)`, which carries only an
+        // authored weight, not the level's.
+        text(text) {
+          style: type.label-sm
+          font-size: fontSize
+          weight: 500
+          color: badgeColor
+        }
+      },
+      _ -> {
+        text(text) {
+          style: type.label-sm
+          color: badgeColor
+        }
       }
     }
   }
