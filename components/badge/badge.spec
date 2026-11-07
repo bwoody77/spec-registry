@@ -17,8 +17,8 @@
 // `fontSize` (Vector #4819): the text at a fixed size ('11px'), for an app
 // whose type scale is FIXED (Vector's shop phone app: an 11.5px label-sm badge
 // sat beside 11px captions). '' (the default) draws type.label-sm as before. A
-// size keeps label-sm's weight and line height and replaces only its size; on
-// iOS it lowers to `.font(.system(size:))`, which Dynamic Type leaves alone.
+// size keeps label-sm's weight and line height and replaces only its size. iOS
+// lowers Badge natively (ir-to-swift-ui), as `.system(size:, weight: .medium)`.
 // Two arms of a `match`, because a `font-size:` bound to '' clears the
 // level's size. The arm never changes at a call site, so one arm mounts.
 component Badge(text: text, variant: string = "neutral", shape: string = "pill", fontSize: string = "") {
@@ -56,13 +56,9 @@ component Badge(text: text, variant: string = "neutral", shape: string = "pill",
 
     match badgeArm {
       "fixed" -> {
-        // `weight` is label-sm's own 500, written out for iOS: there an
-        // authored size lowers to `.system(size:)`, which carries only an
-        // authored weight, not the level's.
         text(text) {
           style: type.label-sm
           font-size: fontSize
-          weight: 500
           color: badgeColor
         }
       },
