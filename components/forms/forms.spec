@@ -94,14 +94,12 @@ component FormField(
   // number here could stay heavier than the theme meant, and a consumer's
   // weight guard could not read it through the prop.
   //
-  // Wins over `labelStyle` and `labelWeight`. '' (the default) draws the
-  // label as `labelStyle` (or the field-labelStyle token) at `labelWeight`.
+  // Wins over `labelStyle`. '' (the default) draws the label at `labelStyle`,
+  // else the field-labelStyle token, each at its level's own weight. There is
+  // no weight prop (forms 0.14.0, Vector #4742; `labelWeight` before): the
+  // token ships as label-sm-strong, 600, so a FormField label matches the
+  // CappedTextarea and FieldLabel labels on its form (Vector #4001).
   labelLevel:   string  = '',
-  // The weight of a label with no `labelLevel`. Prefer `labelLevel`: a
-  // number here is the one weight the theme cannot move. 600 since forms
-  // 0.12.0 (Vector #4001), label-sm-strong's weight, so a FormField label
-  // matches the other labels on its form; it was 700 before.
-  labelWeight:  number  = 600,
   // Tone and tracking default to what TextInput, Select and DatePicker draw
   // their labels in (text-secondary, no tracking), so a form mixing them
   // reads as one (forms 0.13.1, Vector #4295; 'tertiary' and 0.06em before).
@@ -204,13 +202,10 @@ component FormField(
     // label 11.2px → 10px on a pure rename; and cf overrides `labelStyle` at
     // every labelled call site rather than accept the default. A default every
     // adopter overrides is the wrong default.
-    effLabelStyle: labelStyle != '' ? labelStyle : token.field-labelStyle
-    // Which label draws: the level's (no `weight:`, so the level's own weight
-    // shows) or the old one (labelStyle at labelWeight). A text's `weight:`
-    // cannot be switched off by a value (an empty weight inherits the parent's,
-    // not the level's), so the two are two texts in a `match`, and only the
-    // arm a call site picks is ever built.
-    lblLeveled: labelLevel != ''
+    // `labelLevel` outranks both. The label text writes no `weight:`, so the
+    // chosen level's own weight shows and the theme owns it.
+    effLabelStyle: labelLevel != '' ? labelLevel
+                 : (labelStyle != '' ? labelStyle : token.field-labelStyle)
     // A style value that varies is a NAMED computed, never an inline
     // expression on the property. Normalised to an explicit 'none' rather than
     // passed through, so the emitted declaration is always a valid
@@ -303,25 +298,11 @@ component FormField(
 
     block {
       visibility: label != ''
-      match lblLeveled {
-        true -> {
-          text(label) {
-            color: effLabelColor
-            style: labelLevel
-            letter-spacing: labelSpacing
-            text-transform: effLabelTransform
-          }
-        },
-        _ -> {
-          text(label) {
-            color: effLabelColor
-            // weight-allow: labelWeight is FormField's public prop (600 default, forms 0.12.0); labelLevel is the theme-owned path
-            weight: labelWeight
-            style: effLabelStyle
-            letter-spacing: labelSpacing
-            text-transform: effLabelTransform
-          }
-        }
+      text(label) {
+        color: effLabelColor
+        style: effLabelStyle
+        letter-spacing: labelSpacing
+        text-transform: effLabelTransform
       }
     }
 
