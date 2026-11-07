@@ -4,7 +4,7 @@
 //   label          text label (or aria-label when iconOnly is set)
 //   variant        primary | secondary | ghost | destructive | destructive-outline
 //                  | link | warning
-//   size           sm | md | lg
+//   size           xs | sm | md | lg (sm: a 13px label, Vector #4714)
 //   shape          rect | pill
 //   disabled       disables interaction
 //   loading        busy: a small spinner before the label, dimmed, disabled
@@ -200,7 +200,9 @@ component Button(
     ariaPressed: (toggle && !disclosure) ? pressed : null
     ariaExpanded: disclosure ? pressed : null
 
-    iconSize: size == "sm" ? 14 : (size == "lg" ? 20 : 16)
+    // xs takes 12px beside its 11.5px label; it fell to md's 16 when only sm
+    // and lg were named, so an xs icon was bigger than an sm one (Vector #4714).
+    iconSize: size == "xs" ? 12 : (size == "sm" ? 14 : (size == "lg" ? 20 : 16))
 
     iconColor:
       variant == "primary"     ? semantic.on-interactive :
@@ -223,7 +225,7 @@ component Button(
     padX:
       variant == "link" ? 0 :
       (isIconOnly ? (size == "xs" ? spacing.1 : (size == "sm" ? spacing.1 : (size == "lg" ? spacing.3 : spacing.2))) :
-       (size == "xs" ? spacing.1 : (size == "sm" ? spacing.2 : (size == "lg" ? spacing.6 : token.btn-paddingH))))
+       (size == "xs" ? spacing.1 : (size == "sm" ? 10px : (size == "lg" ? spacing.6 : token.btn-paddingH))))
 
     padY:
       variant == "link" ? 0 :
@@ -234,10 +236,12 @@ component Button(
     // `'1px solid ' + semantic.border`).
     outlineBorder: "1px solid " + semantic.destructive
 
-    // The label style, which used to be type.label-md unconditionally.
-    // Only "xs" reads anything else, so sm/md/lg are byte-identical to what
-    // they rendered before.
-    labelStyle: size == "xs" ? type.label-sm : type.label-md
+    // The label style. md and lg read type.label-md, xs type.label-sm. sm reads
+    // the Button-only type.button-sm (13px on a 14px base, weight 500, line
+    // height 1.4; Vector #4714): at label-md its 14px label was LARGER than
+    // the 13px row text and toolbar controls it sits beside. With the 10px
+    // side padding above it draws about 26px tall (28px with an outline).
+    labelStyle: size == "xs" ? type.label-sm : (size == "sm" ? type.button-sm : type.label-md)
 
     btnWidth: fullWidth ? "100%" : "auto"
 
