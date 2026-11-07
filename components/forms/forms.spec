@@ -191,10 +191,13 @@ component FormField(
     // space is the prop's: a type-scale level name, never a CSS length. The
     // explicit prop still wins, so a single odd field stays a one-line override.
     //
-    // The token ships as 'label-sm', which is what this line hardcoded before —
-    // adopting it changes nothing until an app overrides it.
+    // The token ships as 'label-sm-strong': label-sm's size at the heavier
+    // 600 weight, the size and weight this label drew at before the token
+    // (label-sm through the old `labelWeight` prop's 600 default, which forms
+    // 0.14.0 removed, Vector #4742). Adopting it changes nothing until an app
+    // overrides it; 'label-sm' is the quieter 500 label.
     //
-    // label-sm, not label-xs. `label-xs` is floor-clamped at 10px, so an
+    // label-sm's size, not label-xs. `label-xs` is floor-clamped at 10px, so an
     // unstyled field label rendered at or below the CAPTION tier — a field's
     // name no larger than its own footnote. Two signals, not one opinion:
     // Vector's LabeledField (the ~95 call sites this component replaces)
