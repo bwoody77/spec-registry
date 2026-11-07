@@ -78,6 +78,15 @@ component TextInput(
   // has a value and falls back to that seed when it is '' (compiler,
   // block-font-size.test.ts) — which is what keeps sm and md as they were.
   size: string = "md",
+  // `fontSize` (Vector #4819): the input's text, and so its placeholder, at a
+  // fixed size ('13px'), for an app whose type scale is FIXED (Vector's shop
+  // phone app: a 16px search box sat in a card of 13px text). '' (the
+  // default) leaves the size's own text: the body-md seed, or lg's 24px. It
+  // wins over `size` for the text only; the box keeps the size's padding and
+  // floor. On a text control an empty font-size falls back to the seed, so
+  // this needs no `match`. NOTE iPhone Safari zooms the page when a field
+  // under 16px takes focus; the iOS and Android apps do not.
+  fontSize: string = "",
   // `data-testid` on the root element, for an end-to-end test to find this
   // one field by (Vector #24). Empty, the default, emits no attribute, so
   // every caller that never passed one renders exactly as before.
@@ -225,7 +234,7 @@ component TextInput(
     // falls back to the seed when it is '' (block-font-size.test.ts), so md
     // and sm render exactly as before. The weight has no seed: '' clears it
     // to the UA's normal, which is what the other sizes already render.
-    inputFontSize: size == "lg" ? '24px' : ''
+    inputFontSize: fontSize != "" ? fontSize : (size == "lg" ? '24px' : '')
     inputFontWeight: size == "lg" ? 700 : ''
   }
 
@@ -375,6 +384,7 @@ component TextInput(
               border: "none"
               background: "transparent"
               width: 100%
+              font-size: fontSize
               on input: emit("change", value)
               on focus: handleFocus()
               on blur: handleBlur()
