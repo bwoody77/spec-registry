@@ -106,13 +106,17 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     describedBy: errShown ? msgId : null
     // ── size (Vector I-5062) ─────────────────────────────────────────────────
     // "sm" matches Select's and TextInput's small field: a 30px floor on the
-    // trigger and the calendar button, and 4px 8px on the date area
-    // (4 + 20 + 4 = 28 under the floor), so the field measures 30 + 2×border
-    // = 32 beside them. "md" (the default) is the 36px floor and 8px padding
+    // trigger and the calendar button, and 0 8px on the date area, so the
+    // floor sets the height for any text line up to 30 and the field measures
+    // what they do (30 + 2×border content-box, 30 under a global border-box).
+    // It was 4px 8px on the reasoning "4 + 20 + 4 = 28 under the floor", but
+    // the line is the app's body-md line, not 20: Vector's is 23.6, so the
+    // date area was 31.6 and the field stood 33.6 beside a 30px TextInput
+    // (Vector I-5080). "md" (the default) is the 36px floor and 8px padding
     // every caller had before. Both are STRING lengths: a computed number
     // emits `min-height: 30`, which the browser drops (TextInput's note).
     triggerMinHeight: size == "sm" ? '30px' : '36px'
-    fieldPad: size == "sm" ? '4px 8px' : spacing.2
+    fieldPad: size == "sm" ? '0px 8px' : spacing.2
 
     valueISO: value != "" ? toISODate(value, format) : ""
     displayValue: value != "" ? value : ""
