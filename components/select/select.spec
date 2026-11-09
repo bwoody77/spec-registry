@@ -57,16 +57,26 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     // Per the padding invariant documented on the trigger below, the outer box
     // carries min-height and no padding while an inner box carries the padding
     // and the text. The rendered height is therefore
-    // max(min-height, padding×2 + line) + 2×border, so at "md" the outer 40
-    // beats the inner 8+20+8=36 and the control measures 42.
+    // max(min-height, padding×2 + line) + 2×border, where `line` is the
+    // app's body-md line box, not a constant. At a 20px line "md"'s outer 40
+    // beats the inner 8+20+8=36 and the control measures 42; at Vector's 23.6
+    // line under a global border-box the inner 39.6 + 2 border wins: 41.6.
     //
     // Drop min-height alone and the inner 36 becomes the floor: the control
     // goes 42 → 38 and looks untouched. Drop the padding alone and the outer 40
     // still wins: nothing moves at all. An earlier attempt at this prop changed
     // one of them, measured no change, and was reverted as a no-op.
     //
-    // "sm" is 4+20+4=28 under a 30 floor, so the control measures 32 — the
-    // height a filter toolbar wants beside a 30px segmented control.
+    // "sm" takes NO vertical padding (Vector I-5080), the same answer
+    // TextInput's "sm" gives: the 30 floor sets the height and the text line
+    // is centered inside it. It used to be 4px all round on the reasoning
+    // "4+20+4=28 under a 30 floor", but the line is the app's body-md line,
+    // not 20: Vector's is 23.6 (15.75px type), so the inner box was 31.6, beat
+    // the floor, and a small Select stood 33.6 beside a 30px small TextInput.
+    // With no vertical padding the floor wins for any line up to 30, so "sm"
+    // measures exactly what a small TextInput measures in the same app: 30 +
+    // 2×border in a content-box app (32), 30 where `box-sizing: border-box`
+    // is global (Vector). Horizontal padding stays 4px, or the text moves.
     //
     // ⚠ THE UNITS ARE LOAD-BEARING, and this prop shipped without them.
     //
@@ -84,7 +94,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     // asserts the emitted value is `40px` and has been RED on main since — a
     // guard doing its job into a room with nobody in it.
     triggerMinHeight: size == "sm" ? '30px' : '40px'
-    triggerPad: size == "sm" ? spacing.1 : spacing.2
+    triggerPad: size == "sm" ? '0px 4px' : spacing.2
 
     // ── appearance: "field" (default, unchanged) | "inline" (0.12.0) ─────────
     // Typed `string` since 0.12.2: a keyword, not copy, so `spec i18n extract`
