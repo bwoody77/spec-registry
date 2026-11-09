@@ -26,7 +26,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                      // passed in here, so pass it by hand only when the label
                      // is out of the compiler's sight (a FormField slot, a
                      // wrapper block) or the spoken name should differ.
-                     ariaLabel: text = "") {
+                     ariaLabel: text = "",
+                     // "md" (default, 38px) | "sm" (32px, beside a small
+                     // Select or TextInput in a dense form row).
+                     size: string = "md") {
   @state {
     open: false
     viewYear: 2026
@@ -101,6 +104,15 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // no error carries neither.
     invalidAttr: error == true ? 'true' : null
     describedBy: errShown ? msgId : null
+    // ── size (Vector I-5062) ─────────────────────────────────────────────────
+    // "sm" matches Select's and TextInput's small field: a 30px floor on the
+    // trigger and the calendar button, and 4px 8px on the date area
+    // (4 + 20 + 4 = 28 under the floor), so the field measures 30 + 2×border
+    // = 32 beside them. "md" (the default) is the 36px floor and 8px padding
+    // every caller had before. Both are STRING lengths: a computed number
+    // emits `min-height: 30`, which the browser drops (TextInput's note).
+    triggerMinHeight: size == "sm" ? '30px' : '36px'
+    fieldPad: size == "sm" ? '4px 8px' : spacing.2
 
     valueISO: value != "" ? toISODate(value, format) : ""
     displayValue: value != "" ? value : ""
@@ -714,7 +726,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // focus and carries the name (Vector I-1142).
     block {
       layout: horizontal, align: center, gap: 0px
-      min-height: 36px
+      min-height: triggerMinHeight
       // Ordering mirrors TextInput.spec exactly: error first, then tone, then
       // focus, then rest. The two match blocks are separate code — this trigger
       // is hand-styled to match rather than reusing TextInput — so they can
@@ -757,7 +769,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
       // Date input area
       block {
         grow: true
-        padding: spacing.2
+        padding: fieldPad
         cursor: "text"
         tabindex: "0"
         // The combobox is the tab stop, not the trigger wrapper around it: the
@@ -918,7 +930,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         background: "transparent"
         aria-label: "Open the calendar"
         width: 36px
-        min-height: 36px
+        min-height: triggerMinHeight
         layout: horizontal, justify: center, align: center
         border-left: match focused {
           true -> "1px solid " + semantic.interactive,
