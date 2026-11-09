@@ -11,7 +11,17 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 //
 // `testId` puts `data-testid` on the root element, for an end-to-end test to
 // find this one field by (Vector #24). Empty, the default, emits no attribute.
-component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: text = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: string = "field", testId: string = "") {
+//
+// `fontSize` (Vector #4934): the selected text and the option rows at a fixed
+// size ('13px'), for an app whose type scale is FIXED (Vector's shop phone
+// app: a 16px squawk picker sat beside 13px rows), as Button, Badge and
+// TextInput take it (#4819). '' (the default) draws body-md exactly as
+// before. A size keeps body-md's weight and line height and replaces only its
+// size; on iOS the closed field lowers to `.system(size:)`, which Dynamic
+// Type leaves alone (the open Menu is the system's and keeps its own font).
+// Each text is two arms of a `match` (see textArm), not one bound
+// `font-size:`, because a `font-size:` bound to '' clears the level's size.
+component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: text = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: string = "field", testId: string = "", fontSize: string = "") {
   @state {
     open: false
     query: ""
@@ -30,6 +40,8 @@ component Select(options: array = [], value: string = "", highlight: string = ""
   @computed {
     // null removes the attribute; "" would set data-testid="".
     testIdAttr: testId != "" ? testId : null
+    // `fontSize`'s arm. It never changes at a call site, so one arm mounts.
+    textArm: fontSize != "" ? "fixed" : "level"
 
     // ── The error, said as well as painted (Vector #989) ─────────────────────
     //
@@ -320,9 +332,20 @@ component Select(options: array = [], value: string = "", highlight: string = ""
         grow: true
         layout: horizontal, justify: triggerJustify, align: center, gap: triggerGap
         padding: triggerPad
-        text(displayText) {
-          style: type.body-md
-          color: displayColor
+        match textArm {
+          "fixed" -> {
+            text(displayText) {
+              style: type.body-md
+              font-size: fontSize
+              color: displayColor
+            }
+          },
+          _ -> {
+            text(displayText) {
+              style: type.body-md
+              color: displayColor
+            }
+          }
         }
         // Caret. An Icon, not the "\u25BE" text glyph it used to be: that glyph
         // is font-dependent (it renders at a different weight and baseline
@@ -446,9 +469,20 @@ component Select(options: array = [], value: string = "", highlight: string = ""
               on hover { background: token.select-optionHover }
               on click: selectOption(g._opt.value)
 
-              text(g._opt.label) {
-                style: type.body-md
-                color: g._opt.value == value ? semantic.interactive : semantic.text-primary
+              match textArm {
+                "fixed" -> {
+                  text(g._opt.label) {
+                    style: type.body-md
+                    font-size: fontSize
+                    color: g._opt.value == value ? semantic.interactive : semantic.text-primary
+                  }
+                },
+                _ -> {
+                  text(g._opt.label) {
+                    style: type.body-md
+                    color: g._opt.value == value ? semantic.interactive : semantic.text-primary
+                  }
+                }
               }
               // An option may carry `sub: string` (0.12.0): a second line
               // under its label, as an iOS menu item's subtitle.
