@@ -106,7 +106,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     describedBy: errShown ? msgId : null
     // ── size (Vector I-5062) ─────────────────────────────────────────────────
     // "sm" matches Select's and TextInput's small field: a 30px floor on the
-    // trigger and the calendar button, and 0 8px on the date area, so the
+    // trigger, and 0 8px on the date area, so the
     // floor sets the height for any text line up to 30 and the field measures
     // what they do (30 + 2×border content-box, 30 under a global border-box).
     // It was 4px 8px on the reasoning "4 + 20 + 4 = 28 under the floor", but
@@ -115,7 +115,19 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // (Vector I-5080). "md" (the default) is the 36px floor and 8px padding
     // every caller had before. Both are STRING lengths: a computed number
     // emits `min-height: 30`, which the browser drops (TextInput's note).
+    //
+    // The calendar button must not carry the floor itself in "sm". It used
+    // to repeat the trigger's 30px min-height so its divider ran the full
+    // height, but it sits INSIDE the trigger's border: under a global
+    // `box-sizing: border-box` (Vector) the trigger's 30 includes its 1px
+    // border, the button's 30 does not fit in the 28 left, and the field
+    // measured 32 beside a 30px TextInput. So "sm" stretches the row's
+    // children instead (triggerAlign) and the button takes the row's height
+    // whatever the box model; the date area centers its own text. "md" keeps
+    // the centered row and the button's 36 floor, exactly as before.
     triggerMinHeight: size == "sm" ? '30px' : '36px'
+    calMinHeight: size == "sm" ? 'auto' : '36px'
+    triggerAlign: size == "sm" ? 'stretch' : 'center'
     fieldPad: size == "sm" ? '0px 8px' : spacing.2
 
     valueISO: value != "" ? toISODate(value, format) : ""
@@ -729,7 +741,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // No role here: the combobox is the date field inside, the node that takes
     // focus and carries the name (Vector I-1142).
     block {
-      layout: horizontal, align: center, gap: 0px
+      layout: horizontal, align: triggerAlign, gap: 0px
       min-height: triggerMinHeight
       // Ordering mirrors TextInput.spec exactly: error first, then tone, then
       // focus, then rest. The two match blocks are separate code — this trigger
@@ -773,6 +785,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
       // Date input area
       block {
         grow: true
+        // A column that centers its line: in "sm" the row stretches this
+        // box to the floor, and the date stays in the middle of it. In "md"
+        // the box is its content's height, so nothing moves.
+        layout: vertical, justify: center
         padding: fieldPad
         cursor: "text"
         tabindex: "0"
@@ -934,7 +950,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         background: "transparent"
         aria-label: "Open the calendar"
         width: 36px
-        min-height: triggerMinHeight
+        min-height: calMinHeight
         layout: horizontal, justify: center, align: center
         border-left: match focused {
           true -> "1px solid " + semantic.interactive,
