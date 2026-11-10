@@ -21,7 +21,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 // Type leaves alone (the open Menu is the system's and keeps its own font).
 // Each text is two arms of a `match` (see textArm), not one bound
 // `font-size:`, because a `font-size:` bound to '' clears the level's size.
-component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: text = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: string = "field", testId: string = "", fontSize: string = "") {
+component Select(options: array = [], value: string = "", highlight: string = "", placeholder: text = "Select...", searchable: boolean = false, disabled: boolean = false, label: text = "", clearable: boolean = false, clearLabel: text = "Clear selection", error: boolean = false, errorMessage: text = "", ariaLabel: text = "", autoFocus: boolean = false, size: string = "md", appearance: string = "field", testId: string = "", fontSize: string = "", valueColor: string = "") {
   @state {
     open: false
     query: ""
@@ -106,9 +106,9 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     // asserts the emitted value is `40px` and has been RED on main since — a
     // guard doing its job into a room with nobody in it.
     triggerMinHeight: size == "sm" ? '30px' : '40px'
-    triggerPad: size == "sm" ? '0px 4px' : spacing.2
+    triggerPad: appearance == "plain" ? '0px' : (size == "sm" ? '0px 4px' : spacing.2)
 
-    // ── appearance: "field" (default, unchanged) | "inline" (0.12.0) ─────────
+    // ── appearance: "field" (default) | "inline" (0.12.0) | "plain" (0.17.0) ─
     // Typed `string` since 0.12.2: a keyword, not copy, so `spec i18n extract`
     // leaves a call site's "inline" out of its catalogs (Vector #1807).
     //
@@ -119,15 +119,29 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     // so its open list is as wide as that space. On iOS it is the same Menu
     // Picker with a plain label (Vector #1293). An error still draws the
     // destructive border, since an inline field has no other place to say it.
+    //
+    // "plain" (0.17.0) is a value written on a printed form (Vector I-5148,
+    // the training record sheet): no box, the picked value at the START of
+    // its cell in the text color, a small down caret after it, and no
+    // padding, so the value lines up with the printed words above and below
+    // it. The focus ring still shows where the keyboard is. A blank reads as
+    // the placeholder, in the tertiary color; the form around it draws the
+    // blank's own fill.
     isInline: appearance == "inline"
+    isPlain: appearance == "plain"
+    isBoxless: isInline || isPlain
     triggerBorder: error == true
       ? token.input-borderWidth + " solid " + semantic.destructive
-      : (isInline ? "none" : (focused ? token.input-borderWidth + " solid " + token.input-focusBorder : token.input-borderWidth + " solid " + token.select-border))
-    triggerBg: isInline ? "transparent" : token.select-bg
-    triggerHoverBg: disabled || isInline ? triggerBg : semantic.surface-raised
-    triggerJustify: isInline ? "end" : "between"
-    triggerGap: isInline ? spacing.1 : '0px'
-    caretColor: isInline ? semantic.interactive : semantic.text-tertiary
+      : (isBoxless ? "none" : (focused ? token.input-borderWidth + " solid " + token.input-focusBorder : token.input-borderWidth + " solid " + token.select-border))
+    triggerBg: isBoxless ? "transparent" : token.select-bg
+    triggerHoverBg: disabled || isBoxless ? triggerBg : semantic.surface-raised
+    triggerJustify: isInline ? "end" : (isPlain ? "start" : "between")
+    triggerGap: isInline ? spacing.1 : (isPlain ? '4px' : '0px')
+    // `valueColor` (0.17.0): the picked value, and its caret, in a color the
+    // caller names, for a Select drawn on a surface that is not the theme's
+    // (a paper form stays ink on white in a dark theme). '' (the default)
+    // keeps each appearance's own color.
+    caretColor: valueColor != "" ? valueColor : (isInline ? semantic.interactive : semantic.text-tertiary)
 
     safeOptions: options != null ? options : []
     // An option may carry `pinned: true` (0.13.0): the search never filters it
@@ -138,7 +152,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     filteredOptions: searchable && query != "" ? safeOptions.filter(o => o.pinned == true || o.label.toLowerCase().includes(query.toLowerCase())) : safeOptions
     selectedOption: safeOptions.find(o => o.value == value)
     displayText: selectedOption != null ? selectedOption.label : placeholder
-    displayColor: selectedOption != null ? (isInline ? semantic.interactive : semantic.text-primary) : semantic.text-tertiary
+    displayColor: selectedOption != null ? (valueColor != "" ? valueColor : (isInline ? semantic.interactive : semantic.text-primary)) : semantic.text-tertiary
     hasOptions: filteredOptions.length > 0
     // Option groups. An option may carry `group: string`; a non-interactive
     // header row renders above the FIRST option of each contiguous run of the
@@ -357,9 +371,16 @@ component Select(options: array = [], value: string = "", highlight: string = ""
         // collected from the names written at Icon calls, so a computed name
         // drew an empty box (Vector #1293).
         block {
-          visibility: !isInline
+          visibility: !isBoxless
           layout: horizontal
           Icon(name: 'chevron-down', size: 16, color: caretColor)
+        }
+        // "plain": a small caret, so it reads as a mark beside the value, not
+        // as a control's handle.
+        block {
+          visibility: isPlain
+          layout: horizontal
+          Icon(name: 'chevron-down', size: 12, color: caretColor)
         }
         block {
           visibility: isInline
