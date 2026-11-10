@@ -957,6 +957,13 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                 background: activeSegment == 0 ? semantic.interactive : "transparent"
                 border-radius: radius.sm
                 on click: focusSegment(0)
+                // A key-down of its own, though empty, keeps the compiler from making
+                // Enter/Space click this block (Vector #5035). A click on a segment
+                // focuses the segment, so every key after it is pressed here: Enter
+                // clicked the segment, re-ran focusSegment and sent the click up to
+                // every ancestor's click handler. The key still bubbles to the field's
+                // key-down, which handles it. Same on every segment below.
+                on key-down: {}
                 text(seg0Text) {
                   style: type.body-md
                   font-size: inlineSize
@@ -973,6 +980,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                 background: activeSegment == 1 ? semantic.interactive : "transparent"
                 border-radius: radius.sm
                 on click: focusSegment(1)
+                on key-down: {}
                 text(seg1Text) {
                   style: type.body-md
                   font-size: inlineSize
@@ -989,6 +997,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                 background: activeSegment == 2 ? semantic.interactive : "transparent"
                 border-radius: radius.sm
                 on click: focusSegment(2)
+                on key-down: {}
                 text(seg2Text) {
                   style: type.body-md
                   font-size: inlineSize
@@ -1024,6 +1033,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               tabindex: "-1"
               pointer-events: "none"
               on click: focusSegment(0)
+              on key-down: {}
               text(placeholderShown) {
                 style: type.body-md
                 font-size: inlineSize
@@ -1050,6 +1060,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                 background: activeSegment == 0 ? semantic.interactive : "transparent"
                 border-radius: radius.sm
                 on click: focusSegment(0)
+                on key-down: {}
                 text(seg0Text) {
                   style: type.body-md
                   color: activeSegment == 0 ? semantic.surface : (mask0 ? semantic.text-tertiary : semantic.text-primary)
@@ -1064,6 +1075,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                 background: activeSegment == 1 ? semantic.interactive : "transparent"
                 border-radius: radius.sm
                 on click: focusSegment(1)
+                on key-down: {}
                 text(seg1Text) {
                   style: type.body-md
                   color: activeSegment == 1 ? semantic.surface : (mask1 ? semantic.text-tertiary : semantic.text-primary)
@@ -1078,6 +1090,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                 background: activeSegment == 2 ? semantic.interactive : "transparent"
                 border-radius: radius.sm
                 on click: focusSegment(2)
+                on key-down: {}
                 text(seg2Text) {
                   style: type.body-md
                   color: activeSegment == 2 ? semantic.surface : (mask2 ? semantic.text-tertiary : semantic.text-primary)
@@ -1111,6 +1124,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               tabindex: "-1"
               pointer-events: "none"
               on click: focusSegment(0)
+              on key-down: {}
               text(placeholderShown) {
                 style: type.body-md
                 color: semantic.text-tertiary
