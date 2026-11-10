@@ -29,13 +29,33 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                      ariaLabel: text = "",
                      // "md" (default, 38px) | "sm" (32px, beside a small
                      // Select or TextInput in a dense form row).
-                     size: string = "md") {
+                     size: string = "md",
+                     // "field" (default, unchanged) | "inline" (0.14.0): a date
+                     // written on a printed form (Vector I-5148, the training
+                     // record sheet). No box: the date reads as text in its
+                     // cell, the calendar button shows only on hover or focus,
+                     // and typing it works as in the field. A blank shows the
+                     // placeholder; the form around it draws the blank's fill.
+                     appearance: string = "field",
+                     // The date's size and face in the "inline" look ('11.5px',
+                     // 'mono'; '' is 13px in the inherited face). The field
+                     // look keeps body-md and ignores both.
+                     fontSize: string = "",
+                     fontFamily: string = "",
+                     // The date's color, for a surface that is not the
+                     // theme's (paper stays ink on white in a dark theme). ''
+                     // keeps the text color. The mask and placeholder keep
+                     // their tertiary color.
+                     valueColor: string = "") {
   @state {
     open: false
     viewYear: 2026
     viewMonth: 2
     focusedDay: 1
     focused: false
+    // The pointer is over the trigger: the "inline" look shows its calendar
+    // button then, as it does on focus.
+    hovered: false
     // "The field should take focus back." A REQUEST, not a toggle. It used to
     // be flipped (`focusTrigger = focusTrigger == false`) on every close, and
     // bindFocus fires on the false->true EDGE only — so focus came back on
@@ -104,6 +124,30 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // no error carries neither.
     invalidAttr: error == true ? 'true' : null
     describedBy: errShown ? msgId : null
+    // ── appearance: "inline" (0.14.0, Vector I-5148) ─────────────────────────
+    // No border, fill or shadow at rest; the focus ring still says where the
+    // keyboard is, and an error or tone still paints its fill and border,
+    // since an inline date has no other place to say it. The calendar button
+    // has no divider and shows on hover, on focus and while the calendar is
+    // open (opacity, not visibility: it stays the same click target, and a
+    // touch focuses the field first). The texts are a `match` of two arms
+    // (textArm), as Select's fontSize is: a `font-size:` bound to '' clears
+    // the level's size, so the field look keeps its own unbound texts.
+    isInline: appearance == "inline"
+    textArm: isInline ? "inline" : "field"
+    inlineSize: fontSize != "" ? fontSize : '13px'
+    inlineFace: fontFamily != "" ? fontFamily : 'inherit'
+    inkColor: valueColor != "" ? valueColor : semantic.text-primary
+    restBg: isInline ? "transparent" : token.input-bg
+    restBorder: isInline
+      ? token.input-borderWidth + " solid transparent"
+      : (focused ? token.input-borderWidth + " solid " + semantic.interactive : token.input-borderWidth + " solid " + token.input-border)
+    restShadow: isInline ? "none" : token.input-shadow
+    calWidth: isInline ? '22px' : '36px'
+    calDivider: isInline
+      ? "none"
+      : (focused ? "1px solid " + semantic.interactive : "1px solid " + token.input-border)
+    calOpacity: isInline == false || focused || hovered || open ? 1 : 0
     // ── size (Vector I-5062) ─────────────────────────────────────────────────
     // "sm" matches Select's and TextInput's small field: a 30px floor on the
     // trigger, and 0 8px on the date area, so the
@@ -125,10 +169,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // children instead (triggerAlign) and the button takes the row's height
     // whatever the box model; the date area centers its own text. "md" keeps
     // the centered row and the button's 36 floor, exactly as before.
-    triggerMinHeight: size == "sm" ? '30px' : '36px'
-    calMinHeight: size == "sm" ? 'auto' : '36px'
-    triggerAlign: size == "sm" ? 'stretch' : 'center'
-    fieldPad: size == "sm" ? '0px 8px' : spacing.2
+    triggerMinHeight: isInline ? 'auto' : (size == "sm" ? '30px' : '36px')
+    calMinHeight: size == "sm" || isInline ? 'auto' : '36px'
+    triggerAlign: isInline ? 'center' : (size == "sm" ? 'stretch' : 'center')
+    fieldPad: isInline ? '0px 2px' : (size == "sm" ? '0px 8px' : spacing.2)
 
     valueISO: value != "" ? toISODate(value, format) : ""
     displayValue: value != "" ? value : ""
@@ -758,7 +802,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         _ -> match tone {
           "warning" -> semantic.warning-bg,
           "danger"  -> semantic.destructive-bg,
-          _ -> token.input-bg
+          _ -> restBg
         }
       }
       border: match error {
@@ -767,20 +811,19 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
           "warning"   -> token.input-borderWidth + " solid " + semantic.warning,
           "danger"    -> token.input-borderWidth + " solid " + semantic.destructive,
           "highlight" -> token.input-borderWidth + " solid " + semantic.interactive,
-          _ -> match focused {
-            true -> token.input-borderWidth + " solid " + semantic.interactive,
-            _ -> token.input-borderWidth + " solid " + token.input-border
-          }
+          _ -> restBorder
         }
       }
       shadow: match focused {
         true -> "0 0 0 3px " + token.input-focusRing,
-        _ -> token.input-shadow
+        _ -> restShadow
       }
       border-radius: token.input-radius
       transition: transition.focus
       opacity: disabled ? 0.5 : 1
       overflow: hidden
+      on mouse-enter: { hovered = true }
+      on mouse-leave: { hovered = false }
 
       // Date input area
       block {
@@ -858,88 +901,189 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
           }
         }
 
-        // Segmented date display (when editing segments, or when there is no
-        // placeholder to show)
-        block {
-          visibility: !showPlaceholder
-          layout: horizontal, align: center, gap: 0px
+        // Two arms, one per look (textArm). The field arm is the markup every
+        // caller had before; the inline arm is the same with its texts at
+        // inlineSize / inlineFace / inkColor. textArm never changes at a call
+        // site, so one arm mounts.
+        match textArm {
+          "inline" -> {
+            // Segmented date display (when editing segments, or when there is no
+            // placeholder to show)
+            block {
+              visibility: !showPlaceholder
+              layout: horizontal, align: center, gap: 0px
 
-          // Segment 0 — tabindex:"-1" removes it from the tab order so Tab
-          // moves focus OUT of the picker rather than cycling through segments.
-          // Click-to-focus still works; the parent block (tabindex:"0") is the
-          // sole tab stop for the whole date-input area.
-          block {
-            padding-x: 2px
-            cursor: "text"
-            tabindex: "-1"
-            background: activeSegment == 0 ? semantic.interactive : "transparent"
-            border-radius: radius.sm
-            on click: focusSegment(0)
-            text(seg0Text) {
-              style: type.body-md
-              color: activeSegment == 0 ? semantic.surface : (mask0 ? semantic.text-tertiary : semantic.text-primary)
+              // Segment 0 — tabindex:"-1" removes it from the tab order so Tab
+              // moves focus OUT of the picker rather than cycling through segments.
+              // Click-to-focus still works; the parent block (tabindex:"0") is the
+              // sole tab stop for the whole date-input area.
+              block {
+                padding-x: 2px
+                cursor: "text"
+                tabindex: "-1"
+                background: activeSegment == 0 ? semantic.interactive : "transparent"
+                border-radius: radius.sm
+                on click: focusSegment(0)
+                text(seg0Text) {
+                  style: type.body-md
+                  font-size: inlineSize
+                  font-family: inlineFace
+                  color: activeSegment == 0 ? semantic.surface : (mask0 ? semantic.text-tertiary : inkColor)
+                }
+              }
+              text(sep) { style: type.body-md, font-size: inlineSize, font-family: inlineFace, color: semantic.text-tertiary }
+              // Segment 1
+              block {
+                padding-x: 2px
+                cursor: "text"
+                tabindex: "-1"
+                background: activeSegment == 1 ? semantic.interactive : "transparent"
+                border-radius: radius.sm
+                on click: focusSegment(1)
+                text(seg1Text) {
+                  style: type.body-md
+                  font-size: inlineSize
+                  font-family: inlineFace
+                  color: activeSegment == 1 ? semantic.surface : (mask1 ? semantic.text-tertiary : inkColor)
+                }
+              }
+              text(sep) { style: type.body-md, font-size: inlineSize, font-family: inlineFace, color: semantic.text-tertiary }
+              // Segment 2
+              block {
+                padding-x: 2px
+                cursor: "text"
+                tabindex: "-1"
+                background: activeSegment == 2 ? semantic.interactive : "transparent"
+                border-radius: radius.sm
+                on click: focusSegment(2)
+                text(seg2Text) {
+                  style: type.body-md
+                  font-size: inlineSize
+                  font-family: inlineFace
+                  color: activeSegment == 2 ? semantic.surface : (mask2 ? semantic.text-tertiary : inkColor)
+                }
+              }
             }
-          }
-          text(sep) { style: type.body-md, color: semantic.text-tertiary }
-          // Segment 1
-          block {
-            padding-x: 2px
-            cursor: "text"
-            tabindex: "-1"
-            background: activeSegment == 1 ? semantic.interactive : "transparent"
-            border-radius: radius.sm
-            on click: focusSegment(1)
-            text(seg1Text) {
-              style: type.body-md
-              color: activeSegment == 1 ? semantic.surface : (mask1 ? semantic.text-tertiary : semantic.text-primary)
-            }
-          }
-          text(sep) { style: type.body-md, color: semantic.text-tertiary }
-          // Segment 2
-          block {
-            padding-x: 2px
-            cursor: "text"
-            tabindex: "-1"
-            background: activeSegment == 2 ? semantic.interactive : "transparent"
-            border-radius: radius.sm
-            on click: focusSegment(2)
-            text(seg2Text) {
-              style: type.body-md
-              color: activeSegment == 2 ? semantic.surface : (mask2 ? semantic.text-tertiary : semantic.text-primary)
-            }
-          }
-        }
 
-        // The placeholder, while the field is empty and not being typed into.
-        // A click on it does what a click on the first segment does: on web,
-        // focus has already armed the segments; where no keyboard reaches them
-        // (Android) focusSegment opens the calendar. truncate: 1 ends a long
-        // placeholder in "…" in a narrow field rather than running it under
-        // the calendar button. tabindex "-1", as on the segments: the field
-        // around it stays the one tab stop (a clickable block with none gets
-        // tabindex "0"). pointer-events "none" on the web (0.11.3, found by a
-        // Vector e2e on the Access tab): a press focuses the focusable node
-        // under it, which was this one, and it hides the moment focus arms the
-        // segments, so the browser moved focus to the page and every digit
-        // typed after a click on an empty field went nowhere. Now the press
-        // lands on the combobox around it, whose `on focus` arms the segments
-        // and keeps the keys. iOS and Android do not read pointer-events, so a
-        // tap there still runs focusSegment (Android: the calendar). It sits
-        // AFTER the segments so the first tabindex "-1" node in the field is
-        // still segment 0. The words are '' while hidden: text locators match
-        // hidden nodes, and a placeholder kept under a set date collided with
-        // any label or option that reads the same.
-        block {
-          visibility: showPlaceholder
-          padding-x: 2px
-          cursor: "text"
-          tabindex: "-1"
-          pointer-events: "none"
-          on click: focusSegment(0)
-          text(placeholderShown) {
-            style: type.body-md
-            color: semantic.text-tertiary
-            truncate: 1
+            // The placeholder, while the field is empty and not being typed into.
+            // A click on it does what a click on the first segment does: on web,
+            // focus has already armed the segments; where no keyboard reaches them
+            // (Android) focusSegment opens the calendar. truncate: 1 ends a long
+            // placeholder in "…" in a narrow field rather than running it under
+            // the calendar button. tabindex "-1", as on the segments: the field
+            // around it stays the one tab stop (a clickable block with none gets
+            // tabindex "0"). pointer-events "none" on the web (0.11.3, found by a
+            // Vector e2e on the Access tab): a press focuses the focusable node
+            // under it, which was this one, and it hides the moment focus arms the
+            // segments, so the browser moved focus to the page and every digit
+            // typed after a click on an empty field went nowhere. Now the press
+            // lands on the combobox around it, whose `on focus` arms the segments
+            // and keeps the keys. iOS and Android do not read pointer-events, so a
+            // tap there still runs focusSegment (Android: the calendar). It sits
+            // AFTER the segments so the first tabindex "-1" node in the field is
+            // still segment 0. The words are '' while hidden: text locators match
+            // hidden nodes, and a placeholder kept under a set date collided with
+            // any label or option that reads the same.
+            block {
+              visibility: showPlaceholder
+              padding-x: 2px
+              cursor: "text"
+              tabindex: "-1"
+              pointer-events: "none"
+              on click: focusSegment(0)
+              text(placeholderShown) {
+                style: type.body-md
+                font-size: inlineSize
+                color: semantic.text-tertiary
+                truncate: 1
+              }
+            }
+          },
+          _ -> {
+            // Segmented date display (when editing segments, or when there is no
+            // placeholder to show)
+            block {
+              visibility: !showPlaceholder
+              layout: horizontal, align: center, gap: 0px
+
+              // Segment 0 — tabindex:"-1" removes it from the tab order so Tab
+              // moves focus OUT of the picker rather than cycling through segments.
+              // Click-to-focus still works; the parent block (tabindex:"0") is the
+              // sole tab stop for the whole date-input area.
+              block {
+                padding-x: 2px
+                cursor: "text"
+                tabindex: "-1"
+                background: activeSegment == 0 ? semantic.interactive : "transparent"
+                border-radius: radius.sm
+                on click: focusSegment(0)
+                text(seg0Text) {
+                  style: type.body-md
+                  color: activeSegment == 0 ? semantic.surface : (mask0 ? semantic.text-tertiary : semantic.text-primary)
+                }
+              }
+              text(sep) { style: type.body-md, color: semantic.text-tertiary }
+              // Segment 1
+              block {
+                padding-x: 2px
+                cursor: "text"
+                tabindex: "-1"
+                background: activeSegment == 1 ? semantic.interactive : "transparent"
+                border-radius: radius.sm
+                on click: focusSegment(1)
+                text(seg1Text) {
+                  style: type.body-md
+                  color: activeSegment == 1 ? semantic.surface : (mask1 ? semantic.text-tertiary : semantic.text-primary)
+                }
+              }
+              text(sep) { style: type.body-md, color: semantic.text-tertiary }
+              // Segment 2
+              block {
+                padding-x: 2px
+                cursor: "text"
+                tabindex: "-1"
+                background: activeSegment == 2 ? semantic.interactive : "transparent"
+                border-radius: radius.sm
+                on click: focusSegment(2)
+                text(seg2Text) {
+                  style: type.body-md
+                  color: activeSegment == 2 ? semantic.surface : (mask2 ? semantic.text-tertiary : semantic.text-primary)
+                }
+              }
+            }
+
+            // The placeholder, while the field is empty and not being typed into.
+            // A click on it does what a click on the first segment does: on web,
+            // focus has already armed the segments; where no keyboard reaches them
+            // (Android) focusSegment opens the calendar. truncate: 1 ends a long
+            // placeholder in "…" in a narrow field rather than running it under
+            // the calendar button. tabindex "-1", as on the segments: the field
+            // around it stays the one tab stop (a clickable block with none gets
+            // tabindex "0"). pointer-events "none" on the web (0.11.3, found by a
+            // Vector e2e on the Access tab): a press focuses the focusable node
+            // under it, which was this one, and it hides the moment focus arms the
+            // segments, so the browser moved focus to the page and every digit
+            // typed after a click on an empty field went nowhere. Now the press
+            // lands on the combobox around it, whose `on focus` arms the segments
+            // and keeps the keys. iOS and Android do not read pointer-events, so a
+            // tap there still runs focusSegment (Android: the calendar). It sits
+            // AFTER the segments so the first tabindex "-1" node in the field is
+            // still segment 0. The words are '' while hidden: text locators match
+            // hidden nodes, and a placeholder kept under a set date collided with
+            // any label or option that reads the same.
+            block {
+              visibility: showPlaceholder
+              padding-x: 2px
+              cursor: "text"
+              tabindex: "-1"
+              pointer-events: "none"
+              on click: focusSegment(0)
+              text(placeholderShown) {
+                style: type.body-md
+                color: semantic.text-tertiary
+                truncate: 1
+              }
+            }
           }
         }
       }
@@ -949,13 +1093,12 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         border: "none"
         background: "transparent"
         aria-label: "Open the calendar"
-        width: 36px
+        width: calWidth
         min-height: calMinHeight
         layout: horizontal, justify: center, align: center
-        border-left: match focused {
-          true -> "1px solid " + semantic.interactive,
-          _ -> "1px solid " + token.input-border
-        }
+        border-left: calDivider
+        opacity: calOpacity
+        transition: transition.focus
         cursor: disabled ? "default" : "pointer"
         on hover { background: disabled ? "transparent" : semantic.surface-raised }
         on click: toggle()
