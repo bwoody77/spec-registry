@@ -907,6 +907,8 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         // site, so one arm mounts.
         match textArm {
           "inline" -> {
+            // Segments with no padding of their own: the date reads as it
+            // prints, 11/03/2026, not 11 / 03 / 2026.
             // Segmented date display (when editing segments, or when there is no
             // placeholder to show)
             block {
@@ -918,7 +920,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               // Click-to-focus still works; the parent block (tabindex:"0") is the
               // sole tab stop for the whole date-input area.
               block {
-                padding-x: 2px
+                padding-x: 0px
                 cursor: "text"
                 tabindex: "-1"
                 background: activeSegment == 0 ? semantic.interactive : "transparent"
@@ -934,7 +936,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               text(sep) { style: type.body-md, font-size: inlineSize, font-family: inlineFace, color: semantic.text-tertiary }
               // Segment 1
               block {
-                padding-x: 2px
+                padding-x: 0px
                 cursor: "text"
                 tabindex: "-1"
                 background: activeSegment == 1 ? semantic.interactive : "transparent"
@@ -950,7 +952,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               text(sep) { style: type.body-md, font-size: inlineSize, font-family: inlineFace, color: semantic.text-tertiary }
               // Segment 2
               block {
-                padding-x: 2px
+                padding-x: 0px
                 cursor: "text"
                 tabindex: "-1"
                 background: activeSegment == 2 ? semantic.interactive : "transparent"
@@ -986,7 +988,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
             // any label or option that reads the same.
             block {
               visibility: showPlaceholder
-              padding-x: 2px
+              padding-x: 0px
               cursor: "text"
               tabindex: "-1"
               pointer-events: "none"
