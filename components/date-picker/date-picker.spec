@@ -202,6 +202,9 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // A date needs all three parts. Until it has them there is nothing honest
     // to emit — see emitBuffer.
     segmentsComplete: monthTyped && dayTyped && yearTyped
+    // An empty field nobody has typed into yet: the prefill is not a date,
+    // so a click on any segment starts at the first (focusSegment).
+    untouched: value == "" && !monthTyped && !dayTyped && !yearTyped && digitBuffer == ""
     dMonth: editing == true ? segMonth : (parts != null ? parts.month + 1 : 1)
     dDay: editing == true ? segDay : (parts != null ? parts.day : 1)
     dYear: editing == true ? segYear : (parts != null ? parts.year : 2026)
@@ -464,7 +467,13 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         // Commit what was typed into the segment being LEFT. Clicking straight
         // from a half-typed month onto the day used to drop the month.
         flushSegment()
-        activeSegment = idx
+        // An empty field types from its first segment wherever it was clicked
+        // (Vector #5035). A click lands on whatever segment is under the
+        // pointer, and the digits of a whole date typed into the year were
+        // refused there (1110 is no year), leaving the month and day blank:
+        // Enter then had nothing to commit and the field read empty again.
+        // Once a segment holds something the click means "edit this one".
+        activeSegment = untouched ? 0 : idx
         digitBuffer = ""
       }
     }
@@ -622,6 +631,24 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
           advanceSegment()
         }
       }
+    }
+    // Enter commits a date the field holds, and is the field's alone either
+    // way (Vector #5035). Handled and then let go, it also reached every
+    // ancestor's key handler: a dialog's default action, a workbench's keys,
+    // which is how Enter in a date took a reviewer out of the review.
+    //
+    // A half-typed date is NOT thrown away here, as blur throws it away: the
+    // user is still in the field, so the digits stay on screen and typing
+    // goes on where it was. Discarding left an empty field reading MM/DD/YYYY
+    // after Enter, which reads as the date having been cleared. Only a buffer
+    // that is the date's LAST missing part is applied, so "11/10/26" + Enter
+    // commits 2026 while "11/1" + Enter leaves the 1 open for the 0.
+    enterSegments(event) {
+      consumeKey(event)
+      let segType = segments[activeSegment]
+      let othersTyped = segType == 'month' ? (dayTyped && yearTyped) : (segType == 'day' ? (monthTyped && yearTyped) : (monthTyped && dayTyped))
+      if digitBuffer != "" && othersTyped { applyBuffer() }
+      if segmentsComplete == true { commitSegments() }
     }
     commitSegments() {
       // Flush the half-typed segment first: blurring or tabbing out of a field
@@ -861,7 +888,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               "ArrowRight" -> nextSegment(),
               "ArrowUp" -> incrementSegment(),
               "ArrowDown" -> decrementSegment(),
-              "Enter" -> commitSegments(),
+              "Enter" -> enterSegments(event),
               // escapeSegments, not cancelSegments: abandoning a half-typed
               // date CONSUMES the key, so it must say so. Neither match here
               // is a top-level statement of the handler — they sit inside the
@@ -894,6 +921,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
               // would make this control a black hole — the dialog around it
               // could never be dismissed while focus sat on the field.
               "Escape" -> escapePopup(event),
+              // Nothing to commit (the segments disarm after a commit while
+              // focus stays here), but the key is still the field's: a
+              // second Enter must not reach the dialog either (#5035).
+              "Enter" -> consumeKey(event),
               "ArrowUp" -> activateSegments(),
               "ArrowDown" -> activateSegments(),
               _ -> {}
