@@ -245,6 +245,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     clearShown: clearable && disabled == false && value != ""
     // Every segment erased, nothing pending: Enter commits the clear.
     segmentsErased: !monthTyped && !dayTyped && !yearTyped && digitBuffer == ""
+    // The user took something away this edit. An unparseable `value` arms
+    // with its segments untyped too, which looks like an erased date; without
+    // `dirty` a focus and a blur would send '' over it (0.15.1).
+    userErased: clearable && value != "" && dirty
   }
 
   @watch {
@@ -682,7 +686,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         return
       }
       // A clearable date erased segment by segment: Enter means "that's it".
-      if clearable == true && value != "" && segmentsErased { commitSegments() }
+      if userErased && segmentsErased { commitSegments() }
     }
     commitSegments() {
       // Flush the half-typed segment first: blurring or tabbing out of a field
@@ -703,7 +707,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         // screen, though the user had taken it away; the field and the value
         // now agree on empty. Without `clearable` a held date cannot be
         // erased, so this only ever drops a half-typed new one, as before.
-        if clearable == true && value != "" { emit("change", "") }
+        if userErased { emit("change", "") }
       }
       activeSegment = -1
       editing = false
@@ -1200,8 +1204,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         border: "none"
         background: "transparent"
         aria-label: "Clear the date"
-        width: '28px'
+        width: isInline ? '22px' : '28px'
         min-height: calMinHeight
+        // The "inline" look shows it when it shows the calendar button.
+        opacity: calOpacity
         layout: horizontal, justify: center, align: center
         border-radius: radius.sm
         cursor: "pointer"
