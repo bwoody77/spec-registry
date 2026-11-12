@@ -7,6 +7,10 @@
     "value": "Elegir un año",
     "draft": true
   },
+  "Clear the date": {
+    "value": "Borrar la fecha",
+    "draft": true
+  },
   "Date picker": {
     "value": "Selector de fecha",
     "draft": true

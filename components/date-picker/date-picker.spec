@@ -46,7 +46,13 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
                      // theme's (paper stays ink on white in a dark theme). ''
                      // keeps the text color. The mask and placeholder keep
                      // their tertiary color.
-                     valueColor: string = "") {
+                     valueColor: string = "",
+                     // The date may be left empty (0.15.0, Vector I-5386). A
+                     // clear button shows in the field while it holds a date,
+                     // and Backspace/Delete erase a committed segment; leaving
+                     // the field with the date erased sends ''. Off by
+                     // default: a required date keeps what it holds, as before.
+                     clearable: boolean = false) {
   @state {
     open: false
     viewYear: 2026
@@ -233,6 +239,12 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // the mask back for entry; no placeholder keeps the mask as before.
     showPlaceholder: placeholder != "" && value == "" && editing == false
     placeholderShown: showPlaceholder ? placeholder : ""
+    // ── clearable (0.15.0, Vector I-5386) ────────────────────────────────────
+    // The button shows while there is a date to clear; it is a real <button>,
+    // so Tab reaches it and Enter or Space presses it.
+    clearShown: clearable && disabled == false && value != ""
+    // Every segment erased, nothing pending: Enter commits the clear.
+    segmentsErased: !monthTyped && !dayTyped && !yearTyped && digitBuffer == ""
   }
 
   @watch {
@@ -610,10 +622,27 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // are visible (see seg0Text), a mistype is something you can SEE, and the
     // only reasonable expectation is to be able to delete it. An already-empty
     // buffer steps back to the previous segment instead.
+    //
+    // On a `clearable` field, Backspace or Delete on a segment that holds
+    // something (and nothing pending) erases that segment instead: it shows
+    // its mask again, and the next Backspace steps back as above. Leaving the
+    // field with the date erased sends the clear (commitSegments). A field
+    // that does not opt in has no way to lose its date, as before.
     backspaceSegment() {
       if digitBuffer != "" {
         digitBuffer = digitBuffer.slice(0, digitBuffer.length - 1)
         return
+      }
+      if clearable == true {
+        let segType = segments[activeSegment]
+        let held = segType == 'month' ? monthTyped : (segType == 'day' ? dayTyped : yearTyped)
+        if held {
+          if segType == 'month' { monthTyped = false }
+          if segType == 'day' { dayTyped = false }
+          if segType == 'year' { yearTyped = false }
+          dirty = true
+          return
+        }
       }
       if activeSegment > 0 { activeSegment = activeSegment - 1 }
     }
@@ -648,7 +677,12 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
       let segType = segments[activeSegment]
       let othersTyped = segType == 'month' ? (dayTyped && yearTyped) : (segType == 'day' ? (monthTyped && yearTyped) : (monthTyped && dayTyped))
       if digitBuffer != "" && othersTyped { applyBuffer() }
-      if segmentsComplete == true { commitSegments() }
+      if segmentsComplete == true {
+        commitSegments()
+        return
+      }
+      // A clearable date erased segment by segment: Enter means "that's it".
+      if clearable == true && value != "" && segmentsErased { commitSegments() }
     }
     commitSegments() {
       // Flush the half-typed segment first: blurring or tabbing out of a field
@@ -663,6 +697,13 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         // rather than emitting e.g. 0710 downstream.
         let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
         emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
+      } else {
+        // A clearable field left with its date partly or wholly erased sends
+        // the clear (0.15.0). Dropping the edit put the old date back on
+        // screen, though the user had taken it away; the field and the value
+        // now agree on empty. Without `clearable` a held date cannot be
+        // erased, so this only ever drops a half-typed new one, as before.
+        if clearable == true && value != "" { emit("change", "") }
       }
       activeSegment = -1
       editing = false
@@ -716,6 +757,18 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
       consumeKey(event)
       cancelSegments()
     }
+    // The clear button (0.15.0). Drops any edit in progress, closes the
+    // calendar, sends '' and hands focus back to the field: the button hides
+    // once the date is gone, and focus must not fall to the page. The field's
+    // blur cleared refocusField, so this is a fresh false->true edge.
+    clearDate() {
+      if disabled == true { return }
+      cancelSegments()
+      open = false
+      popupView = 0
+      emit("change", "")
+      refocusField = true
+    }
     cancelSegments() {
       activeSegment = -1
       editing = false
@@ -749,8 +802,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // showing the old date, and blur sent it back, refilling the cleared
     // field. Not editing, nothing is held: the field reads `value` itself.
     //
-    // This picker never emits '', so an empty value always comes from the
-    // host. A date it emitted itself comes back equal to the segments and
+    // The picker emits '' only from a clearable field's clear (clearDate,
+    // or commitSegments), and both have left editing by the time it comes
+    // back, so an empty value met here comes from the host. A date it
+    // emitted itself comes back equal to the segments and
     // changes nothing (emit reaches the host synchronously, so no newer
     // keystroke can be waiting in digitBuffer behind it).
     followValue() {
@@ -879,6 +934,9 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         }
         on blur: {
           focused = false
+          // The refocus request is met once focus has been here and gone, so
+          // the next request (a close, a clear) is a fresh edge for bindFocus.
+          refocusField = false
           if editing == true { commitSegments() }
         }
         on key-down(event): {
@@ -1133,6 +1191,23 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
             }
           }
         }
+      }
+
+      // Clear button (0.15.0, `clearable`): only while the field holds a
+      // date. No divider: it belongs to the date, not to the calendar.
+      button {
+        visibility: clearShown
+        border: "none"
+        background: "transparent"
+        aria-label: "Clear the date"
+        width: '28px'
+        min-height: calMinHeight
+        layout: horizontal, justify: center, align: center
+        border-radius: radius.sm
+        cursor: "pointer"
+        on hover { background: semantic.surface-raised }
+        on click: clearDate()
+        text("\u00D7") { style: type.body-md, color: semantic.text-tertiary }
       }
 
       // Divider + calendar button
