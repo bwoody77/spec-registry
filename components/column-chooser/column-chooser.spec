@@ -159,6 +159,10 @@ component ColumnChooser(
   columnOrder: array = [],
   searchThreshold: number = 8,
   label: text = 'Columns',
+  // A square icon button, the label becoming its accessible name: for a
+  // page head with no room for the word (Vector I-5419, /fleet). Default
+  // false draws exactly what every other caller always got.
+  iconOnly: boolean = false,
 ) {
   @state {
     // Per-instance id, so two choosers on one page never share a drag session.
@@ -265,7 +269,7 @@ component ColumnChooser(
         // its label instead breaks the moment a consumer renames it.
         block {
           data-colchooser-trigger: _id
-          Button(label: label, iconLeft: 'columns-3', variant: 'secondary', size: 'sm')
+          Button(label: label, iconLeft: iconOnly ? '' : 'columns-3', iconOnly: iconOnly ? 'columns-3' : '', variant: 'secondary', size: 'sm')
         }
       }
       slot("content") {
