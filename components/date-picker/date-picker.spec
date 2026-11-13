@@ -673,7 +673,7 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     // ancestor's key handler: a dialog's default action, a workbench's keys,
     // which is how Enter in a date took a reviewer out of the review.
     //
-    // A half-typed date is NOT thrown away here, as blur throws it away: the
+    // A half-typed date is NOT thrown away here, as leaving throws it away: the
     // user is still in the field, so the digits stay on screen and typing
     // goes on where it was. Discarding left an empty field reading MM/DD/YYYY
     // after Enter, which reads as the date having been cleared. Only a buffer
@@ -778,9 +778,10 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     }
     // focus-out arrives before the focus-in of wherever focus goes next, so
     // the leave waits for that to run: inside the field it sets focusWithin
-    // again and nothing happens. Outside, the edit is committed as a blur of
-    // the field commits it (a half-typed date is discarded), and the
-    // highlight goes.
+    // again and nothing happens. Outside, the edit is committed (a
+    // half-typed date is discarded), and the highlight goes. This is every
+    // leave, from the field or from a segment: the field's blur commits
+    // nothing (Vector I-5569).
     fieldFocusOut() {
       focusWithin = false
       delay("dpLeave", 0) {
@@ -959,18 +960,21 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
           // The refocus request is met once focus has been here and gone, so
           // the next request (a close, a clear) is a fresh edge for bindFocus.
           refocusField = false
-          if editing == true { commitSegments() }
-          // Whatever `editing` says: no segment stays lit once focus is gone
-          // (Vector I-5562).
-          activeSegment = -1
+          // No commit here, and the highlight stays: focus-out below owns
+          // every leave (Vector I-5569). A mouse press on a segment moves
+          // focus off this box and onto the segment, so committing here
+          // discarded a half-typed month ("1", waiting for a possible 0-2)
+          // before the click's focusSegment could flush it into the month.
+          // The segments re-armed and the month read MM again.
         }
         // A click on a segment focuses the SEGMENT (tabindex "-1"), and `blur`
         // does not bubble, so focus leaving from there never reached the
         // handler above: the date stayed armed and its last typed segment
         // kept the blue highlight (Vector I-5562). focus-in / focus-out
         // bubble; leaveField runs once focus has settled outside the field,
-        // so a move between two segments, or onto the field itself, is not
-        // a leave.
+        // so a move between two segments, from the field onto a segment, or
+        // back onto the field, is not a leave. It is the only leave: the
+        // field's own blur commits nothing (I-5569).
         on focus-in: { focusWithin = true }
         on focus-out: fieldFocusOut()
         on key-down(event): {
