@@ -703,7 +703,14 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
         // `value` parsed back into segYear). Clamp into the supported window
         // rather than emitting e.g. 0710 downstream.
         let safeYear = segYear < 1900 ? 1900 : (segYear > 2200 ? 2200 : segYear)
-        emit("change", formatDateOutput(safeYear, segMonth - 1, segDay, format))
+        let out = formatDateOutput(safeYear, segMonth - 1, segDay, format)
+        // The date it already holds is not a change (0.15.4, Vector e2e B5c),
+        // as a calendar pick of the held day is not (selectDay). A whole
+        // date typed was sent as its last digit landed (emitBuffer), and the
+        // leave a tick later sent it again: a host saving on change saved
+        // twice, the second after a click had moved on (a review save landed
+        // after the import that filed it, and was refused).
+        if out != value { emit("change", out) }
       } else {
         // A clearable field left with its date partly or wholly erased sends
         // the clear (0.15.0). Dropping the edit put the old date back on
