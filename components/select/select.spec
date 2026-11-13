@@ -161,9 +161,20 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     // same order — so highlightIndex, scroll-to and selectHighlighted never
     // learn that headers exist. Group-less options mark no firsts and render
     // no headers, keeping every existing caller untouched.
+    // A pinned option is an action, not one more choice (0.18.0, Vector
+    // #5349): its label reads in the link color, and a hairline sets the
+    // first of a pinned run apart from the choices above it ("Custom
+    // check…", "Add aircraft type…"). `_pTop` / `_pRadius` carry the row's
+    // border and corners; a list with no pinned rows gets none and the
+    // ordinary corners, exactly as before.
+    pinnedRule: borders.default
+    pinnedRadius: "0px 0px " + radius.sm + " " + radius.sm
     groupedOptions: filteredOptions |> map((o, i) => {
       _opt: o,
-      _gFirst: o.group != null && o.group != '' && (i == 0 || filteredOptions[i - 1].group != o.group)
+      _gFirst: o.group != null && o.group != '' && (i == 0 || filteredOptions[i - 1].group != o.group),
+      _pinned: o.pinned == true,
+      _pTop: o.pinned == true && (i == 0 || filteredOptions[i - 1].pinned != true) ? pinnedRule : "none",
+      _pRadius: o.pinned == true && (i == 0 || filteredOptions[i - 1].pinned != true) ? pinnedRadius : radius.sm
     })
     // Index of the currently-selected option (0 when none) so opening the
     // dropdown highlights it — the `scroll-to: idx == highlightIndex` binding
@@ -472,7 +483,8 @@ component Select(options: array = [], value: string = "", highlight: string = ""
             }
             block {
               padding: spacing.2
-              border-radius: radius.sm
+              border-radius: g._pRadius
+              border-top: g._pTop
               cursor: "pointer"
               background: match idx == highlightIndex {
                 true -> token.select-optionHover,
@@ -495,13 +507,13 @@ component Select(options: array = [], value: string = "", highlight: string = ""
                   text(g._opt.label) {
                     style: type.body-md
                     font-size: fontSize
-                    color: g._opt.value == value ? semantic.interactive : semantic.text-primary
+                    color: g._pinned ? semantic.interactive-text : (g._opt.value == value ? semantic.interactive : semantic.text-primary)
                   }
                 },
                 _ -> {
                   text(g._opt.label) {
                     style: type.body-md
-                    color: g._opt.value == value ? semantic.interactive : semantic.text-primary
+                    color: g._pinned ? semantic.interactive-text : (g._opt.value == value ? semantic.interactive : semantic.text-primary)
                   }
                 }
               }
