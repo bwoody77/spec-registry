@@ -39,12 +39,24 @@ component Drawer(open: boolean = false, title: text = "", width: string = "280px
   }
 
   @actions {
+    // Both guards are load-bearing because the watch below is IMMEDIATE: it
+    // runs once at construction, so whichever arm matches must be a no-op when
+    // the drawer is already in that state. Same shape as modal.spec.
     doOpen() {
+      if showing { return }
       showing = true
       lockScroll()
       trapFocus()
     }
     doClose() {
+      // Without this, a drawer constructed CLOSED would run the `_` arm at
+      // mount: one phantom `close` emitted to a caller that wired real work to
+      // it (Vector's insurance-reporter clears `?tab=` on close), and an
+      // `unlockScroll()` that releases the lock a DIFFERENT, genuinely open
+      // dialog is holding. It also stops the second `close` a caller's own
+      // `open = false` used to trigger after the close button or the scrim
+      // had already closed the drawer.
+      if !showing { return }
       showing = false
       unlockScroll()
       releaseFocus()
@@ -52,8 +64,17 @@ component Drawer(open: boolean = false, title: text = "", width: string = "280px
     }
   }
 
+  // IMMEDIATE (`open!:`): it must also run at construction with the value the
+  // caller passed, not only on later changes. A drawer born with `open ==
+  // true` (a `visibility:`-gated subtree, which compiles to a lazyMount, or a
+  // page whose deep link sets the flag before the drawer is built) never ran
+  // doOpen under a plain watch: `showing` stayed false, the panel never drew,
+  // and its trigger did nothing for the rest of the visit, since setting a
+  // flag that is already true is no change (Vector I-5507, after #5294 found
+  // it on insurance-reporter `?tab=periods`). Modal had the same bug (Vector
+  // #646) and the same fix.
   @watch {
-    open: {
+    open!: {
       match open {
         true -> doOpen()
         _ -> doClose()
