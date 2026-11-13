@@ -59,6 +59,9 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
     viewMonth: 2
     focusedDay: 1
     focused: false
+    // Focus is on the field or on one of its segments (focus-in / focus-out,
+    // which bubble from a segment where focus / blur do not). See fieldFocusOut.
+    focusWithin: false
     // The pointer is over the trigger: the "inline" look shows its calendar
     // button then, as it does on focus.
     hovered: false
@@ -773,6 +776,21 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
       emit("change", "")
       refocusField = true
     }
+    // focus-out arrives before the focus-in of wherever focus goes next, so
+    // the leave waits for that to run: inside the field it sets focusWithin
+    // again and nothing happens. Outside, the edit is committed as a blur of
+    // the field commits it (a half-typed date is discarded), and the
+    // highlight goes.
+    fieldFocusOut() {
+      focusWithin = false
+      delay("dpLeave", 0) {
+        if focusWithin == false { leaveField() }
+      }
+    }
+    leaveField() {
+      if editing == true { commitSegments() }
+      activeSegment = -1
+    }
     cancelSegments() {
       activeSegment = -1
       editing = false
@@ -942,7 +960,19 @@ component DatePicker(value: string = "", label: text = "", placeholder: text = "
           // the next request (a close, a clear) is a fresh edge for bindFocus.
           refocusField = false
           if editing == true { commitSegments() }
+          // Whatever `editing` says: no segment stays lit once focus is gone
+          // (Vector I-5562).
+          activeSegment = -1
         }
+        // A click on a segment focuses the SEGMENT (tabindex "-1"), and `blur`
+        // does not bubble, so focus leaving from there never reached the
+        // handler above: the date stayed armed and its last typed segment
+        // kept the blue highlight (Vector I-5562). focus-in / focus-out
+        // bubble; leaveField runs once focus has settled outside the field,
+        // so a move between two segments, or onto the field itself, is not
+        // a leave.
+        on focus-in: { focusWithin = true }
+        on focus-out: fieldFocusOut()
         on key-down(event): {
           if activeSegment >= 0 {
             match event.key {
