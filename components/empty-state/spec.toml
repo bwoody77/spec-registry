@@ -1,6 +1,6 @@
 [package]
 name = "empty-state"
-version = "0.3.1"
+version = "0.4.0"
 category = "components"
 description = "Placeholder display shown when a view has no content or results"
 license = "MIT"

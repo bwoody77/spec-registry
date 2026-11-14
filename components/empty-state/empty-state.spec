@@ -1,10 +1,13 @@
-// `size` sizes the message to where the empty state sits (Vector I-5657):
-// "md" (default) is a page or list's own empty state, heading-sm; "sm" sits
-// inside a titled card and must not outrank that card's title, so its message
-// is heading-xs. Icon, description, padding and layout are the same at both.
-component EmptyState(message: text, description: text = "", size: string = "md") {
+// `size` sizes the empty state to where it sits (Vector I-5657, I-5659):
+// "sm" (default) is heading-xs over a 32px icon, the largest text an app page
+// draws under its shell title, so a page or list's empty state never reads as a
+// second page title; "md" is heading-sm over a 48px icon, for an empty state
+// that IS the whole screen and wants to be large. Description, padding and
+// layout are the same at both.
+component EmptyState(message: text, description: text = "", size: string = "sm") {
   @computed {
-    messageStyle: size == "sm" ? type.heading-xs : type.heading-sm
+    messageStyle: size == "md" ? type.heading-sm : type.heading-xs
+    iconSize: size == "md" ? icon.xxl : icon.xl
   }
 
   block {
@@ -12,7 +15,7 @@ component EmptyState(message: text, description: text = "", size: string = "md")
     padding: spacing.6
     role: "status"
 
-    Icon(name: "inbox", size: icon.xxl, color: semantic.text-tertiary)
+    Icon(name: "inbox", size: iconSize, color: semantic.text-tertiary)
 
     text(message) {
       style: messageStyle
