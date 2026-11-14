@@ -1,4 +1,4 @@
-@extern { toISODate, isoToOutput, todayStr } from "@spec/components/date-utils.js"
+@extern { isoToOutput, todayStr } from "@spec/components/date-utils.js"
 
 // DateRangePicker — a start and an end picked on ONE calendar.
 //
@@ -74,6 +74,10 @@ component DateRangePicker(start: string = "", end: string = "",
     focusIso: ""
     startText: ""
     endText: ""
+    // What each field showed after its last keystroke, so drpMaskTyped can
+    // tell a keystroke that added from one that erased.
+    startShown: ""
+    endShown: ""
     // Why Apply did not apply. Written only through setProblem(); the line
     // shows `probWords` (see "Saying it again").
     problem: ""
@@ -239,6 +243,8 @@ component DateRangePicker(start: string = "", end: string = "",
     syncTexts() {
       startText = draftStart != "" ? isoToOutput(draftStart, format) : ""
       endText = draftEnd != "" ? isoToOutput(draftEnd, format) : ""
+      startShown = startText
+      endShown = endText
     }
     // The pick is taken into a local before any field is written: each field
     // below feeds the computeds the next line would otherwise read.
@@ -332,12 +338,30 @@ component DateRangePicker(start: string = "", end: string = "",
         refocusTrigger = true
       }
     }
-    // A typed date counts once it is a whole, real date in `format`.
+    // Each keystroke reshapes the field (the separators go in by themselves)
+    // and a date counts as soon as it is whole: a four-digit year, a last
+    // part of two digits. A short year or bare digits wait for the commit
+    // (Enter, or focus leaving), since one more digit may still change them
+    // (drpParseTyped, Vector bwoody77/vector#5429).
     typeStart(v) {
-      startText = v
-      if v.length != format.length { return }
-      let iso = toISODate(v, format)
+      let shown = drpMaskTyped(startShown, v, format)
+      startText = shown
+      startShown = shown
+      let iso = drpParseTyped(shown, format, false)
       if iso == "" { return }
+      takeStart(iso)
+    }
+    // Enter or a leave: take what the field holds by the lenient reading and
+    // write it back in `format` ('6/1/26' → '06/01/2026'). A field that reads
+    // as no date is left as typed, as it was before.
+    commitStart() {
+      let iso = drpParseTyped(startText, format, true)
+      if iso == "" { return }
+      if iso != draftStart { takeStart(iso) }
+      startText = isoToOutput(iso, format)
+      startShown = startText
+    }
+    takeStart(iso) {
       setProblem("")
       // A typed start BEGINS a range, exactly as a clicked one does: the end is
       // suggested (or awaited) and stays tentative until Apply or a second
@@ -360,6 +384,7 @@ component DateRangePicker(start: string = "", end: string = "",
         suggested = se != ""
         picking = true
         endText = se != "" ? isoToOutput(se, format) : ""
+        endShown = endText
       }
       let nv = drpViewFor(iso, draftEnd, todayIso, months)
       viewYear = nv.year
@@ -367,10 +392,22 @@ component DateRangePicker(start: string = "", end: string = "",
       focusIso = iso
     }
     typeEnd(v) {
-      endText = v
-      if v.length != format.length { return }
-      let iso = toISODate(v, format)
+      let shown = drpMaskTyped(endShown, v, format)
+      endText = shown
+      endShown = shown
+      let iso = drpParseTyped(shown, format, false)
       if iso == "" { return }
+      takeEnd(iso)
+    }
+    // A typed end the user commits is chosen, even one equal to a suggestion.
+    commitEnd() {
+      let iso = drpParseTyped(endText, format, true)
+      if iso == "" { return }
+      if iso != draftEnd || suggested { takeEnd(iso) }
+      endText = isoToOutput(iso, format)
+      endShown = endText
+    }
+    takeEnd(iso) {
       draftEnd = iso
       suggested = false
       picking = false
@@ -723,6 +760,12 @@ component DateRangePicker(start: string = "", end: string = "",
                   placeholder: format
                   aria-label: "Start date"
                   on input: typeStart(startText)
+                  on blur: commitStart()
+                  on key-down(event): {
+                    if event.key == "Enter" {
+                      commitStart()
+                    }
+                  }
                 }
               }
             }
@@ -742,6 +785,12 @@ component DateRangePicker(start: string = "", end: string = "",
                   placeholder: format
                   aria-label: "End date"
                   on input: typeEnd(endText)
+                  on blur: commitEnd()
+                  on key-down(event): {
+                    if event.key == "Enter" {
+                      commitEnd()
+                    }
+                  }
                 }
               }
             }
@@ -1239,4 +1288,157 @@ fn drpPrompt(start: any, end: any, picking: boolean, suggested: boolean) -> stri
 // Do two ranges name exactly the same days?
 fn drpSame(aStart: any, aEnd: any, bStart: any, bEnd: any) -> boolean {
   return drpToDay(aStart) != null && aStart == bStart && aEnd == bEnd
+}
+
+// ── The typed Start / Through fields (Vector bwoody77/vector#5429) ───────────
+//
+// They used to take only a date typed whole in `format`, separators and all:
+// "6/1/26" was refused and every "/" was the user's to type. Now the separator
+// goes in as each part fills (drpMaskTyped), a whole date counts while the
+// user types (drpParseTyped, strict), and on commit (Enter, or focus leaving)
+// a short year or bare digits count too when only one date fits (lenient).
+// The formats are MM/DD/YYYY, DD/MM/YYYY and YYYY-MM-DD, or any order of
+// YYYY, MM and DD around one separator character.
+
+// The format's parts in order: 'MM/DD/YYYY' → ['M', 'D', 'Y'].
+fn drpFmtParts(format: any) -> list {
+  let f = typeOf(format) == 'string' ? format : ''
+  let out = []
+  for i in range(0, length(f)) {
+    let c = charAt(f, i)
+    if (c == 'Y' || c == 'M' || c == 'D') && (i == 0 || charAt(f, i - 1) != c) {
+      push(out, c)
+    }
+  }
+  if length(out) != 3 { return ['M', 'D', 'Y'] }
+  return out
+}
+
+fn drpFmtSep(format: any) -> string {
+  let f = typeOf(format) == 'string' ? format : ''
+  let m = regexMatch(f, '[^A-Za-z]')
+  if m == null { return '/' }
+  return m[0]
+}
+
+fn drpPartWidth(k: string) -> number {
+  return k == 'Y' ? 4 : 2
+}
+
+// What a field shows as it is typed. A part that fills gets the format's
+// separator after it ('06' → '06/'); a typed separator (any non-digit) closes
+// a short part ('6/'), and one typed right after an inserted separator is
+// not doubled; digits past a whole year are dropped. Only a field that GREW
+// is reshaped: an erase is left exactly as the user made it, so a backspace
+// over an inserted separator takes it away and never puts it back.
+fn drpMaskTyped(prev: any, typed: any, format: any) -> string {
+  let v = typeOf(typed) == 'string' ? typed : ''
+  let p = typeOf(prev) == 'string' ? prev : ''
+  if length(v) <= length(p) { return v }
+  let parts = drpFmtParts(format)
+  let sep = drpFmtSep(format)
+  let out = ''
+  let seg = 0
+  let count = 0
+  for i in range(0, length(v)) {
+    let c = charAt(v, i)
+    if regexTest(c, '^[0-9]$') {
+      if count < drpPartWidth(parts[seg]) {
+        out = out + c
+        count = count + 1
+        if count == drpPartWidth(parts[seg]) && seg < 2 {
+          out = out + sep
+          seg = seg + 1
+          count = 0
+        }
+      }
+    } else if count > 0 && seg < 2 {
+      out = out + sep
+      seg = seg + 1
+      count = 0
+    }
+  }
+  return out
+}
+
+// Three digit groups, in the format's order, as an ISO date or ''. A short
+// year (two digits) is this century's only when `shortYear`; `lastWhole`
+// asks for a last month or day of two digits, since one more digit may follow.
+fn drpGroupsIso(groups: list, parts: list, shortYear: boolean, lastWhole: boolean) -> string {
+  let y = 0
+  let m = 0
+  let d = 0
+  for k, i in parts {
+    let g = groups[i]
+    let n = length(g)
+    if k == 'Y' {
+      if n == 4 {
+        y = parseInt(g, 10)
+      } else if n == 2 && shortYear {
+        y = 2000 + parseInt(g, 10)
+      } else {
+        return ''
+      }
+    } else {
+      if n < 1 || n > 2 { return '' }
+      if lastWhole && i == 2 && n != 2 { return '' }
+      if k == 'M' {
+        m = parseInt(g, 10)
+      } else {
+        d = parseInt(g, 10)
+      }
+    }
+  }
+  let iso = padStart("{y}", 4, '0') + '-' + padStart("{m}", 2, '0') + '-' + padStart("{d}", 2, '0')
+  if drpToDay(iso) == null { return '' }
+  return iso
+}
+
+// Bare digits as a date, when exactly one way of splitting them is a real
+// date: '612026' is Jun 1 2026 (61 is no month), '11226' is Nov 2 or Jan 12,
+// so ''.
+fn drpDigitsIso(digits: string, parts: list) -> string {
+  let n = length(digits)
+  let w0 = parts[0] == 'Y' ? [2, 4] : [1, 2]
+  let w1 = parts[1] == 'Y' ? [2, 4] : [1, 2]
+  let w2 = parts[2] == 'Y' ? [2, 4] : [1, 2]
+  let found = ''
+  let count = 0
+  for a in w0 {
+    for b in w1 {
+      for c in w2 {
+        if a + b + c == n {
+          let iso = drpGroupsIso([slice(digits, 0, a), slice(digits, a, a + b), slice(digits, a + b, n)], parts, true, false)
+          if iso != '' && iso != found {
+            found = iso
+            count = count + 1
+          }
+        }
+      }
+    }
+  }
+  if count != 1 { return '' }
+  return found
+}
+
+// A typed field as an ISO date, or ''. Strict (`commit` false) is the test
+// while typing: three parts, a four-digit year, a last part that is whole.
+// On commit a two-digit year counts, and so do bare digits when one date
+// fits them, including digits the mask grouped by width ('61/20/26', which is
+// 612026 typed): only when every separator sits after a WHOLE part, since a
+// separator typed after a short one was meant ('1/13/26' in DD/MM is no date).
+fn drpParseTyped(text: any, format: any, commit: boolean) -> string {
+  let t = typeOf(text) == 'string' ? trim(text) : ''
+  if t == '' { return '' }
+  let parts = drpFmtParts(format)
+  let groups = regexSplit(t, '[^0-9]+') |> filter(g => g != '')
+  if length(groups) == 3 {
+    let iso = drpGroupsIso(groups, parts, commit, commit == false)
+    if iso != '' { return iso }
+  }
+  if commit == false || length(groups) > 3 { return '' }
+  for g, i in groups {
+    if i < length(groups) - 1 && length(g) != drpPartWidth(parts[i]) { return '' }
+  }
+  return drpDigitsIso(join(groups, ''), parts)
 }
