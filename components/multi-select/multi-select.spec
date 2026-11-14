@@ -5,7 +5,7 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
 
 // `ariaLabel` is normally supplied by the compiler from the visible label
 // rendered beside the control (ast-to-ir inferAccessibleNames), not by hand.
-component MultiSelect(options: array = [], values: array = [], placeholder: text = "Select...", searchable: boolean = true, disabled: boolean = false, label: text = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3, ariaLabel: text = "", summary: text = "") {
+component MultiSelect(options: array = [], values: array = [], placeholder: text = "Select...", searchable: boolean = true, disabled: boolean = false, label: text = "", display: string = "chips", showCheckbox: boolean = true, mode: string = "dropdown", maxChips: number = 3, ariaLabel: text = "", summary: text = "", size: string = "md") {
   @state {
     open: false
     query: ""
@@ -84,6 +84,16 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
     // grows at a time and the caret's fixed 16px width is never squeezed —
     // it stays pinned to the far right.
     showTextSummary: hasSelections && display == "text"
+
+    // ── size: "md" (default, unchanged) | "sm" (0.10.0, Vector I-5651) ──────
+    // "sm" stands as tall as Select's and TextInput's "sm" beside it in a form
+    // grid: a 30px floor and NO vertical padding, so the floor sets the height
+    // whatever the app's body-md line (Select's own note on why the padding
+    // must go with the floor). 4px each side, as Select's "sm". The units are
+    // load-bearing: a bound size without one is not CSS and is dropped.
+    // "md" keeps 0.9.x exactly: spacing.2 all round over a 24px floor.
+    triggerMinHeight: size == "sm" ? '30px' : '24px'
+    triggerPad: size == "sm" ? '0px 4px' : spacing.2
   }
 
   @actions {
@@ -211,8 +221,8 @@ component MultiSelect(options: array = [], values: array = [], placeholder: text
         // `min-height` is ADDED to it (content-box), which rendered this
         // control ~56px next to Select's 40 in every app that used both.
         // The height-bearing box budgets for its padding instead.
-        padding: spacing.2
-        min-height: 24px
+        padding: triggerPad
+        min-height: triggerMinHeight
         background: token.select-bg
         border: match focused {
           true -> token.input-borderWidth + " solid " + token.input-focusBorder,
