@@ -3,7 +3,8 @@
 // draws under its shell title, so a page or list's empty state never reads as a
 // second page title; "md" is heading-sm over a 48px icon, for an empty state
 // that IS the whole screen and wants to be large. Description, padding and
-// layout are the same at both.
+// layout are the same at both: the description is centered and capped near 60
+// characters.
 component EmptyState(message: text, description: text = "", size: string = "sm") {
   @computed {
     messageStyle: size == "md" ? type.heading-sm : type.heading-xs
@@ -22,10 +23,20 @@ component EmptyState(message: text, description: text = "", size: string = "sm")
       color: semantic.text-primary
     }
 
-    text(description) {
+    // The description is centered under the message and stops near 60
+    // characters (0.4.1, Vector I-5685). A one-line description centered only
+    // because it shrank to fit; a longer one filled the card and its lines
+    // started at the left edge, under a centered heading.
+    block {
       visibility: description != ""
-      style: type.body-md
-      color: semantic.text-secondary
+      layout: vertical
+      max-width: '60ch'
+
+      text(description) {
+        style: type.body-md
+        color: semantic.text-secondary
+        text-align: 'center'
+      }
     }
   }
 }
