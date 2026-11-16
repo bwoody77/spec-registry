@@ -87,9 +87,12 @@ component Radio(label: text, value: string = "", checked: boolean = false, disab
     // (self-redeem / discovery flights)" wrapped into a 268px box with 209px of
     // glyphs, sitting 30px in, while the option below it started somewhere else
     // again. `start` rather than `left` so RTL flips.
+    //
+    // No `font-weight`: the label reads at its type level's body weight (400),
+    // checked or not. It used to borrow `token.btn-fontWeight`, which drew every
+    // option heavier than the mockups (Vector I-5952).
     text(label) {
       style: type.body-md
-      font-weight: token.btn-fontWeight
       color: semantic.text-secondary
       text-align: start
     }
