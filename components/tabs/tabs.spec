@@ -558,7 +558,11 @@ component TabsItem(tab: object, active: boolean = false, variant: string = "pill
     // The ONLY thing size changes. The radius, the borders and the count badge
     // are untouched, so a small strip is the same control drawn tighter rather
     // than a second design.
-    padY:        variant == 'segmented' ? 6px : (size == 'sm' ? (variant == 'pill' ? 4px : 5px) : (variant == 'pill' ? 9px : 10px))
+    // A segmented item at sm is 1px: its 24px line and 1px borders make a
+    // 28px segment, so the 2px track stands 32px beside a small Select or
+    // Button. Before (Vector I-5991) it kept 6px at sm too, and the track was
+    // 42px, the very height `size` exists to bring down.
+    padY:        variant == 'segmented' ? (size == 'sm' ? 1px : 6px) : (size == 'sm' ? (variant == 'pill' ? 4px : 5px) : (variant == 'pill' ? 9px : 10px))
     padX:        variant == 'segmented' ? 12px : (size == 'sm' ? (variant == 'pill' ? 10px : 12px) : (variant == 'pill' ? 12px : 16px))
     itemRadius:  variant == 'pill' ? 8px : (variant == 'segmented' ? 7px : 0px)
     // pill: filled chip when active. underline: no chip. segmented: the
