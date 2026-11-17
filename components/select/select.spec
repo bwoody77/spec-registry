@@ -3,6 +3,51 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
+// ── Type-ahead (Vector I-6156) ──────────────────────────────────────────────
+//
+// A focused Select answers typed letters the way a native <select> does:
+// "c" goes to the first option whose label starts with C, "ca" typed quickly
+// to the first starting with "ca", and the letters are forgotten after a
+// second without typing (the `typeAheadReset` delay). Case is ignored.
+//
+// Pressing the SAME letter again walks the options that start with it, so
+// "c", "c", "c" visits each C in turn, as a native select does: when the
+// current option already starts with the letter, the next one after it is
+// taken (wrapping); otherwise the first one from the top.
+//
+// A disabled option (`disabled: true`) is never landed on, and neither is a
+// pinned one: a pinned row is an action ("Add aircraft type…"), and a typed
+// letter must not fire it from a closed field.
+//
+// -1 means nothing matches, and the caller changes nothing.
+fn selTypeAheadHit(o: map, q: string) -> boolean {
+  if o == null || o.disabled == true || o.pinned == true || o.label == null { return false }
+  return startsWith(toLowerCase(o.label), q)
+}
+
+fn selectTypeAheadIndex(options: list, buffer: string, current: number) -> number {
+  let n = length(options)
+  if n == 0 || buffer == "" { return -1 }
+  let q = toLowerCase(buffer)
+  let one = charAt(q, 0)
+  let repeated = true
+  for i in range(1, length(q)) {
+    if charAt(q, i) != one { repeated = false }
+  }
+  if repeated && current >= 0 && current < n && selTypeAheadHit(options[current], one) {
+    for k in range(1, n) {
+      let j = (current + k) % n
+      if selTypeAheadHit(options[j], one) { return j }
+    }
+    return current
+  }
+  let want = repeated ? one : q
+  for i in range(0, n) {
+    if selTypeAheadHit(options[i], want) { return i }
+  }
+  return -1
+}
+
 // `ariaLabel` is normally supplied by the compiler, not by hand: a control
 // rendered under its own `text('ROLE')` gets that label synthesized in as this
 // prop (ast-to-ir inferAccessibleNames). Pass it explicitly only when the
@@ -35,6 +80,9 @@ component Select(options: array = [], value: string = "", highlight: string = ""
     errWords: error == true ? errorMessage : ''
     // True for 100ms after the line went empty.
     errHeld: false
+    // The letters typed so far on the focused trigger (type-ahead, see
+    // selectTypeAheadIndex). Emptied a second after the last one.
+    typeBuf: ""
   }
 
   @computed {
@@ -257,6 +305,25 @@ component Select(options: array = [], value: string = "", highlight: string = ""
         highlightIndex = wrapIndex(highlightIndex, delta, filteredOptions.length)
       }
     }
+    // Closed: the match becomes the value, as on a native select. Open: the
+    // match is highlighted, and Enter picks it.
+    typeAhead(ch) {
+      typeBuf = typeBuf + ch
+      delay("typeAheadReset", 1000) {
+        typeBuf = ""
+      }
+      let current = open ? highlightIndex : (selectedOption != null ? selectedIndex : -1)
+      let i = selectTypeAheadIndex(filteredOptions, typeBuf, current)
+      if i >= 0 {
+        if open {
+          highlightIndex = i
+        } else {
+          if filteredOptions[i].value != value {
+            emit("change", filteredOptions[i].value)
+          }
+        }
+      }
+    }
     selectHighlighted() {
       if filteredOptions.length > 0 && highlightIndex < filteredOptions.length {
         selectOption(filteredOptions[highlightIndex].value)
@@ -341,6 +408,16 @@ component Select(options: array = [], value: string = "", highlight: string = ""
             event.preventDefault()
             closeDropdown()
           }
+          return
+        }
+        // Type-ahead: one printable character, with no Ctrl, Cmd or Alt
+        // (a shortcut is not a letter). Space joins a search already under
+        // way ("cessna 1"); on its own it still opens or picks, below. Kept
+        // out of the match for the same reason as Escape: an arm per letter
+        // is impossible, and the `_` arm must stay a no-op.
+        if event.key.length == 1 && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key != ' ' || typeBuf != '') {
+          event.preventDefault()
+          typeAhead(event.key)
           return
         }
         match event.key {
