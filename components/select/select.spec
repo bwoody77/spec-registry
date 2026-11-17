@@ -3,6 +3,28 @@ fn wrapIndex(index: number, delta: number, len: number) -> number {
   return ((index + delta) % len + len) % len
 }
 
+// ── Disabled options (0.19.1, Vector bwoody77/vector#5923) ──────────────────
+//
+// An option may carry `disabled: true`: it is drawn dimmed and announced
+// aria-disabled, a click on it does nothing, the arrows step over it, and
+// Enter or Space on it picks nothing. Before 0.19.1 only type-ahead read the
+// flag, so a click or arrows-plus-Enter picked a value the form meant to
+// refuse.
+//
+// The row `delta` (1 or -1) away from `from` that is not disabled, wrapping
+// past either end, as the arrows move. A list with no enabled row leaves the
+// highlight where it is.
+fn selectStepEnabledIndex(options: list, from: number, delta: number) -> number {
+  let n = length(options)
+  if n <= 0 { return 0 }
+  let i = from
+  for k in range(0, n) {
+    i = wrapIndex(i, delta, n)
+    if options[i] == null || options[i].disabled != true { return i }
+  }
+  return from
+}
+
 // ── Type-ahead (Vector I-6156) ──────────────────────────────────────────────
 //
 // A focused Select answers typed letters the way a native <select> does:
@@ -300,9 +322,17 @@ component Select(options: array = [], value: string = "", highlight: string = ""
       query = v
       highlightIndex = 0
     }
+    // Steps over a disabled option (selectStepEnabledIndex).
     moveHighlight(delta) {
       if filteredOptions.length > 0 {
-        highlightIndex = wrapIndex(highlightIndex, delta, filteredOptions.length)
+        highlightIndex = selectStepEnabledIndex(filteredOptions, highlightIndex, delta)
+      }
+    }
+    // The one door a row is picked through, by click or by Enter / Space:
+    // a disabled row picks nothing, and the list stays open on it.
+    selectAt(i) {
+      if i >= 0 && i < filteredOptions.length && filteredOptions[i].disabled != true {
+        selectOption(filteredOptions[i].value)
       }
     }
     // Closed: the match becomes the value, as on a native select. Open: the
@@ -325,9 +355,7 @@ component Select(options: array = [], value: string = "", highlight: string = ""
       }
     }
     selectHighlighted() {
-      if filteredOptions.length > 0 && highlightIndex < filteredOptions.length {
-        selectOption(filteredOptions[highlightIndex].value)
-      }
+      selectAt(highlightIndex)
     }
   }
 
@@ -562,7 +590,10 @@ component Select(options: array = [], value: string = "", highlight: string = ""
               padding: spacing.2
               border-radius: g._pRadius
               border-top: g._pTop
-              cursor: "pointer"
+              // A disabled option (0.19.1) is dimmed and offers no pointer,
+              // as MultiSelect's row.
+              cursor: g._opt.disabled == true ? "default" : "pointer"
+              opacity: g._opt.disabled == true ? 0.5 : 1
               background: match idx == highlightIndex {
                 true -> token.select-optionHover,
                 _ -> match g._opt.value == value {
@@ -576,8 +607,9 @@ component Select(options: array = [], value: string = "", highlight: string = ""
               // inferable: only this component knows which row is current, so
               // it says so here.
               aria-selected: g._opt.value == value
-              on hover { background: token.select-optionHover }
-              on click: selectOption(g._opt.value)
+              aria-disabled: g._opt.disabled == true
+              on hover { background: g._opt.disabled == true ? "transparent" : token.select-optionHover }
+              on click: selectAt(idx)
 
               match textArm {
                 "fixed" -> {
