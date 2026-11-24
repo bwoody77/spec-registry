@@ -87,6 +87,14 @@ component TextInput(
   // this needs no `match`. NOTE iPhone Safari zooms the page when a field
   // under 16px takes focus; the iOS and Android apps do not.
   fontSize: string = "",
+  // The typed text's alignment and face (Vector bwoody77/vector#6247): a
+  // column of hours lines up with `align: "end"` and `fontFamily: "mono"`.
+  // `align` takes text-align's logical words (start, center, end); '', the
+  // default, sets nothing, so the field keeps the UA's start. `fontFamily`
+  // takes "mono" (or "body", "heading", a font stack); '' keeps the
+  // inherited face. Both defaults render every existing field as before.
+  align: string = "",
+  fontFamily: string = "",
   // `data-testid` on the root element, for an end-to-end test to find this
   // one field by (Vector #24). Empty, the default, emits no attribute, so
   // every caller that never passed one renders exactly as before.
@@ -236,6 +244,11 @@ component TextInput(
     // to the UA's normal, which is what the other sizes already render.
     inputFontSize: fontSize != "" ? fontSize : (size == "lg" ? '24px' : '')
     inputFontWeight: size == "lg" ? 700 : ''
+    // `fontFamily` (Vector bwoody77/vector#6247). Every form tag is given
+    // font-family: inherit, so the default must SAY "inherit": a bound ''
+    // would clear that inline value and draw the UA's own face. "mono" is a
+    // keyword a bound font-family reads as the mono stack.
+    inputFontFamily: fontFamily != "" ? fontFamily : "inherit"
   }
 
   @watch {
@@ -411,6 +424,8 @@ component TextInput(
               width: 100%
               font-size: inputFontSize
               font-weight: inputFontWeight
+              font-family: inputFontFamily
+              text-align: align
               on input: emit("change", value)
               on focus: handleFocus()
               on blur: handleBlur()
